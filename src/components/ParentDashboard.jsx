@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { getMessageCategory, LoadingPanel } from './dashboardUi';
 
 const MESSAGE_SELECT = `
   id,
@@ -39,11 +40,43 @@ function getMessageLabel(message, studentNameById, groupNameById) {
   return 'Notification';
 }
 
+function FeedItem({ message, studentNameById, groupNameById, isNew, onAnimationEnd }) {
+  const category = getMessageCategory(message);
+
+  return (
+    <li
+      className={isNew ? 'feed-item-enter' : undefined}
+      onAnimationEnd={isNew ? onAnimationEnd : undefined}
+    >
+      <article className={`feed-card feed-card--${category.key}`}>
+        <div className={`feed-badge feed-badge--${category.key}`} aria-hidden="true">
+          {category.icon}
+        </div>
+        <div className="feed-content">
+          <header className="feed-header">
+            <div>
+              <span className="feed-label">
+                {getMessageLabel(message, studentNameById, groupNameById)}
+              </span>
+              <span className="feed-category">{category.label}</span>
+            </div>
+            <time className="feed-time" dateTime={message.created_at}>
+              {formatTimestamp(message.created_at)}
+            </time>
+          </header>
+          <p className="feed-body">{message.body}</p>
+        </div>
+      </article>
+    </li>
+  );
+}
+
 export default function ParentDashboard({ profile }) {
   const [students, setStudents] = useState([]);
   const [studentIds, setStudentIds] = useState([]);
   const [groupIds, setGroupIds] = useState([]);
   const [messages, setMessages] = useState([]);
+  const [newMessageIds, setNewMessageIds] = useState(() => new Set());
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -84,6 +117,15 @@ export default function ParentDashboard({ profile }) {
     return data ?? [];
   }, []);
 
+  function clearNewMessageAnimation(messageId) {
+    setNewMessageIds((current) => {
+      if (!current.has(messageId)) return current;
+      const next = new Set(current);
+      next.delete(messageId);
+      return next;
+    });
+  }
+
   useEffect(() => {
     let mounted = true;
 
@@ -91,6 +133,7 @@ export default function ParentDashboard({ profile }) {
       setLoading(true);
       setError(null);
       setFeedReady(false);
+      setNewMessageIds(new Set());
 
       const { data: links, error: linksError } = await supabase
         .from('student_parents')
@@ -214,6 +257,8 @@ export default function ParentDashboard({ profile }) {
             return;
           }
 
+          setNewMessageIds((current) => new Set(current).add(enrichedMessage.id));
+
           setMessages((current) => {
             if (current.some((message) => message.id === enrichedMessage.id)) {
               return current;
@@ -230,30 +275,26 @@ export default function ParentDashboard({ profile }) {
   }, [feedReady, profile.id, studentIds, groupIds]);
 
   if (loading) {
-    return (
-      <main style={styles.page}>
-        <p>Loading your feed…</p>
-      </main>
-    );
+    return <LoadingPanel message="Loading your feed…" />;
   }
 
   if (error) {
     return (
-      <main style={styles.page}>
-        <p style={styles.error}>Could not load feed: {error}</p>
+      <main className="dash-page">
+        <p className="dash-error">Could not load feed: {error}</p>
       </main>
     );
   }
 
   return (
-    <main style={styles.page}>
-      <header style={styles.header}>
-        <h1 style={styles.title}>Updates</h1>
-        <p style={styles.subtitle}>
+    <main className="dash-page">
+      <header className="dash-header">
+        <h1 className="dash-title">Updates</h1>
+        <p className="dash-subtitle">
           Welcome, {profile?.full_name ?? profile?.email ?? 'Parent'}.
         </p>
         {students.length > 0 && (
-          <p style={styles.children}>
+          <p className="dash-meta">
             Following updates for{' '}
             {students.map((student) => student.full_name).join(', ')}
           </p>
@@ -261,135 +302,35 @@ export default function ParentDashboard({ profile }) {
       </header>
 
       {students.length === 0 ? (
-        <section style={styles.emptyCard}>
-          <h2 style={styles.emptyTitle}>No children linked</h2>
-          <p style={styles.emptyText}>
+        <section className="empty-card">
+          <h2 className="empty-title">No children linked</h2>
+          <p className="empty-text">
             Your account is not linked to any students yet. Contact the daycare admin
             to connect your profile.
           </p>
         </section>
       ) : messages.length === 0 ? (
-        <section style={styles.emptyCard}>
-          <h2 style={styles.emptyTitle}>No messages yet</h2>
-          <p style={styles.emptyText}>
+        <section className="empty-card">
+          <h2 className="empty-title">No messages yet</h2>
+          <p className="empty-text">
             When the daycare sends notifications for your children, they will appear
             here instantly.
           </p>
         </section>
       ) : (
-        <ol style={styles.timeline}>
+        <ol className="feed-list">
           {messages.map((message) => (
-            <li key={message.id} style={styles.timelineItem}>
-              <div style={styles.timelineDot} aria-hidden="true" />
-              <article style={styles.messageCard}>
-                <header style={styles.messageHeader}>
-                  <span style={styles.messageLabel}>
-                    {getMessageLabel(message, studentNameById, groupNameById)}
-                  </span>
-                  <time style={styles.messageTime} dateTime={message.created_at}>
-                    {formatTimestamp(message.created_at)}
-                  </time>
-                </header>
-                <p style={styles.messageBody}>{message.body}</p>
-              </article>
-            </li>
+            <FeedItem
+              key={message.id}
+              message={message}
+              studentNameById={studentNameById}
+              groupNameById={groupNameById}
+              isNew={newMessageIds.has(message.id)}
+              onAnimationEnd={() => clearNewMessageAnimation(message.id)}
+            />
           ))}
         </ol>
       )}
     </main>
   );
 }
-
-const styles = {
-  page: {
-    maxWidth: '40rem',
-    margin: '0 auto',
-    padding: '1.5rem',
-  },
-  header: {
-    marginBottom: '1.5rem',
-  },
-  title: {
-    margin: '0 0 0.25rem',
-    fontSize: '1.5rem',
-  },
-  subtitle: {
-    margin: 0,
-    color: '#4b5563',
-  },
-  children: {
-    margin: '0.5rem 0 0',
-    fontSize: '0.875rem',
-    color: '#6b7280',
-  },
-  error: {
-    color: '#b91c1c',
-  },
-  emptyCard: {
-    border: '1px dashed #d1d5db',
-    borderRadius: '8px',
-    padding: '2rem 1.5rem',
-    textAlign: 'center',
-    background: '#f9fafb',
-  },
-  emptyTitle: {
-    margin: '0 0 0.5rem',
-    fontSize: '1.125rem',
-  },
-  emptyText: {
-    margin: 0,
-    color: '#6b7280',
-    lineHeight: 1.5,
-  },
-  timeline: {
-    listStyle: 'none',
-    margin: 0,
-    padding: 0,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '1rem',
-  },
-  timelineItem: {
-    display: 'grid',
-    gridTemplateColumns: '1rem 1fr',
-    gap: '0.75rem',
-    alignItems: 'start',
-  },
-  timelineDot: {
-    width: '0.75rem',
-    height: '0.75rem',
-    marginTop: '0.375rem',
-    borderRadius: '50%',
-    background: '#2563eb',
-    justifySelf: 'center',
-  },
-  messageCard: {
-    border: '1px solid #e5e7eb',
-    borderRadius: '8px',
-    padding: '1rem',
-    background: '#fff',
-  },
-  messageHeader: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
-    gap: '1rem',
-    marginBottom: '0.5rem',
-  },
-  messageLabel: {
-    fontWeight: 600,
-    fontSize: '0.875rem',
-    color: '#1f2937',
-  },
-  messageTime: {
-    fontSize: '0.75rem',
-    color: '#6b7280',
-    whiteSpace: 'nowrap',
-  },
-  messageBody: {
-    margin: 0,
-    whiteSpace: 'pre-wrap',
-    lineHeight: 1.5,
-    color: '#374151',
-  },
-};

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { getTemplateChipVariant, LoadingPanel, SendButton } from './dashboardUi';
 
 const TARGET_GROUP = 'group';
 const TARGET_STUDENT = 'student';
@@ -230,40 +231,36 @@ export default function AdminDashboard({ profile }) {
   }
 
   if (dataLoading) {
-    return (
-      <main style={styles.page}>
-        <p>Loading dashboard…</p>
-      </main>
-    );
+    return <LoadingPanel message="Loading dashboard…" />;
   }
 
   if (dataError) {
     return (
-      <main style={styles.page}>
-        <p style={styles.error}>Could not load dashboard: {dataError}</p>
+      <main className="dash-page">
+        <p className="dash-error">Could not load dashboard: {dataError}</p>
       </main>
     );
   }
 
   return (
-    <main style={styles.page}>
-      <header style={styles.pageHeader}>
-        <h1 style={styles.title}>Admin Dashboard</h1>
-        <p style={styles.subtitle}>
+    <main className="dash-page">
+      <header className="dash-header">
+        <h1 className="dash-title">Admin Dashboard</h1>
+        <p className="dash-subtitle">
           Welcome, {profile?.full_name ?? profile?.email ?? 'Admin'}.
         </p>
       </header>
 
-      {dataWarning && <p style={styles.warning}>{dataWarning}</p>}
+      {dataWarning && <p className="dash-warning">{dataWarning}</p>}
 
-      <section style={styles.card}>
-        <h2 style={styles.sectionTitle}>Send notification</h2>
+      <section className="dash-card">
+        <h2 className="dash-section-title">Send notification</h2>
 
-        <form style={styles.form} onSubmit={sendMessage}>
-          <label style={styles.label}>
+        <form className="dash-form" onSubmit={sendMessage}>
+          <label className="dash-label">
             Send to
             <select
-              style={styles.input}
+              className="dash-input"
               value={targetType}
               onChange={(e) => setTargetType(e.target.value)}
               disabled={sending}
@@ -275,10 +272,10 @@ export default function AdminDashboard({ profile }) {
           </label>
 
           {targetType === TARGET_GROUP && (
-            <label style={styles.label}>
+            <label className="dash-label">
               Group
               <select
-                style={styles.input}
+                className="dash-input"
                 value={targetId}
                 onChange={(e) => setTargetId(e.target.value)}
                 disabled={sending || groups.length === 0}
@@ -297,10 +294,10 @@ export default function AdminDashboard({ profile }) {
           )}
 
           {targetType === TARGET_STUDENT && (
-            <label style={styles.label}>
+            <label className="dash-label">
               Student
               <select
-                style={styles.input}
+                className="dash-input"
                 value={targetId}
                 onChange={(e) => setTargetId(e.target.value)}
                 disabled={sending || students.length === 0}
@@ -319,24 +316,24 @@ export default function AdminDashboard({ profile }) {
           )}
 
           {targetType === TARGET_ALL && (
-            <p style={styles.hint}>
+            <p className="dash-hint">
               This will create one message per student ({students.length} total).
             </p>
           )}
 
-          <label style={styles.label}>
+          <label className="dash-label">
             Message
-            <p style={styles.labelText}>Templates</p>
+            <span className="dash-label-inline">Templates</span>
             {templates.length === 0 ? (
-              <p style={styles.hint}>No templates yet.</p>
+              <p className="dash-hint">No templates yet.</p>
             ) : (
-              <div style={styles.templateScroll} role="list" aria-label="Message templates">
-                {templates.map((template) => (
+              <div className="template-scroll" role="list" aria-label="Message templates">
+                {templates.map((template, index) => (
                   <button
                     key={template.id}
                     type="button"
                     role="listitem"
-                    style={styles.templateChip}
+                    className={`template-chip template-chip--${getTemplateChipVariant(index)}`}
                     onClick={() => handleTemplateClick(template)}
                     disabled={sending}
                   >
@@ -346,7 +343,7 @@ export default function AdminDashboard({ profile }) {
               </div>
             )}
             <textarea
-              style={styles.textarea}
+              className="dash-textarea"
               rows={6}
               value={body}
               onChange={(e) => setBody(e.target.value)}
@@ -356,29 +353,27 @@ export default function AdminDashboard({ profile }) {
             />
           </label>
 
-          {submitError && <p style={styles.error}>{submitError}</p>}
-          {submitSuccess && <p style={styles.success}>{submitSuccess}</p>}
+          {submitError && <p className="dash-error">{submitError}</p>}
+          {submitSuccess && <p className="dash-success">{submitSuccess}</p>}
 
-          <button style={styles.primaryButton} type="submit" disabled={sending}>
-            {sending ? 'Sending…' : 'Send message'}
-          </button>
+          <SendButton sending={sending} />
         </form>
       </section>
 
-      <section style={styles.card}>
-        <h2 style={styles.sectionTitle}>Sent messages</h2>
+      <section className="dash-card">
+        <h2 className="dash-section-title">Sent messages</h2>
 
         {messages.length === 0 ? (
-          <p style={styles.hint}>No messages sent yet.</p>
+          <p className="dash-hint">No messages sent yet.</p>
         ) : (
-          <ul style={styles.historyList}>
+          <ul className="history-list">
             {messages.map((message) => (
-              <li key={message.id} style={styles.historyItem}>
-                <div style={styles.historyMeta}>
+              <li key={message.id} className="history-item">
+                <div className="history-meta">
                   <strong>{formatMessageTarget(message)}</strong>
                   <span>{formatTimestamp(message.created_at)}</span>
                 </div>
-                <p style={styles.historyBody}>{message.body}</p>
+                <p className="history-body">{message.body}</p>
               </li>
             ))}
           </ul>
@@ -387,147 +382,3 @@ export default function AdminDashboard({ profile }) {
     </main>
   );
 }
-
-const styles = {
-  page: {
-    maxWidth: '40rem',
-    margin: '0 auto',
-    padding: '1.5rem',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '1.5rem',
-  },
-  pageHeader: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.25rem',
-  },
-  title: {
-    margin: 0,
-    fontSize: '1.5rem',
-  },
-  subtitle: {
-    margin: 0,
-    color: '#4b5563',
-  },
-  card: {
-    border: '1px solid #e5e7eb',
-    borderRadius: '8px',
-    padding: '1.25rem',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '1rem',
-  },
-  sectionTitle: {
-    margin: 0,
-    fontSize: '1.125rem',
-  },
-  form: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '1rem',
-  },
-  label: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.375rem',
-    fontSize: '0.875rem',
-    fontWeight: 600,
-  },
-  labelText: {
-    margin: '0 0 0.375rem',
-    fontSize: '0.875rem',
-    fontWeight: 600,
-  },
-  input: {
-    padding: '0.5rem 0.75rem',
-    fontSize: '1rem',
-    border: '1px solid #d1d5db',
-    borderRadius: '6px',
-    fontWeight: 400,
-  },
-  textarea: {
-    padding: '0.75rem',
-    fontSize: '1rem',
-    border: '1px solid #d1d5db',
-    borderRadius: '6px',
-    resize: 'vertical',
-    fontWeight: 400,
-    fontFamily: 'inherit',
-  },
-  templateScroll: {
-    display: 'flex',
-    gap: '0.5rem',
-    overflowX: 'auto',
-    paddingBottom: '0.375rem',
-    marginBottom: '0.5rem',
-    scrollbarWidth: 'thin',
-  },
-  templateChip: {
-    flex: '0 0 auto',
-    padding: '0.375rem 0.875rem',
-    fontSize: '0.875rem',
-    border: '1px solid #d1d5db',
-    borderRadius: '999px',
-    background: '#f9fafb',
-    cursor: 'pointer',
-    whiteSpace: 'nowrap',
-  },
-  primaryButton: {
-    alignSelf: 'flex-start',
-    padding: '0.625rem 1.25rem',
-    fontSize: '1rem',
-    border: 'none',
-    borderRadius: '6px',
-    background: '#2563eb',
-    color: '#fff',
-    cursor: 'pointer',
-  },
-  hint: {
-    margin: 0,
-    color: '#6b7280',
-    fontSize: '0.875rem',
-  },
-  error: {
-    margin: 0,
-    color: '#b91c1c',
-  },
-  warning: {
-    margin: 0,
-    padding: '0.75rem 1rem',
-    borderRadius: '6px',
-    background: '#fffbeb',
-    border: '1px solid #fcd34d',
-    color: '#92400e',
-    fontSize: '0.875rem',
-  },
-  success: {
-    margin: 0,
-    color: '#15803d',
-  },
-  historyList: {
-    listStyle: 'none',
-    margin: 0,
-    padding: 0,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.75rem',
-  },
-  historyItem: {
-    border: '1px solid #e5e7eb',
-    borderRadius: '6px',
-    padding: '0.75rem',
-  },
-  historyMeta: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    gap: '1rem',
-    fontSize: '0.875rem',
-    color: '#4b5563',
-    marginBottom: '0.5rem',
-  },
-  historyBody: {
-    margin: 0,
-    whiteSpace: 'pre-wrap',
-  },
-};
