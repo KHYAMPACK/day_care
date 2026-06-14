@@ -2,7 +2,7 @@
 
 self.addEventListener('push', (event) => {
   let payload = {
-    title: 'Kreş Takip',
+    title: '🌸 Kreş Takip',
     body: 'Yeni bir bildiriminiz var.',
     url: '/',
   };

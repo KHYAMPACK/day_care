@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { notifyParentsForMessage } from '../lib/sendPush';
 import {
   AppNavbar,
   getTemplateChipVariant,
@@ -194,11 +195,15 @@ export default function AdminDashboard({ profile, onSignOut }) {
 
     try {
       if (targetType === TARGET_ALL) {
+        const bodiesByStudentId = Object.fromEntries(
+          students.map((student) => [
+            student.id,
+            trimmedBody.replaceAll(CHILD_NAME_PLACEHOLDER, getFirstName(student.full_name)),
+          ])
+        );
+
         const rows = students.map((student) => ({
-          body: trimmedBody.replaceAll(
-            CHILD_NAME_PLACEHOLDER,
-            getFirstName(student.full_name)
-          ),
+          body: bodiesByStudentId[student.id],
           author_id: profile.id,
           student_id: student.id,
           group_id: null,
@@ -207,7 +212,26 @@ export default function AdminDashboard({ profile, onSignOut }) {
         const { error } = await supabase.from('messages').insert(rows);
         if (error) throw error;
 
-        setSubmitSuccess(`Mesaj ${students.length} öğrenciye başarıyla gönderildi!`);
+        let pushNote = '';
+        try {
+          const pushResult = await notifyParentsForMessage({
+            targetType: TARGET_ALL,
+            targetId: null,
+            students,
+            body: trimmedBody,
+            bodiesByStudentId,
+          });
+
+          if (!pushResult.skipped && pushResult.total > 0) {
+            pushNote = ` (${pushResult.sent} anlık bildirim gönderildi)`;
+          }
+        } catch (pushError) {
+          pushNote = ` (Mesaj kaydedildi; bildirim gönderilemedi: ${pushError.message})`;
+        }
+
+        setSubmitSuccess(
+          `Mesaj ${students.length} öğrenciye başarıyla gönderildi!${pushNote}`
+        );
       } else {
         const { error } = await supabase.from('messages').insert({
           body: trimmedBody,
@@ -217,7 +241,23 @@ export default function AdminDashboard({ profile, onSignOut }) {
         });
         if (error) throw error;
 
-        setSubmitSuccess('Mesaj başarıyla gönderildi!');
+        let pushNote = '';
+        try {
+          const pushResult = await notifyParentsForMessage({
+            targetType,
+            targetId,
+            students,
+            body: trimmedBody,
+          });
+
+          if (!pushResult.skipped && pushResult.total > 0) {
+            pushNote = ` (${pushResult.sent} anlık bildirim gönderildi)`;
+          }
+        } catch (pushError) {
+          pushNote = ` (Mesaj kaydedildi; bildirim gönderilemedi: ${pushError.message})`;
+        }
+
+        setSubmitSuccess(`Mesaj başarıyla gönderildi!${pushNote}`);
       }
 
       setBody('');
