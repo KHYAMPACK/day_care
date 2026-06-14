@@ -1,3 +1,5 @@
+import { formatAppError, useOnlineStatus } from '../lib/errorMessages';
+
 const CHIP_VARIANTS = ['lavender', 'mint', 'peach', 'sky'];
 
 export function getTemplateChipVariant(index) {
@@ -62,5 +64,60 @@ export function AppNavbar({ brand, onSignOut, signOutLabel = 'Çıkış Yap' }) 
         {signOutLabel}
       </button>
     </nav>
+  );
+}
+
+export function OfflineBanner() {
+  const online = useOnlineStatus();
+  if (online) return null;
+
+  return (
+    <div className="offline-banner" role="status">
+      <span aria-hidden="true">📡</span>
+      Çevrimdışısınız — internet bağlantınızı kontrol edin.
+    </div>
+  );
+}
+
+export function ErrorMessage({ error, context = 'general', onRetry, retryLabel = 'Tekrar Dene' }) {
+  const formatted = formatAppError(error, context);
+
+  return (
+    <div className={`error-card error-card--${formatted.type}`} role="alert">
+      <span className="error-card__icon" aria-hidden="true">
+        {formatted.icon}
+      </span>
+      {formatted.title && <h2 className="error-card__title">{formatted.title}</h2>}
+      <p className="error-card__text">{formatted.message}</p>
+      {onRetry && (
+        <button type="button" className="error-card__retry" onClick={onRetry}>
+          {retryLabel}
+        </button>
+      )}
+    </div>
+  );
+}
+
+export function InlineError({ error, context = 'general' }) {
+  const formatted = formatAppError(error, context);
+
+  return (
+    <p className={`inline-error inline-error--${formatted.type}`} role="alert">
+      <span className="inline-error__icon" aria-hidden="true">
+        {formatted.icon}
+      </span>
+      <span>{formatted.message}</span>
+    </p>
+  );
+}
+
+export function SuccessMessage({ message }) {
+  if (!message) return null;
+
+  return (
+    <p className="success-message" role="status">
+      <span aria-hidden="true">✨</span>
+      {message}
+    </p>
   );
 }

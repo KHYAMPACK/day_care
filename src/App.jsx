@@ -2,7 +2,12 @@ import { useEffect, useState } from 'react';
 import { supabase } from './lib/supabase';
 import AdminDashboard from './components/AdminDashboard';
 import ParentDashboard from './components/ParentDashboard';
-import { LoadingPanel } from './components/dashboardUi';
+import {
+  ErrorMessage,
+  InlineError,
+  LoadingPanel,
+  OfflineBanner,
+} from './components/dashboardUi';
 
 export default function App() {
   const [session, setSession] = useState(null);
@@ -66,7 +71,7 @@ export default function App() {
 
       if (error) {
         setProfile(null);
-        setProfileError(error.message);
+        setProfileError(error);
         setProfileLoading(false);
         return;
       }
@@ -112,17 +117,14 @@ export default function App() {
 
         setProfile(null);
         setProfileError(
-          'Profil bulundu ancak hesabınızla eşleşmiyor. Supabase\'de profil kimliğinizin giriş kimliğinizle aynı olduğundan emin olun.'
+          'Profil bulundu ancak hesabınızla eşleşmiyor. Yöneticinizden profilinizi kontrol etmesini isteyin.'
         );
         setProfileLoading(false);
         return;
       }
 
       setProfile(null);
-      setProfileError(
-        createError?.message ??
-          'Profil bulunamadı. Supabase\'de profil satırını oluşturun veya RLS ayarlarını kontrol edin.'
-      );
+      setProfileError(createError);
       setProfileLoading(false);
     }
 
@@ -153,7 +155,7 @@ export default function App() {
         if (error) throw error;
       }
     } catch (error) {
-      setAuthError(error.message);
+      setAuthError(error);
     } finally {
       setAuthSubmitting(false);
     }
@@ -165,105 +167,130 @@ export default function App() {
   }
 
   if (authLoading) {
-    return <LoadingPanel message="Oturum kontrol ediliyor…" />;
+    return (
+      <>
+        <OfflineBanner />
+        <LoadingPanel message="Oturum kontrol ediliyor…" />
+      </>
+    );
   }
 
   if (!session) {
     return (
-      <main className="auth-page">
-        <div className="auth-card">
-          <h1 className="auth-brand">🎈 Kreş Takip Sistemi</h1>
-          <p className="auth-tagline">
-            Veliler ve yöneticiler için nazik, sade bildirim deneyimi.
-          </p>
+      <>
+        <OfflineBanner />
+        <main className="auth-page">
+          <div className="auth-card">
+            <h1 className="auth-brand">🎈 Kreş Takip Sistemi</h1>
+            <p className="auth-tagline">
+              Veliler ve yöneticiler için nazik, sade bildirim deneyimi.
+            </p>
 
-          <form className="auth-form" onSubmit={handleAuthSubmit}>
-            {mode === 'signup' && (
+            <form className="auth-form" onSubmit={handleAuthSubmit}>
+              {mode === 'signup' && (
+                <label className="auth-label">
+                  Ad Soyad
+                  <input
+                    className="auth-input"
+                    type="text"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    autoComplete="name"
+                    placeholder="Adınız Soyadınız"
+                  />
+                </label>
+              )}
+
               <label className="auth-label">
-                Ad Soyad
+                E-posta
                 <input
                   className="auth-input"
-                  type="text"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  autoComplete="name"
-                  placeholder="Adınız Soyadınız"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  autoComplete="email"
+                  placeholder="ornek@email.com"
                 />
               </label>
-            )}
 
-            <label className="auth-label">
-              E-posta
-              <input
-                className="auth-input"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                autoComplete="email"
-                placeholder="ornek@email.com"
-              />
-            </label>
+              <label className="auth-label">
+                Şifre
+                <input
+                  className="auth-input"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={6}
+                  autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                  placeholder="••••••••"
+                />
+              </label>
 
-            <label className="auth-label">
-              Şifre
-              <input
-                className="auth-input"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={6}
-                autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-                placeholder="••••••••"
-              />
-            </label>
+              {authError && (
+                <div className="auth-error-wrap">
+                  <InlineError error={authError} context="auth" />
+                </div>
+              )}
 
-            {authError && <p className="auth-error">{authError}</p>}
+              <button className="auth-submit" type="submit" disabled={authSubmitting}>
+                {authSubmitting
+                  ? 'Lütfen bekleyin…'
+                  : mode === 'login'
+                    ? 'Giriş Yap'
+                    : 'Hesap Oluştur'}
+              </button>
 
-            <button className="auth-submit" type="submit" disabled={authSubmitting}>
-              {authSubmitting
-                ? 'Lütfen bekleyin…'
-                : mode === 'login'
-                  ? 'Giriş Yap'
-                  : 'Hesap Oluştur'}
-            </button>
-
-            <button
-              className="auth-link"
-              type="button"
-              onClick={() => {
-                setMode(mode === 'login' ? 'signup' : 'login');
-                setAuthError(null);
-              }}
-            >
-              {mode === 'login'
-                ? 'Hesabınız yok mu? Kaydolun'
-                : 'Zaten hesabınız var mı? Giriş yapın'}
-            </button>
-          </form>
-        </div>
-      </main>
+              <button
+                className="auth-link"
+                type="button"
+                onClick={() => {
+                  setMode(mode === 'login' ? 'signup' : 'login');
+                  setAuthError(null);
+                }}
+              >
+                {mode === 'login'
+                  ? 'Hesabınız yok mu? Kaydolun'
+                  : 'Zaten hesabınız var mı? Giriş yapın'}
+              </button>
+            </form>
+          </div>
+        </main>
+      </>
     );
   }
 
   if (profileLoading) {
-    return <LoadingPanel message="Profiliniz yükleniyor…" />;
+    return (
+      <>
+        <OfflineBanner />
+        <LoadingPanel message="Profiliniz yükleniyor…" />
+      </>
+    );
   }
 
   if (profileError) {
     return (
-      <main className="app-centered">
-        <p className="dash-error">Profil yüklenemedi: {profileError}</p>
-        <button className="auth-submit" type="button" onClick={handleSignOut}>
-          Çıkış Yap
-        </button>
-      </main>
+      <>
+        <OfflineBanner />
+        <main className="app-centered app-centered--wide">
+          <ErrorMessage
+            error={profileError}
+            context="profile"
+            onRetry={() => window.location.reload()}
+          />
+          <button className="auth-submit" type="button" onClick={handleSignOut}>
+            Çıkış Yap
+          </button>
+        </main>
+      </>
     );
   }
 
   return (
     <div className="app-shell">
+      <OfflineBanner />
       {profile?.role === 'admin' && (
         <AdminDashboard profile={profile} onSignOut={handleSignOut} />
       )}
@@ -272,8 +299,13 @@ export default function App() {
       )}
 
       {profile && profile.role !== 'admin' && profile.role !== 'parent' && (
-        <main className="app-centered">
-          <p className="dash-error">Bilinmeyen rol: {profile.role}</p>
+        <main className="app-centered app-centered--wide">
+          <ErrorMessage
+            error="Bu hesap türü desteklenmiyor."
+            context="general"
+            onRetry={handleSignOut}
+            retryLabel="Çıkış Yap"
+          />
         </main>
       )}
     </div>

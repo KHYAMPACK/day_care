@@ -3,6 +3,9 @@ import { supabase } from '../lib/supabase';
 import { notifyParentsForMessage } from '../lib/sendPush';
 import {
   AppNavbar,
+  ErrorMessage,
+  InlineError,
+  SuccessMessage,
   getTemplateChipVariant,
   LoadingPanel,
   SendButton,
@@ -105,7 +108,7 @@ export default function AdminDashboard({ profile, onSignOut }) {
         groupsRes.error ?? studentsRes.error ?? templatesRes.error ?? null;
 
       if (firstError) {
-        setDataError(firstError.message);
+        setDataError(firstError);
         setDataLoading(false);
         return;
       }
@@ -132,7 +135,7 @@ export default function AdminDashboard({ profile, onSignOut }) {
       try {
         await fetchMessages();
       } catch (error) {
-        setDataError(error.message);
+        setDataError(error);
       }
 
       setDataLoading(false);
@@ -258,7 +261,7 @@ export default function AdminDashboard({ profile, onSignOut }) {
           }
         } catch (pushError) {
           console.error('sendMessage: push notification failed', pushError);
-          pushNote = ` (Mesaj kaydedildi; bildirim gönderilemedi: ${pushError.message})`;
+          pushNote = ' (Mesaj kaydedildi; anlık bildirim gönderilemedi.)';
         }
 
         setSubmitSuccess(
@@ -294,7 +297,7 @@ export default function AdminDashboard({ profile, onSignOut }) {
           }
         } catch (pushError) {
           console.error('sendMessage: push notification failed', pushError);
-          pushNote = ` (Mesaj kaydedildi; bildirim gönderilemedi: ${pushError.message})`;
+          pushNote = ' (Mesaj kaydedildi; anlık bildirim gönderilemedi.)';
         }
 
         setSubmitSuccess(`Mesaj başarıyla gönderildi!${pushNote}`);
@@ -304,7 +307,7 @@ export default function AdminDashboard({ profile, onSignOut }) {
       await fetchMessages();
     } catch (error) {
       console.error('sendMessage: failed before or during insert', error);
-      setSubmitError(error.message);
+      setSubmitError(error);
     } finally {
       setSending(false);
     }
@@ -329,8 +332,12 @@ export default function AdminDashboard({ profile, onSignOut }) {
     return (
       <>
         <AppNavbar brand="🎈 Kreş Yönetim" onSignOut={onSignOut} />
-        <main className="dash-page dash-page--flush">
-          <p className="dash-error">Panel yüklenemedi: {dataError}</p>
+        <main className="dash-page dash-error-page">
+          <ErrorMessage
+            error={dataError}
+            context="admin"
+            onRetry={() => window.location.reload()}
+          />
         </main>
       </>
     );
@@ -448,8 +455,8 @@ export default function AdminDashboard({ profile, onSignOut }) {
               />
             </label>
 
-            {submitError && <p className="dash-error">{submitError}</p>}
-            {submitSuccess && <p className="dash-success">{submitSuccess}</p>}
+            {submitError && <InlineError error={submitError} context="send" />}
+            {submitSuccess && <SuccessMessage message={submitSuccess} />}
 
             <SendButton
               sending={sending}

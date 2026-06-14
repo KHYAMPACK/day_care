@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { isPushSupported, subscribeToWebPush } from '../lib/pushNotifications';
-import { AppNavbar, getMessageCategory, LoadingPanel } from './dashboardUi';
+import { AppNavbar, ErrorMessage, InlineError, SuccessMessage, getMessageCategory, LoadingPanel } from './dashboardUi';
 import { formatChildTrackingTr, formatRelativeTimeTr } from '../utils/formatTime';
 
 function getInitialNotificationPermission() {
@@ -196,7 +196,7 @@ export default function ParentDashboard({ profile, onSignOut }) {
       if (!mounted) return;
 
       if (linksError) {
-        setError(linksError.message);
+        setError(linksError);
         setLoading(false);
         return;
       }
@@ -226,7 +226,7 @@ export default function ParentDashboard({ profile, onSignOut }) {
         if (!mounted) return;
 
         if (groupLinksError) {
-          setError(groupLinksError.message);
+          setError(groupLinksError);
           setLoading(false);
           return;
         }
@@ -258,7 +258,7 @@ export default function ParentDashboard({ profile, onSignOut }) {
         setFeedReady(true);
       } catch (messagesError) {
         if (!mounted) return;
-        setError(messagesError.message);
+        setError(messagesError);
       }
 
       setLoading(false);
@@ -332,8 +332,12 @@ export default function ParentDashboard({ profile, onSignOut }) {
     return (
       <>
         <AppNavbar brand="🌸 Kreş Portal" onSignOut={onSignOut} />
-        <main className="dash-page dash-page--flush">
-          <p className="dash-error">Akış yüklenemedi: {error}</p>
+        <main className="dash-page dash-error-page">
+          <ErrorMessage
+            error={error}
+            context="parent"
+            onRetry={() => window.location.reload()}
+          />
         </main>
       </>
     );
@@ -369,11 +373,11 @@ export default function ParentDashboard({ profile, onSignOut }) {
             >
               {pushSubscribing ? 'Açılıyor…' : '🔔 Anlık Bildirimleri Aç'}
             </button>
-            {pushError && <p className="dash-error">{pushError}</p>}
+            {pushError && <InlineError error={pushError} context="subscribe" />}
           </section>
         )}
 
-        {pushSuccess && <p className="notify-success">{pushSuccess}</p>}
+        {pushSuccess && <SuccessMessage message={pushSuccess} />}
 
         {students.length === 0 ? (
           <section className="empty-card">

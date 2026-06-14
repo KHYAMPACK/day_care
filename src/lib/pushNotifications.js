@@ -29,47 +29,51 @@ export async function subscribeToWebPush() {
   if (!vapidPublicKey) {
     return {
       subscription: null,
-      error: 'VITE_VAPID_PUBLIC_KEY tanımlı değil. .env dosyanıza VAPID anahtarını ekleyin.',
+      error: 'Bildirim ayarları henüz yapılandırılmamış. Kreş yöneticinize bildirin.',
     };
   }
 
-  const permission = await Notification.requestPermission();
-  if (permission !== 'granted') {
-    return { subscription: null, error: 'Bildirim izni verilmedi.' };
+  try {
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') {
+      return { subscription: null, error: 'Bildirim izni verilmedi.' };
+    }
+
+    const registration = await navigator.serviceWorker.ready;
+
+    let subscription = await registration.pushManager.getSubscription();
+    if (!subscription) {
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+      });
+    }
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      return { subscription: null, error: 'Oturum bulunamadı. Lütfen tekrar giriş yapın.' };
+    }
+
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update({ web_push_subscription: subscription.toJSON() })
+      .eq('id', user.id);
+
+    if (updateError) {
+      return {
+        subscription: null,
+        error: 'Bildirim tercihiniz kaydedilemedi. Lütfen tekrar deneyin.',
+      };
+    }
+
+    return { subscription, error: null };
+  } catch (error) {
+    return { subscription: null, error };
   }
-
-  const registration = await navigator.serviceWorker.ready;
-
-  let subscription = await registration.pushManager.getSubscription();
-  if (!subscription) {
-    subscription = await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
-    });
-  }
-
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
-
-  if (userError || !user) {
-    return { subscription: null, error: 'Oturum bulunamadı. Lütfen tekrar giriş yapın.' };
-  }
-
-  const { error: updateError } = await supabase
-    .from('profiles')
-    .update({ web_push_subscription: subscription.toJSON() })
-    .eq('id', user.id);
-
-  if (updateError) {
-    return {
-      subscription: null,
-      error: `Push aboneliği kaydedilemedi: ${updateError.message}`,
-    };
-  }
-
-  return { subscription, error: null };
 }
 
 export async function unsubscribeFromWebPush() {
