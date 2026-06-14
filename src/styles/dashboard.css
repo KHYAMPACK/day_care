@@ -715,3 +715,64 @@ body {
   padding-top: 1.25rem;
 }
 
+/* Push notification prompt */
+.notify-prompt-card {
+  background: linear-gradient(135deg, #ede9fe 0%, #fce7f3 100%);
+  border-radius: var(--radius-card);
+  padding: 1.25rem 1.375rem;
+  box-shadow: var(--shadow-soft);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  animation: fade-in 0.4s ease;
+}
+
+.notify-prompt-text {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+
+.notify-prompt-btn {
+  align-self: flex-start;
+  padding: 0.75rem 1.25rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  font-family: inherit;
+  color: #5b21b6;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(196, 181, 253, 0.6);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(167, 139, 250, 0.2);
+  transition: transform 0.15s ease, box-shadow 0.2s ease, background 0.2s ease, opacity 0.2s ease;
+}
+
+.notify-prompt-btn:hover:not(:disabled) {
+  background: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(167, 139, 250, 0.28);
+}
+
+.notify-prompt-btn:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.notify-prompt-btn:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.notify-success {
+  margin: 0;
+  padding: 0.875rem 1rem;
+  border-radius: 0.75rem;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #047857;
+  font-size: 0.875rem;
+  animation: fade-in 0.35s ease;
+}
+

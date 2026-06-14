@@ -1,7 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { isPushSupported, subscribeToWebPush } from '../lib/pushNotifications';
 import { AppNavbar, getMessageCategory, LoadingPanel } from './dashboardUi';
 import { formatChildTrackingTr, formatRelativeTimeTr } from '../utils/formatTime';
+
+function getInitialNotificationPermission() {
+  if (typeof window === 'undefined' || typeof Notification === 'undefined') {
+    return 'unsupported';
+  }
+  return Notification.permission;
+}
 
 const MESSAGE_SELECT = `
   id,
@@ -79,6 +87,13 @@ export default function ParentDashboard({ profile, onSignOut }) {
   const [error, setError] = useState(null);
   const [feedReady, setFeedReady] = useState(false);
 
+  const [notificationPermission, setNotificationPermission] = useState(
+    getInitialNotificationPermission
+  );
+  const [pushSubscribing, setPushSubscribing] = useState(false);
+  const [pushSuccess, setPushSuccess] = useState(null);
+  const [pushError, setPushError] = useState(null);
+
   const displayName = profile?.full_name ?? profile?.email ?? 'Veli';
   const studentNames = useMemo(
     () => students.map((student) => student.full_name),
@@ -128,6 +143,33 @@ export default function ParentDashboard({ profile, onSignOut }) {
       return next;
     });
   }
+
+  async function handleEnableNotifications() {
+    setPushSubscribing(true);
+    setPushError(null);
+    setPushSuccess(null);
+
+    const { subscription, error: subscribeError } = await subscribeToWebPush();
+
+    setPushSubscribing(false);
+
+    if (typeof Notification !== 'undefined') {
+      setNotificationPermission(Notification.permission);
+    }
+
+    if (subscribeError || !subscription) {
+      setPushError(subscribeError ?? 'Bildirim aboneliği oluşturulamadı.');
+      return;
+    }
+
+    setNotificationPermission('granted');
+    setPushSuccess('Anlık bildirimler açıldı! Yeni mesajları anında alacaksınız.');
+  }
+
+  const showNotificationPrompt =
+    isPushSupported() &&
+    notificationPermission !== 'granted' &&
+    notificationPermission !== 'unsupported';
 
   useEffect(() => {
     let mounted = true;
@@ -312,6 +354,26 @@ export default function ParentDashboard({ profile, onSignOut }) {
             </p>
           )}
         </section>
+
+        {showNotificationPrompt && (
+          <section className="notify-prompt-card">
+            <p className="notify-prompt-text">
+              Kreşten gelen güncellemeleri telefonunuza anında almak için bildirimleri
+              açın.
+            </p>
+            <button
+              type="button"
+              className="notify-prompt-btn"
+              onClick={handleEnableNotifications}
+              disabled={pushSubscribing}
+            >
+              {pushSubscribing ? 'Açılıyor…' : '🔔 Anlık Bildirimleri Aç'}
+            </button>
+            {pushError && <p className="dash-error">{pushError}</p>}
+          </section>
+        )}
+
+        {pushSuccess && <p className="notify-success">{pushSuccess}</p>}
 
         {students.length === 0 ? (
           <section className="empty-card">
