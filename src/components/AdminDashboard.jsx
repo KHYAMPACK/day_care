@@ -10,7 +10,6 @@ import {
   LoadingPanel,
   SendButton,
 } from './dashboardUi';
-import { APP_NAME } from '../lib/branding';
 import { formatRelativeTimeTr } from '../utils/formatTime';
 
 const TARGET_GROUP = 'group';
@@ -323,7 +322,7 @@ export default function AdminDashboard({ profile, onSignOut }) {
   if (dataLoading) {
     return (
       <>
-        <AppNavbar brand={`${APP_NAME} — Yönetim`} onSignOut={onSignOut} />
+        <AppNavbar brand="🎈 Kreş Yönetim" onSignOut={onSignOut} />
         <LoadingPanel message="Panel yükleniyor…" />
       </>
     );
@@ -332,7 +331,7 @@ export default function AdminDashboard({ profile, onSignOut }) {
   if (dataError) {
     return (
       <>
-        <AppNavbar brand={`${APP_NAME} — Yönetim`} onSignOut={onSignOut} />
+        <AppNavbar brand="🎈 Kreş Yönetim" onSignOut={onSignOut} />
         <main className="dash-page dash-error-page">
           <ErrorMessage
             error={dataError}
@@ -346,7 +345,7 @@ export default function AdminDashboard({ profile, onSignOut }) {
 
   return (
     <>
-      <AppNavbar brand={`${APP_NAME} — Yönetim`} onSignOut={onSignOut} />
+      <AppNavbar brand="🎈 Kreş Yönetim" onSignOut={onSignOut} />
 
       <main className="dash-page dash-page--flush">
         <header className="dash-header">

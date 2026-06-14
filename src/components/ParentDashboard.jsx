@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { isPushSupported, subscribeToWebPush } from '../lib/pushNotifications';
 import { AppNavbar, ErrorMessage, InlineError, SuccessMessage, getMessageCategory, LoadingPanel } from './dashboardUi';
-import { APP_NAME } from '../lib/branding';
 import { formatChildTrackingTr, formatRelativeTimeTr } from '../utils/formatTime';
 
 function getInitialNotificationPermission() {
@@ -323,7 +322,7 @@ export default function ParentDashboard({ profile, onSignOut }) {
   if (loading) {
     return (
       <>
-        <AppNavbar brand={`${APP_NAME} — Portal`} onSignOut={onSignOut} />
+        <AppNavbar brand="🌸 Kreş Portal" onSignOut={onSignOut} />
         <LoadingPanel message="Akışınız yükleniyor…" />
       </>
     );
@@ -332,7 +331,7 @@ export default function ParentDashboard({ profile, onSignOut }) {
   if (error) {
     return (
       <>
-        <AppNavbar brand={`${APP_NAME} — Portal`} onSignOut={onSignOut} />
+        <AppNavbar brand="🌸 Kreş Portal" onSignOut={onSignOut} />
         <main className="dash-page dash-error-page">
           <ErrorMessage
             error={error}
@@ -346,7 +345,7 @@ export default function ParentDashboard({ profile, onSignOut }) {
 
   return (
     <>
-      <AppNavbar brand={`${APP_NAME} — Portal`} onSignOut={onSignOut} />
+      <AppNavbar brand="🌸 Kreş Portal" onSignOut={onSignOut} />
 
       <main className="dash-page dash-page--flush">
         <section className="welcome-card">

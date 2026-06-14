@@ -1,7 +1,6 @@
 import { supabase } from './supabase';
-import { PUSH_NOTIFICATION_TITLE } from './branding';
 
-export { PUSH_NOTIFICATION_TITLE };
+export const PUSH_NOTIFICATION_TITLE = '🌸 Kreş Takip';
 
 export async function sendPushNotifications({ delivery }) {
   console.log('sendPushNotifications: calling /api/send-push with delivery', delivery);

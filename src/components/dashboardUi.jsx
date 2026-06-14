@@ -1,4 +1,4 @@
-import { APP_ICON, APP_LOGO, APP_NAME } from '../lib/branding';
+import { formatAppError, useOnlineStatus } from '../lib/errorMessages';
 
 const CHIP_VARIANTS = ['lavender', 'mint', 'peach', 'sky'];
 
@@ -56,28 +56,10 @@ export function SendButton({
   );
 }
 
-export function AppLogo({ variant = 'icon', className = '', alt = APP_NAME }) {
-  const src = variant === 'full' ? APP_LOGO : APP_ICON;
-
-  return (
-    <img
-      src={src}
-      alt={alt}
-      className={`app-logo app-logo--${variant}${className ? ` ${className}` : ''}`}
-      width={variant === 'full' ? 220 : 32}
-      height={variant === 'full' ? 220 : 32}
-      decoding="async"
-    />
-  );
-}
-
 export function AppNavbar({ brand, onSignOut, signOutLabel = 'Çıkış Yap' }) {
   return (
     <nav className="app-navbar">
-      <div className="app-navbar-brand">
-        <AppLogo variant="icon" />
-        <span>{brand}</span>
-      </div>
+      <span className="app-navbar-brand">{brand}</span>
       <button className="app-navbar-signout" type="button" onClick={onSignOut}>
         {signOutLabel}
       </button>
