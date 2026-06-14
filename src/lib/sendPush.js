@@ -2,6 +2,22 @@ import { supabase } from './supabase';
 
 export const PUSH_NOTIFICATION_TITLE = '🌸 Kreş Takip';
 
+function normalizeSubscription(value) {
+  if (!value) return null;
+
+  let parsed = value;
+  if (typeof parsed === 'string') {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch {
+      return null;
+    }
+  }
+
+  if (parsed?.endpoint) return parsed;
+  return null;
+}
+
 async function getStudentIdsForTarget(targetType, targetId, students) {
   if (targetType === 'student') {
     return [targetId];
@@ -24,41 +40,53 @@ async function getStudentIdsForTarget(targetType, targetId, students) {
   return [];
 }
 
-async function fetchParentLinks(studentIds) {
+/**
+ * Load parent ↔ student links and nested profile subscriptions in one query.
+ */
+async function fetchParentSubscriptionLinks(studentIds) {
   if (studentIds.length === 0) return [];
 
   const { data, error } = await supabase
     .from('student_parents')
-    .select('parent_id, student_id')
+    .select(
+      `
+      parent_id,
+      student_id,
+      profiles (
+        id,
+        web_push_subscription
+      )
+    `
+    )
     .in('student_id', studentIds);
 
-  if (error) throw error;
+  if (error) {
+    console.error('fetchParentSubscriptionLinks: query failed', error);
+    throw error;
+  }
+
+  console.log('fetchParentSubscriptionLinks: raw rows', data);
   return data ?? [];
 }
 
-async function fetchProfilesWithSubscriptions(parentIds) {
-  if (parentIds.length === 0) return [];
-
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('id, web_push_subscription')
-    .in('id', parentIds)
-    .not('web_push_subscription', 'is', null);
-
-  if (error) throw error;
-  return data ?? [];
-}
-
-function buildPushItems(parentLinks, profiles, resolveBody) {
-  const profileById = Object.fromEntries(profiles.map((profile) => [profile.id, profile]));
+function buildPushItems(parentLinks, resolveBody) {
   const seen = new Set();
   const items = [];
 
   for (const link of parentLinks) {
     const body = resolveBody(link);
-    const subscription = profileById[link.parent_id]?.web_push_subscription;
+    const subscription = normalizeSubscription(link.profiles?.web_push_subscription);
 
-    if (!subscription?.endpoint || !body) continue;
+    if (!subscription?.endpoint || !body) {
+      console.log('buildPushItems: skipping row', {
+        parentId: link.parent_id,
+        studentId: link.student_id,
+        hasProfile: Boolean(link.profiles),
+        hasSubscription: Boolean(subscription?.endpoint),
+        body,
+      });
+      continue;
+    }
 
     const dedupeKey = `${subscription.endpoint}\0${body}`;
     if (seen.has(dedupeKey)) continue;
@@ -78,12 +106,26 @@ export async function buildPushItemsForTarget({
   bodiesByStudentId = null,
 }) {
   const studentIds = await getStudentIdsForTarget(targetType, targetId, students);
-  const parentLinks = await fetchParentLinks(studentIds);
+  console.log('buildPushItemsForTarget: studentIds', studentIds);
 
-  if (parentLinks.length === 0) return [];
+  if (studentIds.length === 0) {
+    console.warn(
+      'buildPushItemsForTarget: no students matched this target. ' +
+        'For groups, ensure student_groups rows exist.'
+    );
+    return [];
+  }
 
-  const parentIds = [...new Set(parentLinks.map((link) => link.parent_id))];
-  const profiles = await fetchProfilesWithSubscriptions(parentIds);
+  const parentLinks = await fetchParentSubscriptionLinks(studentIds);
+  console.log('buildPushItemsForTarget: parentLinks count', parentLinks.length);
+
+  if (parentLinks.length === 0) {
+    console.warn(
+      'buildPushItemsForTarget: no student_parents rows for these students. ' +
+        'Link each parent profile to the student in student_parents.'
+    );
+    return [];
+  }
 
   const resolveBody = (link) => {
     if (bodiesByStudentId && link.student_id in bodiesByStudentId) {
@@ -92,7 +134,23 @@ export async function buildPushItemsForTarget({
     return body;
   };
 
-  return buildPushItems(parentLinks, profiles, resolveBody);
+  const items = buildPushItems(parentLinks, resolveBody);
+
+  const profilesWithSub = parentLinks.filter((link) =>
+    normalizeSubscription(link.profiles?.web_push_subscription)
+  ).length;
+
+  console.log('buildPushItemsForTarget: profiles with subscription', profilesWithSub);
+
+  if (parentLinks.length > 0 && items.length === 0) {
+    console.warn(
+      'buildPushItemsForTarget: parent links exist but no valid web_push_subscription. ' +
+        'Confirm the column is web_push_subscription (jsonb) with endpoint + keys, ' +
+        'and that admins can read parent profiles (003_profiles_rls.sql).'
+    );
+  }
+
+  return items;
 }
 
 export async function sendPushNotifications(items) {
