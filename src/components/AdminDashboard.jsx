@@ -253,6 +253,8 @@ export default function AdminDashboard({ profile, onSignOut }) {
 
           if (!pushResult.skipped && pushResult.total > 0) {
             pushNote = ` (${pushResult.sent} anlık bildirim gönderildi)`;
+          } else if (pushResult.skipped) {
+            pushNote = ' (Mesaj kaydedildi; push abonesi bulunamadı)';
           }
         } catch (pushError) {
           console.error('sendMessage: push notification failed', pushError);
@@ -287,6 +289,8 @@ export default function AdminDashboard({ profile, onSignOut }) {
 
           if (!pushResult.skipped && pushResult.total > 0) {
             pushNote = ` (${pushResult.sent} anlık bildirim gönderildi)`;
+          } else if (pushResult.skipped) {
+            pushNote = ' (Mesaj kaydedildi; push abonesi bulunamadı)';
           }
         } catch (pushError) {
           console.error('sendMessage: push notification failed', pushError);
