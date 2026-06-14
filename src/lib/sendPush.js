@@ -96,7 +96,10 @@ export async function buildPushItemsForTarget({
 }
 
 export async function sendPushNotifications(items) {
+  console.log('sendPushNotifications: called', { itemCount: items.length });
+
   if (!items.length) {
+    console.log('sendPushNotifications: skipped — no subscriptions found');
     return { sent: 0, failed: 0, total: 0, skipped: true };
   }
 
@@ -107,6 +110,8 @@ export async function sendPushNotifications(items) {
   if (!session?.access_token) {
     throw new Error('Push göndermek için oturum bulunamadı.');
   }
+
+  console.log('sendPushNotifications: calling /api/send-push');
 
   const response = await fetch('/api/send-push', {
     method: 'POST',
@@ -136,12 +141,24 @@ export async function notifyParentsForMessage({
   body,
   bodiesByStudentId = null,
 }) {
+  console.log('notifyParentsForMessage: starting', {
+    targetType,
+    targetId,
+    body,
+    studentCount: students.length,
+  });
+
   const items = await buildPushItemsForTarget({
     targetType,
     targetId,
     students,
     body,
     bodiesByStudentId,
+  });
+
+  console.log('notifyParentsForMessage: push items built', {
+    itemCount: items.length,
+    endpoints: items.map((item) => item.subscription?.endpoint),
   });
 
   return sendPushNotifications(items);

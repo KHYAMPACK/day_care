@@ -165,8 +165,36 @@ export default function AdminDashboard({ profile, onSignOut }) {
     }
   }, [targetType, groups, students]);
 
+  async function triggerPushNotifications({
+    messageBody,
+    pushTargetType,
+    pushTargetId,
+    bodiesByStudentId = null,
+  }) {
+    console.log('Push notification function triggered!', {
+      targetType: pushTargetType,
+      targetId: pushTargetId,
+      messageBody,
+      bodiesByStudentId,
+      studentIds: students.map((student) => student.id),
+    });
+
+    const pushResult = await notifyParentsForMessage({
+      targetType: pushTargetType,
+      targetId: pushTargetId,
+      students,
+      body: messageBody,
+      bodiesByStudentId,
+    });
+
+    console.log('Push notification result:', pushResult);
+    return pushResult;
+  }
+
   async function sendMessage(event) {
     event.preventDefault();
+    console.log('sendMessage: form submitted');
+
     setSubmitError(null);
     setSubmitSuccess(null);
 
@@ -212,13 +240,14 @@ export default function AdminDashboard({ profile, onSignOut }) {
         const { error } = await supabase.from('messages').insert(rows);
         if (error) throw error;
 
+        console.log('sendMessage: messages inserted successfully (all students)');
+
         let pushNote = '';
         try {
-          const pushResult = await notifyParentsForMessage({
-            targetType: TARGET_ALL,
-            targetId: null,
-            students,
-            body: trimmedBody,
+          const pushResult = await triggerPushNotifications({
+            messageBody: trimmedBody,
+            pushTargetType: TARGET_ALL,
+            pushTargetId: null,
             bodiesByStudentId,
           });
 
@@ -226,6 +255,7 @@ export default function AdminDashboard({ profile, onSignOut }) {
             pushNote = ` (${pushResult.sent} anlık bildirim gönderildi)`;
           }
         } catch (pushError) {
+          console.error('sendMessage: push notification failed', pushError);
           pushNote = ` (Mesaj kaydedildi; bildirim gönderilemedi: ${pushError.message})`;
         }
 
@@ -241,19 +271,25 @@ export default function AdminDashboard({ profile, onSignOut }) {
         });
         if (error) throw error;
 
+        console.log('sendMessage: message inserted successfully', {
+          targetType,
+          targetId,
+          body: trimmedBody,
+        });
+
         let pushNote = '';
         try {
-          const pushResult = await notifyParentsForMessage({
-            targetType,
-            targetId,
-            students,
-            body: trimmedBody,
+          const pushResult = await triggerPushNotifications({
+            messageBody: trimmedBody,
+            pushTargetType: targetType,
+            pushTargetId: targetId,
           });
 
           if (!pushResult.skipped && pushResult.total > 0) {
             pushNote = ` (${pushResult.sent} anlık bildirim gönderildi)`;
           }
         } catch (pushError) {
+          console.error('sendMessage: push notification failed', pushError);
           pushNote = ` (Mesaj kaydedildi; bildirim gönderilemedi: ${pushError.message})`;
         }
 
@@ -263,6 +299,7 @@ export default function AdminDashboard({ profile, onSignOut }) {
       setBody('');
       await fetchMessages();
     } catch (error) {
+      console.error('sendMessage: failed before or during insert', error);
       setSubmitError(error.message);
     } finally {
       setSending(false);
