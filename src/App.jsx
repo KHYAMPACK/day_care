@@ -7,7 +7,9 @@ import {
   InlineError,
   LoadingPanel,
   OfflineBanner,
+  AppLogo,
 } from './components/dashboardUi';
+import { APP_FULL_NAME } from './lib/branding';
 
 export default function App() {
   const [session, setSession] = useState(null);
@@ -181,7 +183,8 @@ export default function App() {
         <OfflineBanner />
         <main className="auth-page">
           <div className="auth-card">
-            <h1 className="auth-brand">🎈 Kreş Takip Sistemi</h1>
+            <AppLogo variant="full" className="auth-logo" />
+            <h1 className="auth-brand">{APP_FULL_NAME}</h1>
             <p className="auth-tagline">
               Veliler ve yöneticiler için nazik, sade bildirim deneyimi.
             </p>
