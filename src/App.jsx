@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from './lib/supabase';
 import AdminDashboard from './components/AdminDashboard';
 import ParentDashboard from './components/ParentDashboard';
+import { LoadingPanel } from './components/dashboardUi';
 
 export default function App() {
   const [session, setSession] = useState(null);
@@ -76,7 +77,6 @@ export default function App() {
         return;
       }
 
-      // No row returned — try to create one, or surface why read/insert failed.
       const { data: createdProfile, error: createError } = await supabase
         .from('profiles')
         .insert({
@@ -96,8 +96,7 @@ export default function App() {
       }
 
       if (createError?.code === '23505') {
-        // Row exists but the initial SELECT could not see it (usually RLS or id mismatch).
-        const { data: retryProfile, error: retryError } = await supabase
+        const { data: retryProfile } = await supabase
           .from('profiles')
           .select('id, role, full_name, email')
           .eq('id', userId)
@@ -113,9 +112,7 @@ export default function App() {
 
         setProfile(null);
         setProfileError(
-          `A profile row exists but does not match your login id (${userId}). ` +
-            'In Supabase, open Authentication → Users, copy your User UID, and make sure public.profiles.id is exactly that value. ' +
-            'Also run supabase/migrations/003_profiles_rls.sql so users can read their own profile.'
+          'Profil bulundu ancak hesabınızla eşleşmiyor. Supabase\'de profil kimliğinizin giriş kimliğinizle aynı olduğundan emin olun.'
         );
         setProfileLoading(false);
         return;
@@ -124,7 +121,7 @@ export default function App() {
       setProfile(null);
       setProfileError(
         createError?.message ??
-          'Profile not found. Run the backfill SQL in Supabase or check Row Level Security on public.profiles.'
+          'Profil bulunamadı. Supabase\'de profil satırını oluşturun veya RLS ayarlarını kontrol edin.'
       );
       setProfileLoading(false);
     }
@@ -168,178 +165,117 @@ export default function App() {
   }
 
   if (authLoading) {
-    return (
-      <main style={styles.centered}>
-        <p>Checking session…</p>
-      </main>
-    );
+    return <LoadingPanel message="Oturum kontrol ediliyor…" />;
   }
 
   if (!session) {
     return (
-      <main style={styles.authPage}>
-        <form style={styles.authForm} onSubmit={handleAuthSubmit}>
-          <h1>{mode === 'login' ? 'Log in' : 'Sign up'}</h1>
+      <main className="auth-page">
+        <div className="auth-card">
+          <h1 className="auth-brand">🎈 Kreş Takip Sistemi</h1>
+          <p className="auth-tagline">
+            Veliler ve yöneticiler için nazik, sade bildirim deneyimi.
+          </p>
 
-          {mode === 'signup' && (
-            <label style={styles.label}>
-              Full name
+          <form className="auth-form" onSubmit={handleAuthSubmit}>
+            {mode === 'signup' && (
+              <label className="auth-label">
+                Ad Soyad
+                <input
+                  className="auth-input"
+                  type="text"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  autoComplete="name"
+                  placeholder="Adınız Soyadınız"
+                />
+              </label>
+            )}
+
+            <label className="auth-label">
+              E-posta
               <input
-                style={styles.input}
-                type="text"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                autoComplete="name"
+                className="auth-input"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                autoComplete="email"
+                placeholder="ornek@email.com"
               />
             </label>
-          )}
 
-          <label style={styles.label}>
-            Email
-            <input
-              style={styles.input}
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              autoComplete="email"
-            />
-          </label>
+            <label className="auth-label">
+              Şifre
+              <input
+                className="auth-input"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={6}
+                autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                placeholder="••••••••"
+              />
+            </label>
 
-          <label style={styles.label}>
-            Password
-            <input
-              style={styles.input}
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={6}
-              autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-            />
-          </label>
+            {authError && <p className="auth-error">{authError}</p>}
 
-          {authError && <p style={styles.error}>{authError}</p>}
+            <button className="auth-submit" type="submit" disabled={authSubmitting}>
+              {authSubmitting
+                ? 'Lütfen bekleyin…'
+                : mode === 'login'
+                  ? 'Giriş Yap'
+                  : 'Hesap Oluştur'}
+            </button>
 
-          <button style={styles.button} type="submit" disabled={authSubmitting}>
-            {authSubmitting ? 'Please wait…' : mode === 'login' ? 'Log in' : 'Create account'}
-          </button>
-
-          <button
-            style={styles.linkButton}
-            type="button"
-            onClick={() => {
-              setMode(mode === 'login' ? 'signup' : 'login');
-              setAuthError(null);
-            }}
-          >
-            {mode === 'login'
-              ? 'Need an account? Sign up'
-              : 'Already have an account? Log in'}
-          </button>
-        </form>
+            <button
+              className="auth-link"
+              type="button"
+              onClick={() => {
+                setMode(mode === 'login' ? 'signup' : 'login');
+                setAuthError(null);
+              }}
+            >
+              {mode === 'login'
+                ? 'Hesabınız yok mu? Kaydolun'
+                : 'Zaten hesabınız var mı? Giriş yapın'}
+            </button>
+          </form>
+        </div>
       </main>
     );
   }
 
   if (profileLoading) {
-    return (
-      <main style={styles.centered}>
-        <p>Loading your profile…</p>
-      </main>
-    );
+    return <LoadingPanel message="Profiliniz yükleniyor…" />;
   }
 
   if (profileError) {
     return (
-      <main style={styles.centered}>
-        <p style={styles.error}>Could not load profile: {profileError}</p>
-        <button style={styles.button} type="button" onClick={handleSignOut}>
-          Sign out
+      <main className="app-centered">
+        <p className="dash-error">Profil yüklenemedi: {profileError}</p>
+        <button className="auth-submit" type="button" onClick={handleSignOut}>
+          Çıkış Yap
         </button>
       </main>
     );
   }
 
   return (
-    <div>
-      <header style={styles.header}>
-        <span>Signed in as {profile?.email ?? session.user.email}</span>
-        <button style={styles.button} type="button" onClick={handleSignOut}>
-          Sign out
-        </button>
-      </header>
-
-      {profile?.role === 'admin' && <AdminDashboard profile={profile} />}
-      {profile?.role === 'parent' && <ParentDashboard profile={profile} />}
+    <div className="app-shell">
+      {profile?.role === 'admin' && (
+        <AdminDashboard profile={profile} onSignOut={handleSignOut} />
+      )}
+      {profile?.role === 'parent' && (
+        <ParentDashboard profile={profile} onSignOut={handleSignOut} />
+      )}
 
       {profile && profile.role !== 'admin' && profile.role !== 'parent' && (
-        <main style={styles.centered}>
-          <p style={styles.error}>Unknown role: {profile.role}</p>
+        <main className="app-centered">
+          <p className="dash-error">Bilinmeyen rol: {profile.role}</p>
         </main>
       )}
     </div>
   );
 }
-
-const styles = {
-  centered: {
-    minHeight: '100vh',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '1rem',
-    padding: '1.5rem',
-  },
-  authPage: {
-    minHeight: '100vh',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: '1.5rem',
-  },
-  authForm: {
-    width: '100%',
-    maxWidth: '24rem',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.75rem',
-  },
-  label: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.25rem',
-    fontSize: '0.875rem',
-  },
-  input: {
-    padding: '0.5rem 0.75rem',
-    fontSize: '1rem',
-    border: '1px solid #ccc',
-    borderRadius: '4px',
-  },
-  button: {
-    padding: '0.5rem 1rem',
-    fontSize: '1rem',
-    cursor: 'pointer',
-  },
-  linkButton: {
-    background: 'none',
-    border: 'none',
-    padding: 0,
-    color: '#2563eb',
-    cursor: 'pointer',
-    textAlign: 'left',
-  },
-  error: {
-    color: '#b91c1c',
-    margin: 0,
-  },
-  header: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: '1rem 1.5rem',
-    borderBottom: '1px solid #e5e7eb',
-  },
-};

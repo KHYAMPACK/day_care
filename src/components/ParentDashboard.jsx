@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { getMessageCategory, LoadingPanel } from './dashboardUi';
+import { AppNavbar, getMessageCategory, LoadingPanel } from './dashboardUi';
+import { formatChildTrackingTr, formatRelativeTimeTr } from '../utils/formatTime';
 
 const MESSAGE_SELECT = `
   id,
@@ -11,10 +12,6 @@ const MESSAGE_SELECT = `
   students ( full_name ),
   groups ( name )
 `;
-
-function formatTimestamp(iso) {
-  return new Date(iso).toLocaleString();
-}
 
 function messageAppliesToParent(message, studentIds, groupIds) {
   if (message.student_id && studentIds.includes(message.student_id)) {
@@ -31,13 +28,13 @@ function getMessageLabel(message, studentNameById, groupNameById) {
     return (
       message.students?.full_name ??
       studentNameById[message.student_id] ??
-      'Your child'
+      'Çocuğunuz'
     );
   }
   if (message.group_id) {
-    return message.groups?.name ?? groupNameById[message.group_id] ?? 'Classroom';
+    return message.groups?.name ?? groupNameById[message.group_id] ?? 'Sınıf';
   }
-  return 'Notification';
+  return 'Bildirim';
 }
 
 function FeedItem({ message, studentNameById, groupNameById, isNew, onAnimationEnd }) {
@@ -61,7 +58,7 @@ function FeedItem({ message, studentNameById, groupNameById, isNew, onAnimationE
               <span className="feed-category">{category.label}</span>
             </div>
             <time className="feed-time" dateTime={message.created_at}>
-              {formatTimestamp(message.created_at)}
+              {formatRelativeTimeTr(message.created_at)}
             </time>
           </header>
           <p className="feed-body">{message.body}</p>
@@ -71,7 +68,7 @@ function FeedItem({ message, studentNameById, groupNameById, isNew, onAnimationE
   );
 }
 
-export default function ParentDashboard({ profile }) {
+export default function ParentDashboard({ profile, onSignOut }) {
   const [students, setStudents] = useState([]);
   const [studentIds, setStudentIds] = useState([]);
   const [groupIds, setGroupIds] = useState([]);
@@ -81,6 +78,12 @@ export default function ParentDashboard({ profile }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [feedReady, setFeedReady] = useState(false);
+
+  const displayName = profile?.full_name ?? profile?.email ?? 'Veli';
+  const studentNames = useMemo(
+    () => students.map((student) => student.full_name),
+    [students]
+  );
 
   const studentNameById = useMemo(
     () => Object.fromEntries(students.map((student) => [student.id, student.full_name])),
@@ -275,62 +278,72 @@ export default function ParentDashboard({ profile }) {
   }, [feedReady, profile.id, studentIds, groupIds]);
 
   if (loading) {
-    return <LoadingPanel message="Loading your feed…" />;
+    return (
+      <>
+        <AppNavbar brand="🌸 Kreş Portal" onSignOut={onSignOut} />
+        <LoadingPanel message="Akışınız yükleniyor…" />
+      </>
+    );
   }
 
   if (error) {
     return (
-      <main className="dash-page">
-        <p className="dash-error">Could not load feed: {error}</p>
-      </main>
+      <>
+        <AppNavbar brand="🌸 Kreş Portal" onSignOut={onSignOut} />
+        <main className="dash-page dash-page--flush">
+          <p className="dash-error">Akış yüklenemedi: {error}</p>
+        </main>
+      </>
     );
   }
 
   return (
-    <main className="dash-page">
-      <header className="dash-header">
-        <h1 className="dash-title">Updates</h1>
-        <p className="dash-subtitle">
-          Welcome, {profile?.full_name ?? profile?.email ?? 'Parent'}.
-        </p>
-        {students.length > 0 && (
-          <p className="dash-meta">
-            Following updates for{' '}
-            {students.map((student) => student.full_name).join(', ')}
-          </p>
-        )}
-      </header>
+    <>
+      <AppNavbar brand="🌸 Kreş Portal" onSignOut={onSignOut} />
 
-      {students.length === 0 ? (
-        <section className="empty-card">
-          <h2 className="empty-title">No children linked</h2>
-          <p className="empty-text">
-            Your account is not linked to any students yet. Contact the daycare admin
-            to connect your profile.
-          </p>
+      <main className="dash-page dash-page--flush">
+        <section className="welcome-card">
+          <h1 className="welcome-card-title">Hoş geldiniz, {displayName}</h1>
+          {studentNames.length > 0 ? (
+            <p className="welcome-card-text">{formatChildTrackingTr(studentNames)}</p>
+          ) : (
+            <p className="welcome-card-text">
+              Henüz hesabınıza bağlı bir çocuk bulunmuyor.
+            </p>
+          )}
         </section>
-      ) : messages.length === 0 ? (
-        <section className="empty-card">
-          <h2 className="empty-title">No messages yet</h2>
-          <p className="empty-text">
-            When the daycare sends notifications for your children, they will appear
-            here instantly.
-          </p>
-        </section>
-      ) : (
-        <ol className="feed-list">
-          {messages.map((message) => (
-            <FeedItem
-              key={message.id}
-              message={message}
-              studentNameById={studentNameById}
-              groupNameById={groupNameById}
-              isNew={newMessageIds.has(message.id)}
-              onAnimationEnd={() => clearNewMessageAnimation(message.id)}
-            />
-          ))}
-        </ol>
-      )}
-    </main>
+
+        {students.length === 0 ? (
+          <section className="empty-card">
+            <h2 className="empty-title">Bağlı çocuk yok</h2>
+            <p className="empty-text">
+              Hesabınız henüz bir öğrenciyle eşleştirilmemiş. Lütfen kreş
+              yöneticinizle iletişime geçin.
+            </p>
+          </section>
+        ) : messages.length === 0 ? (
+          <section className="empty-card">
+            <h2 className="empty-title">Henüz mesaj yok</h2>
+            <p className="empty-text">
+              Kreş çocuğunuz için bildirim gönderdiğinde mesajlar burada anında
+              görünecek.
+            </p>
+          </section>
+        ) : (
+          <ol className="feed-list">
+            {messages.map((message) => (
+              <FeedItem
+                key={message.id}
+                message={message}
+                studentNameById={studentNameById}
+                groupNameById={groupNameById}
+                isNew={newMessageIds.has(message.id)}
+                onAnimationEnd={() => clearNewMessageAnimation(message.id)}
+              />
+            ))}
+          </ol>
+        )}
+      </main>
+    </>
   );
 }

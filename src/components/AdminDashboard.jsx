@@ -1,19 +1,26 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { getTemplateChipVariant, LoadingPanel, SendButton } from './dashboardUi';
+import {
+  AppNavbar,
+  getTemplateChipVariant,
+  LoadingPanel,
+  SendButton,
+} from './dashboardUi';
+import { formatRelativeTimeTr } from '../utils/formatTime';
 
 const TARGET_GROUP = 'group';
 const TARGET_STUDENT = 'student';
 const TARGET_ALL = 'all';
 const CHILD_NAME_PLACEHOLDER = '{{child_name}}';
+const CHILD_DISPLAY_FALLBACK = 'Çocuğunuz';
 
 function getFirstName(fullName) {
-  if (!fullName?.trim()) return 'Your child';
+  if (!fullName?.trim()) return CHILD_DISPLAY_FALLBACK;
   return fullName.trim().split(/\s+/)[0];
 }
 
 function applyTemplateBody(templateBody, targetType, targetId, students) {
-  let replacement = 'Your child';
+  let replacement = CHILD_DISPLAY_FALLBACK;
 
   if (targetType === TARGET_STUDENT && targetId) {
     const student = students.find((entry) => entry.id === targetId);
@@ -32,16 +39,12 @@ function formatMessageTarget(message) {
   if (message.group_id && message.groups?.name) {
     return message.groups.name;
   }
-  if (message.student_id) return 'Individual student';
-  if (message.group_id) return 'Group';
-  return 'Unknown';
+  if (message.student_id) return 'Bireysel öğrenci';
+  if (message.group_id) return 'Grup';
+  return 'Bilinmiyor';
 }
 
-function formatTimestamp(iso) {
-  return new Date(iso).toLocaleString();
-}
-
-export default function AdminDashboard({ profile }) {
+export default function AdminDashboard({ profile, onSignOut }) {
   const [groups, setGroups] = useState([]);
   const [students, setStudents] = useState([]);
   const [templates, setTemplates] = useState([]);
@@ -57,6 +60,8 @@ export default function AdminDashboard({ profile }) {
   const [sending, setSending] = useState(false);
   const [submitError, setSubmitError] = useState(null);
   const [submitSuccess, setSubmitSuccess] = useState(null);
+
+  const displayName = profile?.full_name ?? profile?.email ?? 'Yönetici';
 
   const fetchMessages = useCallback(async () => {
     const { data, error } = await supabase
@@ -111,12 +116,12 @@ export default function AdminDashboard({ profile }) {
       const warnings = [];
       if ((groupsRes.data ?? []).length === 0) {
         warnings.push(
-          'Groups list is empty. If rows exist in Supabase, run supabase/migrations/004_groups_students_rls.sql.'
+          'Grup listesi boş. Supabase\'de kayıt varsa 004_groups_students_rls.sql dosyasını çalıştırın.'
         );
       }
       if ((studentsRes.data ?? []).length === 0) {
         warnings.push(
-          'Students list is empty. If rows exist in Supabase, run supabase/migrations/004_groups_students_rls.sql.'
+          'Öğrenci listesi boş. Supabase\'de kayıt varsa 004_groups_students_rls.sql dosyasını çalıştırın.'
         );
       }
       if (warnings.length > 0) {
@@ -166,22 +171,22 @@ export default function AdminDashboard({ profile }) {
 
     const trimmedBody = body.trim();
     if (!trimmedBody) {
-      setSubmitError('Message body is required.');
+      setSubmitError('Mesaj metni zorunludur.');
       return;
     }
 
     if (targetType === TARGET_GROUP && !targetId) {
-      setSubmitError('Please select a group.');
+      setSubmitError('Lütfen bir sınıf seçin.');
       return;
     }
 
     if (targetType === TARGET_STUDENT && !targetId) {
-      setSubmitError('Please select a student.');
+      setSubmitError('Lütfen bir öğrenci seçin.');
       return;
     }
 
     if (targetType === TARGET_ALL && students.length === 0) {
-      setSubmitError('There are no students to notify.');
+      setSubmitError('Bildirim gönderilecek öğrenci bulunmuyor.');
       return;
     }
 
@@ -202,7 +207,7 @@ export default function AdminDashboard({ profile }) {
         const { error } = await supabase.from('messages').insert(rows);
         if (error) throw error;
 
-        setSubmitSuccess(`Message sent to all ${students.length} students.`);
+        setSubmitSuccess(`Mesaj ${students.length} öğrenciye başarıyla gönderildi!`);
       } else {
         const { error } = await supabase.from('messages').insert({
           body: trimmedBody,
@@ -212,7 +217,7 @@ export default function AdminDashboard({ profile }) {
         });
         if (error) throw error;
 
-        setSubmitSuccess('Message sent successfully.');
+        setSubmitSuccess('Mesaj başarıyla gönderildi!');
       }
 
       setBody('');
@@ -231,154 +236,168 @@ export default function AdminDashboard({ profile }) {
   }
 
   if (dataLoading) {
-    return <LoadingPanel message="Loading dashboard…" />;
+    return (
+      <>
+        <AppNavbar brand="🎈 Kreş Yönetim" onSignOut={onSignOut} />
+        <LoadingPanel message="Panel yükleniyor…" />
+      </>
+    );
   }
 
   if (dataError) {
     return (
-      <main className="dash-page">
-        <p className="dash-error">Could not load dashboard: {dataError}</p>
-      </main>
+      <>
+        <AppNavbar brand="🎈 Kreş Yönetim" onSignOut={onSignOut} />
+        <main className="dash-page dash-page--flush">
+          <p className="dash-error">Panel yüklenemedi: {dataError}</p>
+        </main>
+      </>
     );
   }
 
   return (
-    <main className="dash-page">
-      <header className="dash-header">
-        <h1 className="dash-title">Admin Dashboard</h1>
-        <p className="dash-subtitle">
-          Welcome, {profile?.full_name ?? profile?.email ?? 'Admin'}.
-        </p>
-      </header>
+    <>
+      <AppNavbar brand="🎈 Kreş Yönetim" onSignOut={onSignOut} />
 
-      {dataWarning && <p className="dash-warning">{dataWarning}</p>}
+      <main className="dash-page dash-page--flush">
+        <header className="dash-header">
+          <h1 className="dash-title">Yönetici Paneli</h1>
+          <p className="dash-subtitle">Hoş geldiniz, {displayName}.</p>
+        </header>
 
-      <section className="dash-card">
-        <h2 className="dash-section-title">Send notification</h2>
+        {dataWarning && <p className="dash-warning">{dataWarning}</p>}
 
-        <form className="dash-form" onSubmit={sendMessage}>
-          <label className="dash-label">
-            Send to
-            <select
-              className="dash-input"
-              value={targetType}
-              onChange={(e) => setTargetType(e.target.value)}
-              disabled={sending}
-            >
-              <option value={TARGET_GROUP}>Group / Classroom</option>
-              <option value={TARGET_STUDENT}>Individual Student</option>
-              <option value={TARGET_ALL}>All Students</option>
-            </select>
-          </label>
+        <section className="dash-card">
+          <h2 className="dash-section-title">Yeni Mesaj Gönder</h2>
 
-          {targetType === TARGET_GROUP && (
+          <form className="dash-form" onSubmit={sendMessage}>
             <label className="dash-label">
-              Group
+              Gönderim hedefi
               <select
                 className="dash-input"
-                value={targetId}
-                onChange={(e) => setTargetId(e.target.value)}
-                disabled={sending || groups.length === 0}
+                value={targetType}
+                onChange={(e) => setTargetType(e.target.value)}
+                disabled={sending}
               >
-                {groups.length === 0 ? (
-                  <option value="">No groups available</option>
-                ) : (
-                  groups.map((group) => (
-                    <option key={group.id} value={group.id}>
-                      {group.name}
-                    </option>
-                  ))
-                )}
+                <option value={TARGET_GROUP}>Sınıf / Grup</option>
+                <option value={TARGET_STUDENT}>Bireysel Öğrenci</option>
+                <option value={TARGET_ALL}>Tüm Öğrenciler</option>
               </select>
             </label>
-          )}
 
-          {targetType === TARGET_STUDENT && (
-            <label className="dash-label">
-              Student
-              <select
-                className="dash-input"
-                value={targetId}
-                onChange={(e) => setTargetId(e.target.value)}
-                disabled={sending || students.length === 0}
-              >
-                {students.length === 0 ? (
-                  <option value="">No students available</option>
-                ) : (
-                  students.map((student) => (
-                    <option key={student.id} value={student.id}>
-                      {student.full_name}
-                    </option>
-                  ))
-                )}
-              </select>
-            </label>
-          )}
-
-          {targetType === TARGET_ALL && (
-            <p className="dash-hint">
-              This will create one message per student ({students.length} total).
-            </p>
-          )}
-
-          <label className="dash-label">
-            Message
-            <span className="dash-label-inline">Templates</span>
-            {templates.length === 0 ? (
-              <p className="dash-hint">No templates yet.</p>
-            ) : (
-              <div className="template-scroll" role="list" aria-label="Message templates">
-                {templates.map((template, index) => (
-                  <button
-                    key={template.id}
-                    type="button"
-                    role="listitem"
-                    className={`template-chip template-chip--${getTemplateChipVariant(index)}`}
-                    onClick={() => handleTemplateClick(template)}
-                    disabled={sending}
-                  >
-                    {template.title}
-                  </button>
-                ))}
-              </div>
+            {targetType === TARGET_GROUP && (
+              <label className="dash-label">
+                Sınıf Seçin
+                <select
+                  className="dash-input"
+                  value={targetId}
+                  onChange={(e) => setTargetId(e.target.value)}
+                  disabled={sending || groups.length === 0}
+                >
+                  {groups.length === 0 ? (
+                    <option value="">Grup bulunmuyor</option>
+                  ) : (
+                    groups.map((group) => (
+                      <option key={group.id} value={group.id}>
+                        {group.name}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </label>
             )}
-            <textarea
-              className="dash-textarea"
-              rows={6}
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              placeholder="Write your notification…"
-              disabled={sending}
-              required
-            />
-          </label>
 
-          {submitError && <p className="dash-error">{submitError}</p>}
-          {submitSuccess && <p className="dash-success">{submitSuccess}</p>}
+            {targetType === TARGET_STUDENT && (
+              <label className="dash-label">
+                Öğrenci Seçin
+                <select
+                  className="dash-input"
+                  value={targetId}
+                  onChange={(e) => setTargetId(e.target.value)}
+                  disabled={sending || students.length === 0}
+                >
+                  {students.length === 0 ? (
+                    <option value="">Öğrenci bulunmuyor</option>
+                  ) : (
+                    students.map((student) => (
+                      <option key={student.id} value={student.id}>
+                        {student.full_name}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </label>
+            )}
 
-          <SendButton sending={sending} />
-        </form>
-      </section>
+            {targetType === TARGET_ALL && (
+              <p className="dash-hint">
+                Her öğrenci için ayrı bir mesaj oluşturulacak ({students.length} adet).
+              </p>
+            )}
 
-      <section className="dash-card">
-        <h2 className="dash-section-title">Sent messages</h2>
-
-        {messages.length === 0 ? (
-          <p className="dash-hint">No messages sent yet.</p>
-        ) : (
-          <ul className="history-list">
-            {messages.map((message) => (
-              <li key={message.id} className="history-item">
-                <div className="history-meta">
-                  <strong>{formatMessageTarget(message)}</strong>
-                  <span>{formatTimestamp(message.created_at)}</span>
+            <label className="dash-label">
+              Mesaj
+              <span className="dash-label-inline">Şablonlar</span>
+              {templates.length === 0 ? (
+                <p className="dash-hint">Henüz şablon eklenmemiş.</p>
+              ) : (
+                <div className="template-scroll" role="list" aria-label="Mesaj şablonları">
+                  {templates.map((template, index) => (
+                    <button
+                      key={template.id}
+                      type="button"
+                      role="listitem"
+                      className={`template-chip template-chip--${getTemplateChipVariant(index)}`}
+                      onClick={() => handleTemplateClick(template)}
+                      disabled={sending}
+                    >
+                      {template.title}
+                    </button>
+                  ))}
                 </div>
-                <p className="history-body">{message.body}</p>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-    </main>
+              )}
+              <textarea
+                className="dash-textarea"
+                rows={6}
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                placeholder="Bildiriminizi yazın…"
+                disabled={sending}
+                required
+              />
+            </label>
+
+            {submitError && <p className="dash-error">{submitError}</p>}
+            {submitSuccess && <p className="dash-success">{submitSuccess}</p>}
+
+            <SendButton
+              sending={sending}
+              label="Mesaj Gönder"
+              sendingLabel="Mesaj Gönderiliyor…"
+            />
+          </form>
+        </section>
+
+        <section className="dash-card">
+          <h2 className="dash-section-title">Gönderilen Mesajlar</h2>
+
+          {messages.length === 0 ? (
+            <p className="dash-hint">Henüz mesaj gönderilmedi.</p>
+          ) : (
+            <ul className="history-list">
+              {messages.map((message) => (
+                <li key={message.id} className="history-item">
+                  <div className="history-meta">
+                    <strong>{formatMessageTarget(message)}</strong>
+                    <span>{formatRelativeTimeTr(message.created_at)}</span>
+                  </div>
+                  <p className="history-body">{message.body}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </main>
+    </>
   );
 }
