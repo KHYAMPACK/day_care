@@ -33,55 +33,74 @@ async function getStudentIdsForTarget(targetType, targetId, students) {
       .select('student_id')
       .eq('group_id', targetId);
 
-    if (error) throw error;
+    if (error) {
+      console.error('getStudentIdsForTarget: student_groups query failed', error);
+      throw error;
+    }
+
     return (data ?? []).map((row) => row.student_id);
   }
 
   return [];
 }
 
-/**
- * Load parent ↔ student links and nested profile subscriptions in one query.
- */
-async function fetchParentSubscriptionLinks(studentIds) {
+async function fetchSubscriptionRows(targetType, targetId, studentIds) {
+  if (targetType === 'group' && targetId) {
+    const { data, error } = await supabase.rpc('get_push_subscriptions_for_group', {
+      target_group_id: targetId,
+    });
+
+    if (error) {
+      console.error('fetchSubscriptionRows: group RPC failed', error);
+      throw error;
+    }
+
+    console.log('fetchSubscriptionRows: group RPC rows', data);
+    return (data ?? []).map((row) => ({
+      parent_id: row.parent_id,
+      student_id: row.student_id,
+      subscription: row.subscription,
+    }));
+  }
+
   if (studentIds.length === 0) return [];
 
-  const { data, error } = await supabase
-    .from('student_parents')
-    .select(
-      `
-      parent_id,
-      student_id,
-      profiles (
-        id,
-        web_push_subscription
-      )
-    `
-    )
-    .in('student_id', studentIds);
+  const { data, error } = await supabase.rpc('get_push_subscriptions_for_students', {
+    target_student_ids: studentIds,
+  });
 
   if (error) {
-    console.error('fetchParentSubscriptionLinks: query failed', error);
+    console.error('fetchSubscriptionRows: students RPC failed', error);
+
+    if (error.message?.includes('Could not find the function')) {
+      throw new Error(
+        'Push RPC bulunamadı. Supabase SQL Editor\'da 009_admin_push_rpc.sql dosyasını çalıştırın.'
+      );
+    }
+
     throw error;
   }
 
-  console.log('fetchParentSubscriptionLinks: raw rows', data);
-  return data ?? [];
+  console.log('fetchSubscriptionRows: students RPC rows', data);
+  return (data ?? []).map((row) => ({
+    parent_id: row.parent_id,
+    student_id: row.student_id,
+    subscription: row.subscription,
+  }));
 }
 
-function buildPushItems(parentLinks, resolveBody) {
+function buildPushItems(subscriptionRows, resolveBody) {
   const seen = new Set();
   const items = [];
 
-  for (const link of parentLinks) {
-    const body = resolveBody(link);
-    const subscription = normalizeSubscription(link.profiles?.web_push_subscription);
+  for (const row of subscriptionRows) {
+    const body = resolveBody(row);
+    const subscription = normalizeSubscription(row.subscription);
 
     if (!subscription?.endpoint || !body) {
       console.log('buildPushItems: skipping row', {
-        parentId: link.parent_id,
-        studentId: link.student_id,
-        hasProfile: Boolean(link.profiles),
+        parentId: row.parent_id,
+        studentId: row.student_id,
         hasSubscription: Boolean(subscription?.endpoint),
         body,
       });
@@ -106,49 +125,36 @@ export async function buildPushItemsForTarget({
   bodiesByStudentId = null,
 }) {
   const studentIds = await getStudentIdsForTarget(targetType, targetId, students);
-  console.log('buildPushItemsForTarget: studentIds', studentIds);
+  console.log('buildPushItemsForTarget: studentIds', { targetType, targetId, studentIds });
 
-  if (studentIds.length === 0) {
+  if (targetType !== 'group' && studentIds.length === 0) {
+    console.warn('buildPushItemsForTarget: no students matched this target.');
+    return [];
+  }
+
+  const subscriptionRows = await fetchSubscriptionRows(targetType, targetId, studentIds);
+  console.log('buildPushItemsForTarget: subscription rows', subscriptionRows.length);
+
+  if (subscriptionRows.length === 0) {
     console.warn(
-      'buildPushItemsForTarget: no students matched this target. ' +
-        'For groups, ensure student_groups rows exist.'
+      'buildPushItemsForTarget: no push subscriptions found. Checklist:\n' +
+        '1) student_parents links parent to student\n' +
+        '2) student_groups links student to group (for group messages)\n' +
+        '3) profiles.web_push_subscription is populated on the parent row\n' +
+        '4) Run supabase/migrations/009_admin_push_rpc.sql in Supabase'
     );
     return [];
   }
 
-  const parentLinks = await fetchParentSubscriptionLinks(studentIds);
-  console.log('buildPushItemsForTarget: parentLinks count', parentLinks.length);
-
-  if (parentLinks.length === 0) {
-    console.warn(
-      'buildPushItemsForTarget: no student_parents rows for these students. ' +
-        'Link each parent profile to the student in student_parents.'
-    );
-    return [];
-  }
-
-  const resolveBody = (link) => {
-    if (bodiesByStudentId && link.student_id in bodiesByStudentId) {
-      return bodiesByStudentId[link.student_id];
+  const resolveBody = (row) => {
+    if (bodiesByStudentId && row.student_id in bodiesByStudentId) {
+      return bodiesByStudentId[row.student_id];
     }
     return body;
   };
 
-  const items = buildPushItems(parentLinks, resolveBody);
-
-  const profilesWithSub = parentLinks.filter((link) =>
-    normalizeSubscription(link.profiles?.web_push_subscription)
-  ).length;
-
-  console.log('buildPushItemsForTarget: profiles with subscription', profilesWithSub);
-
-  if (parentLinks.length > 0 && items.length === 0) {
-    console.warn(
-      'buildPushItemsForTarget: parent links exist but no valid web_push_subscription. ' +
-        'Confirm the column is web_push_subscription (jsonb) with endpoint + keys, ' +
-        'and that admins can read parent profiles (003_profiles_rls.sql).'
-    );
-  }
+  const items = buildPushItems(subscriptionRows, resolveBody);
+  console.log('buildPushItemsForTarget: valid push items', items.length);
 
   return items;
 }
