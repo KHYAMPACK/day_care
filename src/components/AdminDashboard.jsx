@@ -191,7 +191,7 @@ export default function AdminDashboard({ profile, onSignOut }) {
 
       if ((studentsRes.data ?? []).length === 0) {
         setDataWarning(
-          'Öğrenci listesi boş. Supabase\'de kayıt varsa 004_groups_students_rls.sql dosyasını çalıştırın.'
+          'Size atanan öğrenci bulunmuyor. Müdürünüzden sınıf ataması yapmasını isteyin.'
         );
       }
 

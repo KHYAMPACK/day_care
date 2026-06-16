@@ -13,6 +13,7 @@ import {
 const TABS = [
   { id: 'overview', label: 'Genel Bakış', icon: '📊' },
   { id: 'audit', label: 'Mesaj Trafiği', icon: '📋' },
+  { id: 'assignment', label: 'Öğretmen Atama', icon: '🏫' },
   { id: 'staff', label: 'Öğretmen Yönetimi', icon: '👩‍🏫' },
   { id: 'matching', label: 'Eşleştirme', icon: '🤝' },
   { id: 'templates', label: 'Şablonlar', icon: '✨' },
@@ -103,9 +104,9 @@ function OverviewTab({ stats, linksCount }) {
       <div className="dash-card director-overview-note">
         <h2 className="dash-section-title">Okul özeti</h2>
         <p className="dash-hint">
-          Veli eşleştirmelerini <strong>Eşleştirme</strong>, şablonları{' '}
-          <strong>Şablonlar</strong>, bugünkü mesajları <strong>Mesaj Trafiği</strong> sekmesinden
-          takip edebilirsiniz.
+          Veli eşleştirmelerini <strong>Eşleştirme</strong>, öğretmen–öğrenci atamalarını{' '}
+          <strong>Öğretmen Atama</strong>, şablonları <strong>Şablonlar</strong> sekmesinden
+          yönetebilirsiniz.
         </p>
       </div>
     </section>
@@ -460,6 +461,177 @@ function StaffManagerTab({
   );
 }
 
+function TeacherAssignmentTab({
+  teachers,
+  students,
+  selectedTeacherId,
+  onTeacherChange,
+  selectedStudentIds,
+  onToggleStudent,
+  onToggleSelectAll,
+  assignmentSearchQuery,
+  onAssignmentSearchChange,
+  savedStudentIds,
+  onSave,
+  saving,
+  loading,
+  error,
+  success,
+}) {
+  const selectedTeacher = teachers.find((teacher) => teacher.id === selectedTeacherId);
+
+  const filteredStudents = useMemo(() => {
+    const query = assignmentSearchQuery.trim().toLocaleLowerCase('tr');
+    if (!query) return students;
+    return students.filter((student) =>
+      student.full_name.toLocaleLowerCase('tr').includes(query)
+    );
+  }, [students, assignmentSearchQuery]);
+
+  const allSelected =
+    students.length > 0 && selectedStudentIds.length === students.length;
+
+  const savedStudents = students.filter((student) => savedStudentIds.includes(student.id));
+
+  if (loading) {
+    return <TabLoading message="Öğretmen atamaları yükleniyor…" />;
+  }
+
+  return (
+    <section className="director-panel">
+      <div className="dash-card">
+        <h2 className="dash-section-title">Sınıf / Öğretmen Atama</h2>
+        <p className="dash-hint">
+          Bir öğretmen seçin ve sorumlu olacağı öğrencileri işaretleyin. Kaydettiğinizde mevcut
+          atamalar güncellenir.
+        </p>
+
+        <label className="dash-label">
+          Öğretmen seçin
+          <select
+            className="dash-input"
+            value={selectedTeacherId}
+            onChange={(event) => onTeacherChange(event.target.value)}
+            disabled={saving || teachers.length === 0}
+          >
+            <option value="">Öğretmen seçin…</option>
+            {teachers.map((teacher) => (
+              <option key={teacher.id} value={teacher.id}>
+                {teacher.full_name ?? teacher.email ?? teacher.id}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        {!selectedTeacherId ? (
+          <p className="dash-hint">Atama yapmak için önce bir öğretmen seçin.</p>
+        ) : (
+          <>
+            {savedStudents.length > 0 && (
+              <div className="assignment-saved">
+                <p className="dash-label-inline">
+                  {selectedTeacher?.full_name ?? selectedTeacher?.email} — mevcut atamalar
+                </p>
+                <ul className="assignment-chip-list">
+                  {savedStudents.map((student) => (
+                    <li key={student.id} className="assignment-chip">
+                      {student.full_name}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {savedStudents.length === 0 && (
+              <p className="assignment-empty-note">
+                Bu öğretmene henüz öğrenci atanmamış.
+              </p>
+            )}
+
+            <div className="student-picker">
+              <p className="dash-label-inline">Öğrenciler</p>
+              <div className="student-picker-toolbar">
+                <input
+                  className="dash-input student-picker-search"
+                  type="search"
+                  value={assignmentSearchQuery}
+                  onChange={(event) => onAssignmentSearchChange(event.target.value)}
+                  placeholder="Öğrenci ara…"
+                  disabled={saving || students.length === 0}
+                  aria-label="Öğrenci ara"
+                />
+                <button
+                  type="button"
+                  className="student-picker-select-all"
+                  onClick={onToggleSelectAll}
+                  disabled={saving || students.length === 0}
+                >
+                  {allSelected ? 'Seçimleri Kaldır' : 'Tüm Öğrencileri Seç'}
+                </button>
+              </div>
+
+              {students.length === 0 ? (
+                <p className="dash-hint">Atanabilecek öğrenci bulunmuyor.</p>
+              ) : filteredStudents.length === 0 ? (
+                <p className="dash-hint">Aramanızla eşleşen öğrenci yok.</p>
+              ) : (
+                <ul className="student-picker-list" role="list">
+                  {filteredStudents.map((student) => {
+                    const checked = selectedStudentIds.includes(student.id);
+                    const isSaved = savedStudentIds.includes(student.id);
+
+                    return (
+                      <li key={student.id} role="listitem">
+                        <label
+                          className={`student-picker-item${checked ? ' student-picker-item--checked' : ''}${isSaved ? ' student-picker-item--assigned' : ''}`}
+                        >
+                          <input
+                            type="checkbox"
+                            className="student-picker-checkbox"
+                            checked={checked}
+                            onChange={() => onToggleStudent(student.id)}
+                            disabled={saving}
+                          />
+                          <span className="student-picker-item__name">{student.full_name}</span>
+                          {isSaved && (
+                            <span className="assignment-item-badge">Atanmış</span>
+                          )}
+                        </label>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+
+              <p className="student-picker-count">
+                {selectedStudentIds.length} / {students.length} öğrenci seçildi
+              </p>
+            </div>
+
+            {error && <InlineError error={error} context="general" />}
+            {success && <SuccessMessage message={success} />}
+
+            <form
+              className="dash-form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                onSave();
+              }}
+            >
+              <SendButton
+                sending={saving}
+                disabled={!selectedTeacherId}
+                label="Öğrencileri Öğretmene Ata"
+                sendingLabel="Kaydediliyor…"
+              />
+            </form>
+          </>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function TemplatesTab({
   templates,
   form,
@@ -632,6 +804,15 @@ export default function DirectorDashboard({ profile, onSignOut }) {
   const [staffError, setStaffError] = useState(null);
   const [staffSuccess, setStaffSuccess] = useState(null);
 
+  const [assignmentTeacherId, setAssignmentTeacherId] = useState('');
+  const [assignmentSelectedStudentIds, setAssignmentSelectedStudentIds] = useState([]);
+  const [assignmentSavedStudentIds, setAssignmentSavedStudentIds] = useState([]);
+  const [assignmentSearchQuery, setAssignmentSearchQuery] = useState('');
+  const [assignmentLoading, setAssignmentLoading] = useState(false);
+  const [assignmentSaving, setAssignmentSaving] = useState(false);
+  const [assignmentError, setAssignmentError] = useState(null);
+  const [assignmentSuccess, setAssignmentSuccess] = useState(null);
+
   const displayName = profile?.full_name ?? profile?.email ?? 'Müdür';
 
   const stats = useMemo(() => {
@@ -723,6 +904,112 @@ export default function DirectorDashboard({ profile, onSignOut }) {
       if (showLoading) setTeachersLoading(false);
     }
   }, []);
+
+  const loadTeacherAssignments = useCallback(async (teacherId) => {
+    if (!teacherId) {
+      setAssignmentSavedStudentIds([]);
+      setAssignmentSelectedStudentIds([]);
+      return;
+    }
+
+    setAssignmentLoading(true);
+    setAssignmentError(null);
+
+    try {
+      const { data, error } = await supabase
+        .from('teacher_students')
+        .select('student_id')
+        .eq('teacher_id', teacherId);
+
+      if (error) throw error;
+
+      const ids = (data ?? []).map((row) => row.student_id);
+      setAssignmentSavedStudentIds(ids);
+      setAssignmentSelectedStudentIds(ids);
+    } catch (error) {
+      setAssignmentError(error);
+      setAssignmentSavedStudentIds([]);
+      setAssignmentSelectedStudentIds([]);
+    } finally {
+      setAssignmentLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'assignment' && assignmentTeacherId) {
+      loadTeacherAssignments(assignmentTeacherId);
+    }
+  }, [activeTab, assignmentTeacherId, loadTeacherAssignments]);
+
+  function handleAssignmentTeacherChange(teacherId) {
+    setAssignmentTeacherId(teacherId);
+    setAssignmentSuccess(null);
+    setAssignmentError(null);
+    setAssignmentSearchQuery('');
+    if (!teacherId) {
+      setAssignmentSavedStudentIds([]);
+      setAssignmentSelectedStudentIds([]);
+    }
+  }
+
+  function toggleAssignmentStudent(studentId) {
+    setAssignmentSelectedStudentIds((current) =>
+      current.includes(studentId)
+        ? current.filter((id) => id !== studentId)
+        : [...current, studentId]
+    );
+  }
+
+  function toggleAssignmentSelectAll() {
+    setAssignmentSelectedStudentIds((current) =>
+      current.length === students.length ? [] : students.map((student) => student.id)
+    );
+  }
+
+  async function handleSaveTeacherAssignment() {
+    if (!assignmentTeacherId) {
+      setAssignmentError('Lütfen bir öğretmen seçin.');
+      return;
+    }
+
+    setAssignmentSaving(true);
+    setAssignmentError(null);
+    setAssignmentSuccess(null);
+
+    const { error: deleteError } = await supabase
+      .from('teacher_students')
+      .delete()
+      .eq('teacher_id', assignmentTeacherId);
+
+    if (deleteError) {
+      setAssignmentSaving(false);
+      setAssignmentError(deleteError);
+      return;
+    }
+
+    if (assignmentSelectedStudentIds.length > 0) {
+      const rows = assignmentSelectedStudentIds.map((studentId) => ({
+        teacher_id: assignmentTeacherId,
+        student_id: studentId,
+      }));
+
+      const { error: insertError } = await supabase.from('teacher_students').insert(rows);
+
+      if (insertError) {
+        setAssignmentSaving(false);
+        setAssignmentError(insertError);
+        return;
+      }
+    }
+
+    setAssignmentSaving(false);
+    setAssignmentSavedStudentIds([...assignmentSelectedStudentIds]);
+    setAssignmentSuccess(
+      assignmentSelectedStudentIds.length > 0
+        ? `${assignmentSelectedStudentIds.length} öğrenci öğretmene atandı.`
+        : 'Öğretmenin tüm öğrenci atamaları kaldırıldı.'
+    );
+  }
 
   useEffect(() => {
     if (profile?.role !== USER_ROLES.director) return;
@@ -947,6 +1234,8 @@ export default function DirectorDashboard({ profile, onSignOut }) {
     setStaffError(null);
     setStaffSuccess(null);
 
+    await supabase.from('teacher_students').delete().eq('teacher_id', teacher.id);
+
     const { error } = await supabase
       .from('profiles')
       .update({ role: USER_ROLES.parent })
@@ -1029,6 +1318,26 @@ export default function DirectorDashboard({ profile, onSignOut }) {
             loading={auditLoading}
             error={auditError}
             onRefresh={loadTodayMessages}
+          />
+        )}
+
+        {activeTab === 'assignment' && (
+          <TeacherAssignmentTab
+            teachers={teachers}
+            students={students}
+            selectedTeacherId={assignmentTeacherId}
+            onTeacherChange={handleAssignmentTeacherChange}
+            selectedStudentIds={assignmentSelectedStudentIds}
+            onToggleStudent={toggleAssignmentStudent}
+            onToggleSelectAll={toggleAssignmentSelectAll}
+            assignmentSearchQuery={assignmentSearchQuery}
+            onAssignmentSearchChange={setAssignmentSearchQuery}
+            savedStudentIds={assignmentSavedStudentIds}
+            onSave={handleSaveTeacherAssignment}
+            saving={assignmentSaving}
+            loading={assignmentLoading && Boolean(assignmentTeacherId)}
+            error={assignmentError}
+            success={assignmentSuccess}
           />
         )}
 
