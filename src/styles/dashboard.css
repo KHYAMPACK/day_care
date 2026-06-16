@@ -452,6 +452,116 @@ body {
   box-shadow: none;
 }
 
+/* Student picker (teacher send form) */
+.student-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.student-picker-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.625rem;
+  align-items: stretch;
+}
+
+.student-picker-search {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.student-picker-select-all {
+  flex-shrink: 0;
+  padding: 0.75rem 1.125rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--pastel-send-text);
+  background: linear-gradient(135deg, var(--pastel-lavender) 0%, #e9d5ff 100%);
+  border: 1px solid #ddd6fe;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform 0.15s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.student-picker-select-all:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(109, 40, 217, 0.15);
+  background: linear-gradient(135deg, #ddd6fe 0%, #e9d5ff 100%);
+}
+
+.student-picker-select-all:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.student-picker-select-all:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.student-picker-list {
+  list-style: none;
+  margin: 0;
+  padding: 0.5rem;
+  max-height: 16rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  border: 1.5px solid #ebe8e4;
+  border-radius: 0.75rem;
+  background: var(--bg-page);
+  scrollbar-width: thin;
+  scrollbar-color: #d6d3d1 transparent;
+}
+
+.student-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 0.875rem;
+  border-radius: 0.625rem;
+  cursor: pointer;
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+  border: 1px solid transparent;
+}
+
+.student-picker-item:hover {
+  background: #fff;
+}
+
+.student-picker-item--checked {
+  background: linear-gradient(135deg, #faf5ff 0%, #fff 100%);
+  border-color: #e9d5ff;
+  box-shadow: 0 2px 8px rgba(109, 40, 217, 0.08);
+}
+
+.student-picker-checkbox {
+  width: 1.125rem;
+  height: 1.125rem;
+  flex-shrink: 0;
+  margin: 0;
+  accent-color: #8b5cf6;
+  cursor: pointer;
+}
+
+.student-picker-item__name {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  line-height: 1.35;
+}
+
+.student-picker-count {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--pastel-send-text);
+  text-align: right;
+}
+
 .dash-spinner {
   width: 1.125rem;
   height: 1.125rem;

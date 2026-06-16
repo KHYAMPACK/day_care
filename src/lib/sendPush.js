@@ -44,6 +44,7 @@ export async function notifyParentsForMessage({
   targetType,
   targetId,
   students,
+  studentIds = null,
   body,
   bodiesByStudentId = null,
 }) {
@@ -51,13 +52,13 @@ export async function notifyParentsForMessage({
     targetType,
     targetId,
     body,
-    studentCount: students.length,
+    studentCount: studentIds?.length ?? students.length,
   });
 
   const delivery = {
     targetType,
     targetId,
-    studentIds: students.map((student) => student.id),
+    studentIds: studentIds ?? students.map((student) => student.id),
     body,
     bodiesByStudentId,
   };

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { notifyParentsForMessage } from '../lib/sendPush';
 import {
@@ -12,8 +12,6 @@ import {
 } from './dashboardUi';
 import { formatRelativeTimeTr } from '../utils/formatTime';
 
-const TARGET_GROUP = 'group';
-const TARGET_STUDENT = 'student';
 const TARGET_ALL = 'all';
 const CHILD_NAME_PLACEHOLDER = '{{child_name}}';
 const CHILD_DISPLAY_FALLBACK = 'Çocuğunuz';
@@ -23,11 +21,11 @@ function getFirstName(fullName) {
   return fullName.trim().split(/\s+/)[0];
 }
 
-function applyTemplateBody(templateBody, targetType, targetId, students) {
+function applyTemplateBody(templateBody, students, selectedStudentIds) {
   let replacement = CHILD_DISPLAY_FALLBACK;
 
-  if (targetType === TARGET_STUDENT && targetId) {
-    const student = students.find((entry) => entry.id === targetId);
+  if (selectedStudentIds.length === 1) {
+    const student = students.find((entry) => entry.id === selectedStudentIds[0]);
     if (student) {
       replacement = getFirstName(student.full_name);
     }
@@ -48,8 +46,84 @@ function formatMessageTarget(message) {
   return 'Bilinmiyor';
 }
 
+function StudentPicker({
+  students,
+  selectedStudentIds,
+  onToggleStudent,
+  onToggleSelectAll,
+  searchQuery,
+  onSearchQueryChange,
+  disabled,
+}) {
+  const filteredStudents = useMemo(() => {
+    const query = searchQuery.trim().toLocaleLowerCase('tr');
+    if (!query) return students;
+    return students.filter((student) =>
+      student.full_name.toLocaleLowerCase('tr').includes(query)
+    );
+  }, [students, searchQuery]);
+
+  const allSelected = students.length > 0 && selectedStudentIds.length === students.length;
+
+  return (
+    <div className="student-picker">
+      <p className="dash-label-inline">Alıcılar</p>
+      <div className="student-picker-toolbar">
+        <input
+          className="dash-input student-picker-search"
+          type="search"
+          value={searchQuery}
+          onChange={(event) => onSearchQueryChange(event.target.value)}
+          placeholder="Öğrenci ara…"
+          disabled={disabled || students.length === 0}
+          aria-label="Öğrenci ara"
+        />
+        <button
+          type="button"
+          className="student-picker-select-all"
+          onClick={onToggleSelectAll}
+          disabled={disabled || students.length === 0}
+        >
+          {allSelected ? 'Seçimleri Kaldır' : 'Tüm Öğrencileri Seç'}
+        </button>
+      </div>
+
+      {students.length === 0 ? (
+        <p className="dash-hint">Gönderilecek öğrenci bulunmuyor.</p>
+      ) : filteredStudents.length === 0 ? (
+        <p className="dash-hint">Aramanızla eşleşen öğrenci yok.</p>
+      ) : (
+        <ul className="student-picker-list" role="list">
+          {filteredStudents.map((student) => {
+            const checked = selectedStudentIds.includes(student.id);
+            return (
+              <li key={student.id} role="listitem">
+                <label
+                  className={`student-picker-item${checked ? ' student-picker-item--checked' : ''}`}
+                >
+                  <input
+                    type="checkbox"
+                    className="student-picker-checkbox"
+                    checked={checked}
+                    onChange={() => onToggleStudent(student.id)}
+                    disabled={disabled}
+                  />
+                  <span className="student-picker-item__name">{student.full_name}</span>
+                </label>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      <p className="student-picker-count">
+        {selectedStudentIds.length} / {students.length} öğrenci seçildi
+      </p>
+    </div>
+  );
+}
+
 export default function AdminDashboard({ profile, onSignOut }) {
-  const [groups, setGroups] = useState([]);
   const [students, setStudents] = useState([]);
   const [templates, setTemplates] = useState([]);
   const [messages, setMessages] = useState([]);
@@ -58,8 +132,8 @@ export default function AdminDashboard({ profile, onSignOut }) {
   const [dataError, setDataError] = useState(null);
   const [dataWarning, setDataWarning] = useState(null);
 
-  const [targetType, setTargetType] = useState(TARGET_GROUP);
-  const [targetId, setTargetId] = useState('');
+  const [selectedStudentIds, setSelectedStudentIds] = useState([]);
+  const [studentSearchQuery, setStudentSearchQuery] = useState('');
   const [body, setBody] = useState('');
   const [sending, setSending] = useState(false);
   const [submitError, setSubmitError] = useState(null);
@@ -97,16 +171,14 @@ export default function AdminDashboard({ profile, onSignOut }) {
       setDataError(null);
       setDataWarning(null);
 
-      const [groupsRes, studentsRes, templatesRes] = await Promise.all([
-        supabase.from('groups').select('id, name').order('name'),
+      const [studentsRes, templatesRes] = await Promise.all([
         supabase.from('students').select('id, full_name').order('full_name'),
         supabase.from('message_templates').select('id, title, body, icon').order('title'),
       ]);
 
       if (!mounted) return;
 
-      const firstError =
-        groupsRes.error ?? studentsRes.error ?? templatesRes.error ?? null;
+      const firstError = studentsRes.error ?? templatesRes.error ?? null;
 
       if (firstError) {
         setDataError(firstError);
@@ -114,23 +186,13 @@ export default function AdminDashboard({ profile, onSignOut }) {
         return;
       }
 
-      setGroups(groupsRes.data ?? []);
       setStudents(studentsRes.data ?? []);
       setTemplates(templatesRes.data ?? []);
 
-      const warnings = [];
-      if ((groupsRes.data ?? []).length === 0) {
-        warnings.push(
-          'Grup listesi boş. Supabase\'de kayıt varsa 004_groups_students_rls.sql dosyasını çalıştırın.'
-        );
-      }
       if ((studentsRes.data ?? []).length === 0) {
-        warnings.push(
+        setDataWarning(
           'Öğrenci listesi boş. Supabase\'de kayıt varsa 004_groups_students_rls.sql dosyasını çalıştırın.'
         );
-      }
-      if (warnings.length > 0) {
-        setDataWarning(warnings.join(' '));
       }
 
       try {
@@ -149,49 +211,30 @@ export default function AdminDashboard({ profile, onSignOut }) {
     };
   }, [fetchMessages]);
 
-  useEffect(() => {
-    if (targetType === TARGET_GROUP && groups.length > 0) {
-      setTargetId((current) =>
-        groups.some((group) => group.id === current) ? current : groups[0].id
-      );
-      return;
-    }
+  function toggleStudentSelection(studentId) {
+    setSelectedStudentIds((current) =>
+      current.includes(studentId)
+        ? current.filter((id) => id !== studentId)
+        : [...current, studentId]
+    );
+  }
 
-    if (targetType === TARGET_STUDENT && students.length > 0) {
-      setTargetId((current) =>
-        students.some((student) => student.id === current) ? current : students[0].id
-      );
-      return;
-    }
+  function toggleSelectAllStudents() {
+    setSelectedStudentIds((current) =>
+      current.length === students.length ? [] : students.map((student) => student.id)
+    );
+  }
 
-    if (targetType === TARGET_ALL) {
-      setTargetId('');
-    }
-  }, [targetType, groups, students]);
-
-  async function triggerPushNotifications({
-    messageBody,
-    pushTargetType,
-    pushTargetId,
-    bodiesByStudentId = null,
-  }) {
-    console.log('Push notification function triggered!', {
-      targetType: pushTargetType,
-      targetId: pushTargetId,
-      messageBody,
-      bodiesByStudentId,
-      studentIds: students.map((student) => student.id),
-    });
-
+  async function triggerPushNotifications({ messageBody, bodiesByStudentId, studentIds }) {
     const pushResult = await notifyParentsForMessage({
-      targetType: pushTargetType,
-      targetId: pushTargetId,
+      targetType: TARGET_ALL,
+      targetId: null,
       students,
+      studentIds,
       body: messageBody,
       bodiesByStudentId,
     });
 
-    console.log('Push notification result:', pushResult);
     return pushResult;
   }
 
@@ -208,103 +251,59 @@ export default function AdminDashboard({ profile, onSignOut }) {
       return;
     }
 
-    if (targetType === TARGET_GROUP && !targetId) {
-      setSubmitError('Lütfen bir sınıf seçin.');
+    if (selectedStudentIds.length === 0) {
+      setSubmitError('En az bir öğrenci seçin.');
       return;
     }
 
-    if (targetType === TARGET_STUDENT && !targetId) {
-      setSubmitError('Lütfen bir öğrenci seçin.');
-      return;
-    }
-
-    if (targetType === TARGET_ALL && students.length === 0) {
-      setSubmitError('Bildirim gönderilecek öğrenci bulunmuyor.');
-      return;
-    }
+    const selectedStudents = students.filter((student) =>
+      selectedStudentIds.includes(student.id)
+    );
 
     setSending(true);
 
     try {
-      if (targetType === TARGET_ALL) {
-        const bodiesByStudentId = Object.fromEntries(
-          students.map((student) => [
-            student.id,
-            trimmedBody.replaceAll(CHILD_NAME_PLACEHOLDER, getFirstName(student.full_name)),
-          ])
-        );
+      const bodiesByStudentId = Object.fromEntries(
+        selectedStudents.map((student) => [
+          student.id,
+          trimmedBody.replaceAll(CHILD_NAME_PLACEHOLDER, getFirstName(student.full_name)),
+        ])
+      );
 
-        const rows = students.map((student) => ({
-          body: bodiesByStudentId[student.id],
-          author_id: profile.id,
-          student_id: student.id,
-          group_id: null,
-        }));
+      const rows = selectedStudents.map((student) => ({
+        body: bodiesByStudentId[student.id],
+        author_id: profile.id,
+        student_id: student.id,
+        group_id: null,
+      }));
 
-        const { error } = await supabase.from('messages').insert(rows);
-        if (error) throw error;
+      const { error } = await supabase.from('messages').insert(rows);
+      if (error) throw error;
 
-        console.log('sendMessage: messages inserted successfully (all students)');
-
-        let pushNote = '';
-        try {
-          const pushResult = await triggerPushNotifications({
-            messageBody: trimmedBody,
-            pushTargetType: TARGET_ALL,
-            pushTargetId: null,
-            bodiesByStudentId,
-          });
-
-          if (!pushResult.skipped && pushResult.total > 0) {
-            pushNote = ` (${pushResult.sent} anlık bildirim gönderildi)`;
-          } else if (pushResult.skipped) {
-            pushNote = ' (Mesaj kaydedildi; push abonesi bulunamadı)';
-          }
-        } catch (pushError) {
-          console.error('sendMessage: push notification failed', pushError);
-          pushNote = ' (Mesaj kaydedildi; anlık bildirim gönderilemedi.)';
-        }
-
-        setSubmitSuccess(
-          `Mesaj ${students.length} öğrenciye başarıyla gönderildi!${pushNote}`
-        );
-      } else {
-        const { error } = await supabase.from('messages').insert({
-          body: trimmedBody,
-          author_id: profile.id,
-          student_id: targetType === TARGET_STUDENT ? targetId : null,
-          group_id: targetType === TARGET_GROUP ? targetId : null,
-        });
-        if (error) throw error;
-
-        console.log('sendMessage: message inserted successfully', {
-          targetType,
-          targetId,
-          body: trimmedBody,
+      let pushNote = '';
+      try {
+        const pushResult = await triggerPushNotifications({
+          messageBody: trimmedBody,
+          bodiesByStudentId,
+          studentIds: selectedStudentIds,
         });
 
-        let pushNote = '';
-        try {
-          const pushResult = await triggerPushNotifications({
-            messageBody: trimmedBody,
-            pushTargetType: targetType,
-            pushTargetId: targetId,
-          });
-
-          if (!pushResult.skipped && pushResult.total > 0) {
-            pushNote = ` (${pushResult.sent} anlık bildirim gönderildi)`;
-          } else if (pushResult.skipped) {
-            pushNote = ' (Mesaj kaydedildi; push abonesi bulunamadı)';
-          }
-        } catch (pushError) {
-          console.error('sendMessage: push notification failed', pushError);
-          pushNote = ' (Mesaj kaydedildi; anlık bildirim gönderilemedi.)';
+        if (!pushResult.skipped && pushResult.total > 0) {
+          pushNote = ` (${pushResult.sent} anlık bildirim gönderildi)`;
+        } else if (pushResult.skipped) {
+          pushNote = ' (Mesaj kaydedildi; push abonesi bulunamadı)';
         }
-
-        setSubmitSuccess(`Mesaj başarıyla gönderildi!${pushNote}`);
+      } catch (pushError) {
+        console.error('sendMessage: push notification failed', pushError);
+        pushNote = ' (Mesaj kaydedildi; anlık bildirim gönderilemedi.)';
       }
 
+      setSubmitSuccess(
+        `Mesaj ${selectedStudents.length} öğrenciye başarıyla gönderildi!${pushNote}`
+      );
+
       setBody('');
+      setSelectedStudentIds([]);
       await fetchMessages();
     } catch (error) {
       console.error('sendMessage: failed before or during insert', error);
@@ -315,7 +314,7 @@ export default function AdminDashboard({ profile, onSignOut }) {
   }
 
   function handleTemplateClick(template) {
-    setBody(applyTemplateBody(template.body, targetType, targetId, students));
+    setBody(applyTemplateBody(template.body, students, selectedStudentIds));
     setSubmitError(null);
     setSubmitSuccess(null);
   }
@@ -360,69 +359,15 @@ export default function AdminDashboard({ profile, onSignOut }) {
           <h2 className="dash-section-title">Yeni Mesaj Gönder</h2>
 
           <form className="dash-form" onSubmit={sendMessage}>
-            <label className="dash-label">
-              Gönderim hedefi
-              <select
-                className="dash-input"
-                value={targetType}
-                onChange={(e) => setTargetType(e.target.value)}
-                disabled={sending}
-              >
-                <option value={TARGET_GROUP}>Sınıf / Grup</option>
-                <option value={TARGET_STUDENT}>Bireysel Öğrenci</option>
-                <option value={TARGET_ALL}>Tüm Öğrenciler</option>
-              </select>
-            </label>
-
-            {targetType === TARGET_GROUP && (
-              <label className="dash-label">
-                Sınıf Seçin
-                <select
-                  className="dash-input"
-                  value={targetId}
-                  onChange={(e) => setTargetId(e.target.value)}
-                  disabled={sending || groups.length === 0}
-                >
-                  {groups.length === 0 ? (
-                    <option value="">Grup bulunmuyor</option>
-                  ) : (
-                    groups.map((group) => (
-                      <option key={group.id} value={group.id}>
-                        {group.name}
-                      </option>
-                    ))
-                  )}
-                </select>
-              </label>
-            )}
-
-            {targetType === TARGET_STUDENT && (
-              <label className="dash-label">
-                Öğrenci Seçin
-                <select
-                  className="dash-input"
-                  value={targetId}
-                  onChange={(e) => setTargetId(e.target.value)}
-                  disabled={sending || students.length === 0}
-                >
-                  {students.length === 0 ? (
-                    <option value="">Öğrenci bulunmuyor</option>
-                  ) : (
-                    students.map((student) => (
-                      <option key={student.id} value={student.id}>
-                        {student.full_name}
-                      </option>
-                    ))
-                  )}
-                </select>
-              </label>
-            )}
-
-            {targetType === TARGET_ALL && (
-              <p className="dash-hint">
-                Her öğrenci için ayrı bir mesaj oluşturulacak ({students.length} adet).
-              </p>
-            )}
+            <StudentPicker
+              students={students}
+              selectedStudentIds={selectedStudentIds}
+              onToggleStudent={toggleStudentSelection}
+              onToggleSelectAll={toggleSelectAllStudents}
+              searchQuery={studentSearchQuery}
+              onSearchQueryChange={setStudentSearchQuery}
+              disabled={sending}
+            />
 
             <label className="dash-label">
               Mesaj
@@ -462,6 +407,7 @@ export default function AdminDashboard({ profile, onSignOut }) {
 
             <SendButton
               sending={sending}
+              disabled={selectedStudentIds.length === 0}
               label="Mesaj Gönder"
               sendingLabel="Mesaj Gönderiliyor…"
             />
