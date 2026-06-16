@@ -65,7 +65,8 @@ export default function AdminDashboard({ profile, onSignOut }) {
   const [submitError, setSubmitError] = useState(null);
   const [submitSuccess, setSubmitSuccess] = useState(null);
 
-  const displayName = profile?.full_name ?? profile?.email ?? 'Yönetici';
+  const displayName = profile?.full_name ?? profile?.email ?? 'Öğretmen';
+  const navBrand = 'Başak Akademi — Öğretmen';
 
   const fetchMessages = useCallback(async () => {
     const { data, error } = await supabase
@@ -99,7 +100,7 @@ export default function AdminDashboard({ profile, onSignOut }) {
       const [groupsRes, studentsRes, templatesRes] = await Promise.all([
         supabase.from('groups').select('id, name').order('name'),
         supabase.from('students').select('id, full_name').order('full_name'),
-        supabase.from('message_templates').select('id, title, body').order('title'),
+        supabase.from('message_templates').select('id, title, body, icon').order('title'),
       ]);
 
       if (!mounted) return;
@@ -322,7 +323,7 @@ export default function AdminDashboard({ profile, onSignOut }) {
   if (dataLoading) {
     return (
       <>
-        <AppNavbar brand="🎈 Kreş Yönetim" onSignOut={onSignOut} />
+        <AppNavbar brand={navBrand} onSignOut={onSignOut} />
         <LoadingPanel message="Panel yükleniyor…" />
       </>
     );
@@ -331,7 +332,7 @@ export default function AdminDashboard({ profile, onSignOut }) {
   if (dataError) {
     return (
       <>
-        <AppNavbar brand="🎈 Kreş Yönetim" onSignOut={onSignOut} />
+        <AppNavbar brand={navBrand} onSignOut={onSignOut} />
         <main className="dash-page dash-error-page">
           <ErrorMessage
             error={dataError}
@@ -345,11 +346,11 @@ export default function AdminDashboard({ profile, onSignOut }) {
 
   return (
     <>
-      <AppNavbar brand="🎈 Kreş Yönetim" onSignOut={onSignOut} />
+      <AppNavbar brand={navBrand} onSignOut={onSignOut} />
 
       <main className="dash-page dash-page--flush">
         <header className="dash-header">
-          <h1 className="dash-title">Yönetici Paneli</h1>
+          <h1 className="dash-title">Öğretmen Paneli</h1>
           <p className="dash-subtitle">Hoş geldiniz, {displayName}.</p>
         </header>
 
@@ -439,6 +440,7 @@ export default function AdminDashboard({ profile, onSignOut }) {
                       onClick={() => handleTemplateClick(template)}
                       disabled={sending}
                     >
+                      {template.icon ? `${template.icon} ` : ''}
                       {template.title}
                     </button>
                   ))}

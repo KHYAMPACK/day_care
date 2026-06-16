@@ -74,7 +74,9 @@ function isPermissionError(raw) {
     lower.includes('row-level security') ||
     lower.includes('not authorized') ||
     lower.includes('forbidden') ||
-    lower.includes('only admins')
+    lower.includes('only admins') ||
+    lower.includes('only teachers') ||
+    lower.includes('only teachers and directors')
   );
 }
 

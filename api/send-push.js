@@ -145,8 +145,8 @@ export default async function handler(req, res) {
       .eq('id', user.id)
       .single();
 
-    if (profileError || profile?.role !== 'admin') {
-      return res.status(403).json({ error: 'Only admins can send push notifications' });
+    if (profileError || !['teacher', 'director'].includes(profile?.role)) {
+      return res.status(403).json({ error: 'Only teachers and directors can send push notifications' });
     }
 
     const publicKey =

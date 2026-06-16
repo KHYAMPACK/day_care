@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from './lib/supabase';
 import AdminDashboard from './components/AdminDashboard';
+import DirectorDashboard from './screens/pages/DirectorDashboard';
 import ParentDashboard from './components/ParentDashboard';
 import {
   ErrorMessage,
@@ -8,6 +9,7 @@ import {
   LoadingPanel,
   OfflineBanner,
 } from './components/dashboardUi';
+import { USER_ROLES } from './lib/roles';
 
 export default function App() {
   const [session, setSession] = useState(null);
@@ -291,14 +293,20 @@ export default function App() {
   return (
     <div className="app-shell">
       <OfflineBanner />
-      {profile?.role === 'admin' && (
+      {profile?.role === USER_ROLES.director && (
+        <DirectorDashboard profile={profile} onSignOut={handleSignOut} />
+      )}
+      {profile?.role === USER_ROLES.teacher && (
         <AdminDashboard profile={profile} onSignOut={handleSignOut} />
       )}
-      {profile?.role === 'parent' && (
+      {profile?.role === USER_ROLES.parent && (
         <ParentDashboard profile={profile} onSignOut={handleSignOut} />
       )}
 
-      {profile && profile.role !== 'admin' && profile.role !== 'parent' && (
+      {profile &&
+        profile.role !== USER_ROLES.director &&
+        profile.role !== USER_ROLES.teacher &&
+        profile.role !== USER_ROLES.parent && (
         <main className="app-centered app-centered--wide">
           <ErrorMessage
             error="Bu hesap türü desteklenmiyor."
