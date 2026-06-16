@@ -26,8 +26,21 @@
   --pastel-send-text: #4c1d95;
 }
 
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  width: 100%;
+  overflow-x: clip;
+}
+
 body {
   margin: 0;
+  width: 100%;
+  overflow-x: clip;
   background: var(--bg-page);
   color: var(--text-primary);
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
@@ -35,13 +48,22 @@ body {
 }
 
 .dash-page {
+  width: 100%;
   max-width: 42rem;
-  margin: 0 auto;
-  padding: 1.5rem;
+  margin-inline: auto;
+  padding-inline: 1rem;
+  padding-block: 1.5rem;
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
   min-height: calc(100vh - 4rem);
+  min-width: 0;
+}
+
+@media (min-width: 768px) {
+  .dash-page {
+    padding-inline: 2rem;
+  }
 }
 
 .dash-header {
@@ -71,6 +93,9 @@ body {
 }
 
 .dash-card {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   background: var(--bg-card);
   border-radius: var(--radius-card);
   padding: 1.5rem;
@@ -325,7 +350,6 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 1.5rem;
 }
 
 .auth-error-wrap {
@@ -454,6 +478,9 @@ body {
 
 /* Student picker (teacher send form) */
 .student-picker {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
@@ -962,7 +989,11 @@ body {
 }
 
 .app-shell {
+  width: 100%;
+  max-width: 100%;
   min-height: 100vh;
+  min-width: 0;
+  overflow-x: clip;
   background: var(--bg-page);
 }
 
@@ -971,7 +1002,9 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.875rem 1.5rem;
+  width: 100%;
+  max-width: 100%;
+  padding: 0.875rem 1rem;
   background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(8px);
   border-bottom: 1px solid #f0ece8;
@@ -1008,6 +1041,12 @@ body {
 
 .app-navbar-signout:active {
   transform: scale(0.96);
+}
+
+@media (min-width: 768px) {
+  .app-navbar {
+    padding-inline: 1.5rem;
+  }
 }
 
 /* Parent welcome card */
@@ -1103,12 +1142,21 @@ body {
 /* Director dashboard */
 .dash-page--director {
   max-width: 48rem;
+}
+
+.director-layout {
   width: 100%;
+  max-width: 100%;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
 }
 
 .director-tabs {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   padding: 0.5rem 1rem;
   background: var(--bg-card);
   border-radius: var(--radius-card);
@@ -1122,6 +1170,9 @@ body {
   flex-wrap: nowrap;
   align-items: center;
   gap: 0.5rem;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   overflow-x: auto;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
@@ -1173,13 +1224,35 @@ body {
 }
 
 .director-panel {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
   animation: fade-in 0.35s ease;
 }
 
+.scroll-x-contained {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.scroll-x-contained::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
 .stat-grid {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;
@@ -1396,6 +1469,7 @@ body {
   justify-content: space-between;
   gap: 1rem;
   flex-wrap: wrap;
+  min-width: 0;
   margin-bottom: 0.5rem;
 }
 
@@ -1411,7 +1485,11 @@ body {
 }
 
 .audit-table-wrap {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   margin-top: 0.75rem;
   border-radius: 0.75rem;
   border: 1px solid #ebe8e4;
@@ -1419,6 +1497,7 @@ body {
 
 .audit-table {
   width: 100%;
+  min-width: 0;
   border-collapse: collapse;
   font-size: 0.875rem;
 }
@@ -1577,6 +1656,10 @@ body {
 }
 
 @media (max-width: 640px) {
+  .audit-table {
+    min-width: 36rem;
+  }
+
   .audit-table th:nth-child(3),
   .audit-table td:nth-child(3) {
     display: none;

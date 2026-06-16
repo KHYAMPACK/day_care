@@ -69,7 +69,7 @@ function formatRoleLabel(role) {
 
 function AccessDenied({ onSignOut }) {
   return (
-    <main className="dash-page dash-error-page">
+    <main className="dash-page dash-page--director dash-error-page">
       <ErrorMessage
         error="Bu sayfaya yalnızca müdürler erişebilir."
         context="general"
@@ -1274,7 +1274,7 @@ export default function DirectorDashboard({ profile, onSignOut }) {
     return (
       <>
         <AppNavbar brand="Başak Akademi — Müdür" onSignOut={onSignOut} />
-        <main className="dash-page dash-error-page">
+        <main className="dash-page dash-page--director dash-error-page">
           <ErrorMessage
             error={loadError}
             context="admin"
@@ -1290,31 +1290,32 @@ export default function DirectorDashboard({ profile, onSignOut }) {
       <AppNavbar brand="Başak Akademi — Müdür" onSignOut={onSignOut} />
 
       <main className="dash-page dash-page--director">
-        <header className="dash-header">
-          <h1 className="dash-title">Müdür Paneli</h1>
-          <p className="dash-subtitle">Hoş geldiniz, {displayName}.</p>
-        </header>
+        <div className="director-layout">
+          <header className="dash-header">
+            <h1 className="dash-title">Müdür Paneli</h1>
+            <p className="dash-subtitle">Hoş geldiniz, {displayName}.</p>
+          </header>
 
-        <nav className="director-tabs" aria-label="Müdür paneli sekmeleri">
-          <div className="director-tabs__track">
-            {TABS.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                className={`director-tab${activeTab === tab.id ? ' director-tab--active' : ''}`}
-                onClick={() => setActiveTab(tab.id)}
-                aria-current={activeTab === tab.id ? 'page' : undefined}
-              >
-                <span className="director-tab__icon" aria-hidden="true">
-                  {tab.icon}
-                </span>
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        </nav>
+          <nav className="director-tabs" aria-label="Müdür paneli sekmeleri">
+            <div className="director-tabs__track">
+              {TABS.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  className={`director-tab${activeTab === tab.id ? ' director-tab--active' : ''}`}
+                  onClick={() => setActiveTab(tab.id)}
+                  aria-current={activeTab === tab.id ? 'page' : undefined}
+                >
+                  <span className="director-tab__icon" aria-hidden="true">
+                    {tab.icon}
+                  </span>
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </nav>
 
-        {activeTab === 'overview' && <OverviewTab stats={stats} linksCount={links.length} />}
+          {activeTab === 'overview' && <OverviewTab stats={stats} linksCount={links.length} />}
 
         {activeTab === 'audit' && (
           <MessageAuditTab
@@ -1398,6 +1399,7 @@ export default function DirectorDashboard({ profile, onSignOut }) {
             templateSuccess={templateSuccess}
           />
         )}
+        </div>
       </main>
     </>
   );
