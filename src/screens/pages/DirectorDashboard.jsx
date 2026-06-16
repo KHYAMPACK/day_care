@@ -12,13 +12,59 @@ import {
 
 const TABS = [
   { id: 'overview', label: 'Genel Bakış', icon: '📊' },
-  { id: 'matching', label: 'Eşleştirme Merkezi', icon: '🤝' },
-  { id: 'templates', label: 'Şablon Sihirbazı', icon: '✨' },
+  { id: 'audit', label: 'Mesaj Trafiği', icon: '📋' },
+  { id: 'staff', label: 'Öğretmen Yönetimi', icon: '👩‍🏫' },
+  { id: 'matching', label: 'Eşleştirme', icon: '🤝' },
+  { id: 'templates', label: 'Şablonlar', icon: '✨' },
 ];
 
 const TEMPLATE_ICONS = ['💌', '🍽️', '🌙', '🚗', '💚', '🎒', '🏫', '✨', '🌸', '📢', '🍼', '☀️'];
 
 const EMPTY_TEMPLATE = { title: '', body: '', icon: '💌' };
+
+const MESSAGE_AUDIT_SELECT = `
+  id,
+  body,
+  created_at,
+  author_id,
+  student_id,
+  group_id,
+  profiles ( full_name, email ),
+  students ( full_name ),
+  groups ( name )
+`;
+
+function getStartOfTodayIso() {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  return start.toISOString();
+}
+
+function formatAuditTime(iso) {
+  return new Date(iso).toLocaleTimeString('tr-TR', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function formatRecipient(message) {
+  if (message.students?.full_name) return message.students.full_name;
+  if (message.groups?.name) return `Grup: ${message.groups.name}`;
+  if (message.student_id) return 'Öğrenci';
+  if (message.group_id) return 'Grup';
+  return '—';
+}
+
+function formatAuthor(message) {
+  return message.profiles?.full_name ?? message.profiles?.email ?? 'Bilinmiyor';
+}
+
+function formatRoleLabel(role) {
+  if (role === USER_ROLES.teacher) return 'Öğretmen';
+  if (role === USER_ROLES.director) return 'Müdür';
+  if (role === USER_ROLES.parent) return 'Veli';
+  return role ?? '—';
+}
 
 function AccessDenied({ onSignOut }) {
   return (
@@ -57,8 +103,9 @@ function OverviewTab({ stats, linksCount }) {
       <div className="dash-card director-overview-note">
         <h2 className="dash-section-title">Okul özeti</h2>
         <p className="dash-hint">
-          Veli ve öğrenci eşleştirmelerini <strong>Eşleştirme Merkezi</strong> sekmesinden
-          yönetebilir, mesaj şablonlarını <strong>Şablon Sihirbazı</strong> ile düzenleyebilirsiniz.
+          Veli eşleştirmelerini <strong>Eşleştirme</strong>, şablonları{' '}
+          <strong>Şablonlar</strong>, bugünkü mesajları <strong>Mesaj Trafiği</strong> sekmesinden
+          takip edebilirsiniz.
         </p>
       </div>
     </section>
@@ -182,6 +229,230 @@ function MatchingTab({
                 </li>
               );
             })}
+          </ul>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function TabLoading({ message }) {
+  return (
+    <section className="director-panel">
+      <div className="dash-card director-tab-loading">
+        <div className="dash-spinner" aria-hidden="true" />
+        <p>{message}</p>
+      </div>
+    </section>
+  );
+}
+
+function TabError({ error, onRetry, retryLabel = 'Tekrar Dene' }) {
+  return (
+    <section className="director-panel">
+      <div className="dash-card">
+        <InlineError error={error} context="general" />
+        {onRetry && (
+          <button type="button" className="error-card__retry" onClick={onRetry}>
+            {retryLabel}
+          </button>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function MessageAuditTab({ messages, loading, error, onRefresh }) {
+  if (loading) {
+    return <TabLoading message="Bugünkü mesajlar yükleniyor…" />;
+  }
+
+  if (error) {
+    return <TabError error={error} onRetry={onRefresh} />;
+  }
+
+  return (
+    <section className="director-panel">
+      <div className="dash-card">
+        <div className="director-card-header">
+          <div>
+            <h2 className="dash-section-title">Tüm Mesaj Trafiği</h2>
+            <p className="dash-hint">Bugün gönderilen tüm bildirimler ({messages.length} adet).</p>
+          </div>
+          <button type="button" className="director-btn-secondary" onClick={onRefresh}>
+            Yenile
+          </button>
+        </div>
+
+        {messages.length === 0 ? (
+          <p className="dash-hint">Bugün henüz mesaj gönderilmemiş.</p>
+        ) : (
+          <div className="audit-table-wrap">
+            <table className="audit-table">
+              <thead>
+                <tr>
+                  <th scope="col">Saat</th>
+                  <th scope="col">Öğretmen</th>
+                  <th scope="col">Alıcı</th>
+                  <th scope="col">Mesaj</th>
+                </tr>
+              </thead>
+              <tbody>
+                {messages.map((message) => (
+                  <tr key={message.id}>
+                    <td className="audit-table__time">
+                      <time dateTime={message.created_at}>{formatAuditTime(message.created_at)}</time>
+                    </td>
+                    <td className="audit-table__teacher">{formatAuthor(message)}</td>
+                    <td className="audit-table__recipient">{formatRecipient(message)}</td>
+                    <td className="audit-table__body">{message.body}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function StaffManagerTab({
+  teachers,
+  searchQuery,
+  onSearchQueryChange,
+  onSearch,
+  searchResults,
+  searchLoading,
+  searchError,
+  staffActionLoading,
+  staffError,
+  staffSuccess,
+  onPromote,
+  onDemote,
+  onRefreshTeachers,
+  teachersLoading,
+  teachersError,
+}) {
+  if (teachersLoading) {
+    return <TabLoading message="Öğretmen listesi yükleniyor…" />;
+  }
+
+  if (teachersError) {
+    return <TabError error={teachersError} onRetry={onRefreshTeachers} />;
+  }
+
+  return (
+    <section className="director-panel">
+      <div className="dash-card">
+        <h2 className="dash-section-title">Kullanıcı ara ve öğretmen yap</h2>
+        <p className="dash-hint">
+          E-posta veya ad soyad ile arayın, ardından hesabı öğretmen olarak yetkilendirin.
+        </p>
+
+        <form
+          className="dash-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            onSearch();
+          }}
+        >
+          <label className="dash-label">
+            Kullanıcı ara
+            <input
+              className="dash-input"
+              type="search"
+              value={searchQuery}
+              onChange={(event) => onSearchQueryChange(event.target.value)}
+              placeholder="E-posta veya ad soyad…"
+              disabled={staffActionLoading || searchLoading}
+            />
+          </label>
+          <SendButton
+            sending={searchLoading}
+            disabled={!searchQuery.trim()}
+            label="Ara"
+            sendingLabel="Aranıyor…"
+          />
+        </form>
+
+        {searchError && <InlineError error={searchError} context="general" />}
+
+        {searchResults.length > 0 && (
+          <ul className="staff-search-list">
+            {searchResults.map((user) => {
+              const isTeacher = user.role === USER_ROLES.teacher;
+              const isDirector = user.role === USER_ROLES.director;
+              const canPromote = !isTeacher && !isDirector;
+
+              return (
+                <li key={user.id} className="staff-search-item">
+                  <div className="staff-search-item__info">
+                    <strong>{user.full_name ?? user.email ?? user.id}</strong>
+                    <span className="staff-search-item__meta">
+                      {user.email ?? '—'} · {formatRoleLabel(user.role)}
+                    </span>
+                  </div>
+                  {canPromote ? (
+                    <button
+                      type="button"
+                      className="director-btn-promote"
+                      onClick={() => onPromote(user)}
+                      disabled={staffActionLoading}
+                    >
+                      Öğretmen Yap
+                    </button>
+                  ) : (
+                    <span className="staff-search-item__badge">
+                      {isDirector ? 'Müdür' : 'Zaten öğretmen'}
+                    </span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+
+      <div className="dash-card">
+        <div className="director-card-header">
+          <div>
+            <h2 className="dash-section-title">Aktif öğretmenler</h2>
+            <p className="dash-hint">{teachers.length} kayıtlı öğretmen.</p>
+          </div>
+          <button
+            type="button"
+            className="director-btn-secondary"
+            onClick={onRefreshTeachers}
+            disabled={staffActionLoading}
+          >
+            Yenile
+          </button>
+        </div>
+
+        {staffError && <InlineError error={staffError} context="general" />}
+        {staffSuccess && <SuccessMessage message={staffSuccess} />}
+
+        {teachers.length === 0 ? (
+          <p className="dash-hint">Henüz öğretmen atanmamış.</p>
+        ) : (
+          <ul className="staff-teacher-list">
+            {teachers.map((teacher) => (
+              <li key={teacher.id} className="staff-teacher-item">
+                <div className="staff-teacher-item__info">
+                  <strong>{teacher.full_name ?? teacher.email ?? teacher.id}</strong>
+                  <span className="staff-search-item__meta">{teacher.email ?? '—'}</span>
+                </div>
+                <button
+                  type="button"
+                  className="director-btn-danger"
+                  onClick={() => onDemote(teacher)}
+                  disabled={staffActionLoading}
+                >
+                  Yetki Kaldır
+                </button>
+              </li>
+            ))}
           </ul>
         )}
       </div>
@@ -347,6 +618,20 @@ export default function DirectorDashboard({ profile, onSignOut }) {
   const [templateError, setTemplateError] = useState(null);
   const [templateSuccess, setTemplateSuccess] = useState(null);
 
+  const [auditMessages, setAuditMessages] = useState([]);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditError, setAuditError] = useState(null);
+
+  const [teachersLoading, setTeachersLoading] = useState(false);
+  const [teachersError, setTeachersError] = useState(null);
+  const [staffSearchQuery, setStaffSearchQuery] = useState('');
+  const [staffSearchResults, setStaffSearchResults] = useState([]);
+  const [staffSearchLoading, setStaffSearchLoading] = useState(false);
+  const [staffSearchError, setStaffSearchError] = useState(null);
+  const [staffActionLoading, setStaffActionLoading] = useState(false);
+  const [staffError, setStaffError] = useState(null);
+  const [staffSuccess, setStaffSuccess] = useState(null);
+
   const displayName = profile?.full_name ?? profile?.email ?? 'Müdür';
 
   const stats = useMemo(() => {
@@ -399,6 +684,46 @@ export default function DirectorDashboard({ profile, onSignOut }) {
     setTemplates(templatesRes.data ?? []);
   }, []);
 
+  const loadTodayMessages = useCallback(async () => {
+    setAuditLoading(true);
+    setAuditError(null);
+
+    try {
+      const { data, error } = await supabase
+        .from('messages')
+        .select(MESSAGE_AUDIT_SELECT)
+        .gte('created_at', getStartOfTodayIso())
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setAuditMessages(data ?? []);
+    } catch (error) {
+      setAuditError(error);
+    } finally {
+      setAuditLoading(false);
+    }
+  }, []);
+
+  const refreshTeachers = useCallback(async ({ showLoading = true } = {}) => {
+    if (showLoading) setTeachersLoading(true);
+    setTeachersError(null);
+
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, full_name, email, role')
+        .eq('role', USER_ROLES.teacher)
+        .order('full_name');
+
+      if (error) throw error;
+      setTeachers(data ?? []);
+    } catch (error) {
+      setTeachersError(error);
+    } finally {
+      if (showLoading) setTeachersLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (profile?.role !== USER_ROLES.director) return;
 
@@ -421,6 +746,12 @@ export default function DirectorDashboard({ profile, onSignOut }) {
       mounted = false;
     };
   }, [profile?.role, loadData]);
+
+  useEffect(() => {
+    if (activeTab === 'audit' && profile?.role === USER_ROLES.director && !loading) {
+      loadTodayMessages();
+    }
+  }, [activeTab, profile?.role, loading, loadTodayMessages]);
 
   async function handleLink() {
     setLinking(true);
@@ -546,6 +877,92 @@ export default function DirectorDashboard({ profile, onSignOut }) {
     await loadData();
   }
 
+  async function handleStaffSearch() {
+    const term = staffSearchQuery.trim();
+    if (!term) return;
+
+    setStaffSearchLoading(true);
+    setStaffSearchError(null);
+    setStaffSearchResults([]);
+
+    const safeTerm = term.replace(/[%_\\,]/g, ' ').trim();
+    if (!safeTerm) {
+      setStaffSearchLoading(false);
+      setStaffSearchError('Geçerli bir arama terimi girin.');
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, full_name, email, role')
+      .or(`email.ilike.%${safeTerm}%,full_name.ilike.%${safeTerm}%`)
+      .order('full_name')
+      .limit(15);
+
+    setStaffSearchLoading(false);
+
+    if (error) {
+      setStaffSearchError(error);
+      return;
+    }
+
+    setStaffSearchResults(data ?? []);
+  }
+
+  async function handlePromoteTeacher(user) {
+    setStaffActionLoading(true);
+    setStaffError(null);
+    setStaffSuccess(null);
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({ role: USER_ROLES.teacher })
+      .eq('id', user.id);
+
+    setStaffActionLoading(false);
+
+    if (error) {
+      setStaffError(error);
+      return;
+    }
+
+    setStaffSuccess(`${user.full_name ?? user.email} öğretmen olarak atandı.`);
+    setStaffSearchResults((current) =>
+      current.map((entry) =>
+        entry.id === user.id ? { ...entry, role: USER_ROLES.teacher } : entry
+      )
+    );
+    await refreshTeachers({ showLoading: false });
+  }
+
+  async function handleDemoteTeacher(teacher) {
+    const label = teacher.full_name ?? teacher.email ?? 'Bu kullanıcı';
+    if (
+      !window.confirm(`${label} kullanıcısının öğretmen yetkisini kaldırmak istiyor musunuz?`)
+    ) {
+      return;
+    }
+
+    setStaffActionLoading(true);
+    setStaffError(null);
+    setStaffSuccess(null);
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({ role: USER_ROLES.parent })
+      .eq('id', teacher.id);
+
+    setStaffActionLoading(false);
+
+    if (error) {
+      setStaffError(error);
+      return;
+    }
+
+    setStaffSuccess(`${label} veli rolüne alındı.`);
+    await refreshTeachers({ showLoading: false });
+  }
+
   if (profile?.role !== USER_ROLES.director) {
     return (
       <>
@@ -605,6 +1022,35 @@ export default function DirectorDashboard({ profile, onSignOut }) {
         </nav>
 
         {activeTab === 'overview' && <OverviewTab stats={stats} linksCount={links.length} />}
+
+        {activeTab === 'audit' && (
+          <MessageAuditTab
+            messages={auditMessages}
+            loading={auditLoading}
+            error={auditError}
+            onRefresh={loadTodayMessages}
+          />
+        )}
+
+        {activeTab === 'staff' && (
+          <StaffManagerTab
+            teachers={teachers}
+            searchQuery={staffSearchQuery}
+            onSearchQueryChange={setStaffSearchQuery}
+            onSearch={handleStaffSearch}
+            searchResults={staffSearchResults}
+            searchLoading={staffSearchLoading}
+            searchError={staffSearchError}
+            staffActionLoading={staffActionLoading}
+            staffError={staffError}
+            staffSuccess={staffSuccess}
+            onPromote={handlePromoteTeacher}
+            onDemote={handleDemoteTeacher}
+            onRefreshTeachers={() => refreshTeachers({ showLoading: true })}
+            teachersLoading={teachersLoading}
+            teachersError={teachersError}
+          />
+        )}
 
         {activeTab === 'matching' && (
           <MatchingTab

@@ -1199,3 +1199,208 @@ body {
   cursor: not-allowed;
 }
 
+.director-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+
+.director-tab-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  min-height: 10rem;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.audit-table-wrap {
+  overflow-x: auto;
+  margin-top: 0.75rem;
+  border-radius: 0.75rem;
+  border: 1px solid #ebe8e4;
+}
+
+.audit-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.audit-table thead {
+  background: var(--bg-page);
+}
+
+.audit-table th {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  border-bottom: 1px solid #ebe8e4;
+  white-space: nowrap;
+}
+
+.audit-table td {
+  padding: 0.875rem 1rem;
+  vertical-align: top;
+  border-bottom: 1px solid #f0ece8;
+  color: var(--text-primary);
+}
+
+.audit-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.audit-table tbody tr:hover {
+  background: #faf9f7;
+}
+
+.audit-table__time {
+  white-space: nowrap;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.audit-table__teacher {
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.audit-table__recipient {
+  white-space: nowrap;
+  color: var(--pastel-send-text);
+}
+
+.audit-table__body {
+  min-width: 12rem;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.staff-search-list,
+.staff-teacher-list {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.staff-search-item,
+.staff-teacher-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.875rem 1rem;
+  background: var(--bg-page);
+  border: 1px solid #ebe8e4;
+  border-radius: 0.75rem;
+}
+
+.staff-search-item__info,
+.staff-teacher-item__info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.staff-search-item__info strong,
+.staff-teacher-item__info strong {
+  font-size: 0.9375rem;
+  color: var(--text-primary);
+}
+
+.staff-search-item__meta {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.staff-search-item__badge {
+  flex-shrink: 0;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--bg-card);
+  border: 1px solid #ebe8e4;
+  border-radius: var(--radius-pill);
+}
+
+.director-btn-promote {
+  flex-shrink: 0;
+  padding: 0.4375rem 0.875rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--pastel-mint-text);
+  background: var(--pastel-mint);
+  border: 1px solid #a7f3d0;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.2s ease;
+}
+
+.director-btn-promote:hover:not(:disabled) {
+  background: #a7f3d0;
+  transform: translateY(-1px);
+}
+
+.director-btn-promote:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.director-btn-danger {
+  flex-shrink: 0;
+  padding: 0.4375rem 0.875rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  font-family: inherit;
+  color: #be185d;
+  background: var(--pastel-rose);
+  border: 1px solid #fbcfe8;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.2s ease;
+}
+
+.director-btn-danger:hover:not(:disabled) {
+  background: #fbcfe8;
+  transform: translateY(-1px);
+}
+
+.director-btn-danger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@media (max-width: 640px) {
+  .audit-table th:nth-child(3),
+  .audit-table td:nth-child(3) {
+    display: none;
+  }
+
+  .staff-search-item,
+  .staff-teacher-item {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .director-btn-promote,
+  .director-btn-danger {
+    width: 100%;
+    text-align: center;
+  }
+}
+
