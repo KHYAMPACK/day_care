@@ -1296,18 +1296,22 @@ export default function DirectorDashboard({ profile, onSignOut }) {
         </header>
 
         <nav className="director-tabs" aria-label="Müdür paneli sekmeleri">
-          {TABS.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              className={`director-tab${activeTab === tab.id ? ' director-tab--active' : ''}`}
-              onClick={() => setActiveTab(tab.id)}
-              aria-current={activeTab === tab.id ? 'page' : undefined}
-            >
-              <span aria-hidden="true">{tab.icon}</span>
-              {tab.label}
-            </button>
-          ))}
+          <div className="director-tabs__track">
+            {TABS.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                className={`director-tab${activeTab === tab.id ? ' director-tab--active' : ''}`}
+                onClick={() => setActiveTab(tab.id)}
+                aria-current={activeTab === tab.id ? 'page' : undefined}
+              >
+                <span className="director-tab__icon" aria-hidden="true">
+                  {tab.icon}
+                </span>
+                {tab.label}
+              </button>
+            ))}
+          </div>
         </nav>
 
         {activeTab === 'overview' && <OverviewTab stats={stats} linksCount={links.length} />}

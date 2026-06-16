@@ -1103,22 +1103,42 @@ body {
 /* Director dashboard */
 .dash-page--director {
   max-width: 48rem;
+  width: 100%;
+  min-width: 0;
 }
 
 .director-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  padding: 0.25rem;
+  width: 100%;
+  padding: 0.5rem 1rem;
   background: var(--bg-card);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-card);
   box-shadow: var(--shadow-soft);
   border: 1px solid #f0ece8;
+  overflow: hidden;
+}
+
+.director-tabs__track {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.5rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  scroll-behavior: smooth;
+  padding: 0.125rem 0;
+}
+
+.director-tabs__track::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 .director-tab {
-  flex: 1 1 auto;
-  min-width: fit-content;
+  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1132,7 +1152,13 @@ body {
   border: none;
   border-radius: var(--radius-pill);
   cursor: pointer;
+  white-space: nowrap;
   transition: background 0.2s ease, color 0.2s ease, transform 0.15s ease;
+}
+
+.director-tab__icon {
+  flex-shrink: 0;
+  line-height: 1;
 }
 
 .director-tab:hover {
