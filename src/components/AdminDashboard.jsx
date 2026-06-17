@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { withSchoolFilter } from '../lib/tenant';
 import { notifyParentsForMessage } from '../lib/sendPush';
 import {
   AppNavbar,
@@ -123,7 +124,7 @@ function StudentPicker({
   );
 }
 
-export default function AdminDashboard({ profile, onSignOut }) {
+export default function AdminDashboard({ profile, schoolId, onSignOut }) {
   const [students, setStudents] = useState([]);
   const [templates, setTemplates] = useState([]);
   const [messages, setMessages] = useState([]);
@@ -143,10 +144,11 @@ export default function AdminDashboard({ profile, onSignOut }) {
   const navBrand = 'Başak Akademi — Öğretmen';
 
   const fetchMessages = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('messages')
-      .select(
-        `
+    const { data, error } = await withSchoolFilter(
+      supabase
+        .from('messages')
+        .select(
+          `
         id,
         body,
         created_at,
@@ -155,13 +157,15 @@ export default function AdminDashboard({ profile, onSignOut }) {
         students ( full_name ),
         groups ( name )
       `
-      )
-      .order('created_at', { ascending: false })
-      .limit(50);
+        )
+        .order('created_at', { ascending: false })
+        .limit(50),
+      schoolId
+    );
 
     if (error) throw error;
     setMessages(data ?? []);
-  }, []);
+  }, [schoolId]);
 
   useEffect(() => {
     let mounted = true;
@@ -172,8 +176,14 @@ export default function AdminDashboard({ profile, onSignOut }) {
       setDataWarning(null);
 
       const [studentsRes, templatesRes] = await Promise.all([
-        supabase.from('students').select('id, full_name').order('full_name'),
-        supabase.from('message_templates').select('id, title, body, icon').order('title'),
+        withSchoolFilter(
+          supabase.from('students').select('id, full_name').order('full_name'),
+          schoolId
+        ),
+        withSchoolFilter(
+          supabase.from('message_templates').select('id, title, body, icon').order('title'),
+          schoolId
+        ),
       ]);
 
       if (!mounted) return;
@@ -209,7 +219,7 @@ export default function AdminDashboard({ profile, onSignOut }) {
     return () => {
       mounted = false;
     };
-  }, [fetchMessages]);
+  }, [fetchMessages, schoolId]);
 
   function toggleStudentSelection(studentId) {
     setSelectedStudentIds((current) =>
@@ -275,6 +285,7 @@ export default function AdminDashboard({ profile, onSignOut }) {
         author_id: profile.id,
         student_id: student.id,
         group_id: null,
+        school_id: schoolId,
       }));
 
       const { error } = await supabase.from('messages').insert(rows);

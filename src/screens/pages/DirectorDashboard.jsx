@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../lib/supabase';
+import { withSchoolFilter } from '../../lib/tenant';
 import { USER_ROLES } from '../../lib/roles';
 import {
   AppNavbar,
@@ -767,7 +768,7 @@ function TemplatesTab({
   );
 }
 
-export default function DirectorDashboard({ profile, onSignOut }) {
+export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
   const [activeTab, setActiveTab] = useState('overview');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
@@ -828,22 +829,34 @@ export default function DirectorDashboard({ profile, onSignOut }) {
     setLoadError(null);
 
     const [parentsRes, studentsRes, teachersRes, linksRes, templatesRes] = await Promise.all([
-      supabase
-        .from('profiles')
-        .select('id, full_name, email')
-        .eq('role', USER_ROLES.parent)
-        .order('full_name'),
-      supabase.from('students').select('id, full_name').order('full_name'),
-      supabase
-        .from('profiles')
-        .select('id, full_name, email')
-        .eq('role', USER_ROLES.teacher)
-        .order('full_name'),
+      withSchoolFilter(
+        supabase
+          .from('profiles')
+          .select('id, full_name, email')
+          .eq('role', USER_ROLES.parent)
+          .order('full_name'),
+        schoolId
+      ),
+      withSchoolFilter(
+        supabase.from('students').select('id, full_name').order('full_name'),
+        schoolId
+      ),
+      withSchoolFilter(
+        supabase
+          .from('profiles')
+          .select('id, full_name, email')
+          .eq('role', USER_ROLES.teacher)
+          .order('full_name'),
+        schoolId
+      ),
       supabase.from('student_parents').select('student_id, parent_id'),
-      supabase
-        .from('message_templates')
-        .select('id, title, body, icon, created_at')
-        .order('title'),
+      withSchoolFilter(
+        supabase
+          .from('message_templates')
+          .select('id, title, body, icon, created_at')
+          .order('title'),
+        schoolId
+      ),
     ]);
 
     const firstError =
@@ -858,23 +871,34 @@ export default function DirectorDashboard({ profile, onSignOut }) {
       throw firstError;
     }
 
-    setParents(parentsRes.data ?? []);
-    setStudents(studentsRes.data ?? []);
+    const schoolStudents = studentsRes.data ?? [];
+    const schoolParents = parentsRes.data ?? [];
+    const studentIdSet = new Set(schoolStudents.map((student) => student.id));
+    const parentIdSet = new Set(schoolParents.map((parent) => parent.id));
+    const schoolLinks = (linksRes.data ?? []).filter(
+      (link) => studentIdSet.has(link.student_id) && parentIdSet.has(link.parent_id)
+    );
+
+    setParents(schoolParents);
+    setStudents(schoolStudents);
     setTeachers(teachersRes.data ?? []);
-    setLinks(linksRes.data ?? []);
+    setLinks(schoolLinks);
     setTemplates(templatesRes.data ?? []);
-  }, []);
+  }, [schoolId]);
 
   const loadTodayMessages = useCallback(async () => {
     setAuditLoading(true);
     setAuditError(null);
 
     try {
-      const { data, error } = await supabase
-        .from('messages')
-        .select(MESSAGE_AUDIT_SELECT)
-        .gte('created_at', getStartOfTodayIso())
-        .order('created_at', { ascending: false });
+      const { data, error } = await withSchoolFilter(
+        supabase
+          .from('messages')
+          .select(MESSAGE_AUDIT_SELECT)
+          .gte('created_at', getStartOfTodayIso())
+          .order('created_at', { ascending: false }),
+        schoolId
+      );
 
       if (error) throw error;
       setAuditMessages(data ?? []);
@@ -883,18 +907,21 @@ export default function DirectorDashboard({ profile, onSignOut }) {
     } finally {
       setAuditLoading(false);
     }
-  }, []);
+  }, [schoolId]);
 
   const refreshTeachers = useCallback(async ({ showLoading = true } = {}) => {
     if (showLoading) setTeachersLoading(true);
     setTeachersError(null);
 
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, full_name, email, role')
-        .eq('role', USER_ROLES.teacher)
-        .order('full_name');
+      const { data, error } = await withSchoolFilter(
+        supabase
+          .from('profiles')
+          .select('id, full_name, email, role')
+          .eq('role', USER_ROLES.teacher)
+          .order('full_name'),
+        schoolId
+      );
 
       if (error) throw error;
       setTeachers(data ?? []);
@@ -903,7 +930,7 @@ export default function DirectorDashboard({ profile, onSignOut }) {
     } finally {
       if (showLoading) setTeachersLoading(false);
     }
-  }, []);
+  }, [schoolId]);
 
   const loadTeacherAssignments = useCallback(async (teacherId) => {
     if (!teacherId) {
@@ -918,8 +945,9 @@ export default function DirectorDashboard({ profile, onSignOut }) {
     try {
       const { data, error } = await supabase
         .from('teacher_students')
-        .select('student_id')
-        .eq('teacher_id', teacherId);
+        .select('student_id, students!inner ( school_id )')
+        .eq('teacher_id', teacherId)
+        .eq('students.school_id', schoolId);
 
       if (error) throw error;
 
@@ -933,7 +961,7 @@ export default function DirectorDashboard({ profile, onSignOut }) {
     } finally {
       setAssignmentLoading(false);
     }
-  }, []);
+  }, [schoolId]);
 
   useEffect(() => {
     if (activeTab === 'assignment' && assignmentTeacherId) {
@@ -1121,10 +1149,14 @@ export default function DirectorDashboard({ profile, onSignOut }) {
       title: templateForm.title.trim(),
       body: templateForm.body.trim(),
       icon: templateForm.icon || '💌',
+      school_id: schoolId,
     };
 
     const { error } = editingTemplateId
-      ? await supabase.from('message_templates').update(payload).eq('id', editingTemplateId)
+      ? await withSchoolFilter(
+          supabase.from('message_templates').update(payload).eq('id', editingTemplateId),
+          schoolId
+        )
       : await supabase.from('message_templates').insert(payload);
 
     setSavingTemplate(false);
@@ -1147,7 +1179,10 @@ export default function DirectorDashboard({ profile, onSignOut }) {
     setTemplateError(null);
     setTemplateSuccess(null);
 
-    const { error } = await supabase.from('message_templates').delete().eq('id', templateId);
+    const { error } = await withSchoolFilter(
+      supabase.from('message_templates').delete().eq('id', templateId),
+      schoolId
+    );
 
     setSavingTemplate(false);
 
@@ -1179,12 +1214,15 @@ export default function DirectorDashboard({ profile, onSignOut }) {
       return;
     }
 
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('id, full_name, email, role')
-      .or(`email.ilike.%${safeTerm}%,full_name.ilike.%${safeTerm}%`)
-      .order('full_name')
-      .limit(15);
+    const { data, error } = await withSchoolFilter(
+      supabase
+        .from('profiles')
+        .select('id, full_name, email, role')
+        .or(`email.ilike.%${safeTerm}%,full_name.ilike.%${safeTerm}%`)
+        .order('full_name')
+        .limit(15),
+      schoolId
+    );
 
     setStaffSearchLoading(false);
 
@@ -1201,10 +1239,13 @@ export default function DirectorDashboard({ profile, onSignOut }) {
     setStaffError(null);
     setStaffSuccess(null);
 
-    const { error } = await supabase
-      .from('profiles')
-      .update({ role: USER_ROLES.teacher })
-      .eq('id', user.id);
+    const { error } = await withSchoolFilter(
+      supabase
+        .from('profiles')
+        .update({ role: USER_ROLES.teacher, school_id: schoolId })
+        .eq('id', user.id),
+      schoolId
+    );
 
     setStaffActionLoading(false);
 
@@ -1236,10 +1277,13 @@ export default function DirectorDashboard({ profile, onSignOut }) {
 
     await supabase.from('teacher_students').delete().eq('teacher_id', teacher.id);
 
-    const { error } = await supabase
-      .from('profiles')
-      .update({ role: USER_ROLES.parent })
-      .eq('id', teacher.id);
+    const { error } = await withSchoolFilter(
+      supabase
+        .from('profiles')
+        .update({ role: USER_ROLES.parent })
+        .eq('id', teacher.id),
+      schoolId
+    );
 
     setStaffActionLoading(false);
 

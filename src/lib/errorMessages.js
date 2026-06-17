@@ -26,7 +26,7 @@ const FRIENDLY_PREFIXES = [
   'Grup',
   'Öğrenci',
   'Şifre',
-  'E-posta',
+  'Geçersiz',
   'No push',
   'Mesaj kaydedildi',
 ];

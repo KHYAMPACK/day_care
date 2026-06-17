@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { withSchoolFilter } from '../lib/tenant';
 import { isPushSupported, subscribeToWebPush } from '../lib/pushNotifications';
 import { AppNavbar, ErrorMessage, InlineError, SuccessMessage, getMessageCategory, LoadingPanel } from './dashboardUi';
 import { formatChildTrackingTr, formatRelativeTimeTr } from '../utils/formatTime';
@@ -76,7 +77,7 @@ function FeedItem({ message, studentNameById, groupNameById, isNew, onAnimationE
   );
 }
 
-export default function ParentDashboard({ profile, onSignOut }) {
+export default function ParentDashboard({ profile, schoolId, onSignOut }) {
   const [students, setStudents] = useState([]);
   const [studentIds, setStudentIds] = useState([]);
   const [groupIds, setGroupIds] = useState([]);
@@ -125,15 +126,18 @@ export default function ParentDashboard({ profile, onSignOut }) {
       filters.push(`group_id.in.(${gids.join(',')})`);
     }
 
-    const { data, error: messagesError } = await supabase
-      .from('messages')
-      .select(MESSAGE_SELECT)
-      .or(filters.join(','))
-      .order('created_at', { ascending: false });
+    const { data, error: messagesError } = await withSchoolFilter(
+      supabase
+        .from('messages')
+        .select(MESSAGE_SELECT)
+        .or(filters.join(','))
+        .order('created_at', { ascending: false }),
+      schoolId
+    );
 
     if (messagesError) throw messagesError;
     return data ?? [];
-  }, []);
+  }, [schoolId]);
 
   function clearNewMessageAnimation(messageId) {
     setNewMessageIds((current) => {
@@ -185,13 +189,15 @@ export default function ParentDashboard({ profile, onSignOut }) {
         .select(
           `
           student_id,
-          students (
+          students!inner (
             id,
-            full_name
+            full_name,
+            school_id
           )
         `
         )
-        .eq('parent_id', profile.id);
+        .eq('parent_id', profile.id)
+        .eq('students.school_id', schoolId);
 
       if (!mounted) return;
 
@@ -269,7 +275,7 @@ export default function ParentDashboard({ profile, onSignOut }) {
     return () => {
       mounted = false;
     };
-  }, [profile.id, fetchMessages]);
+  }, [profile.id, schoolId, fetchMessages]);
 
   useEffect(() => {
     if (!feedReady || studentIds.length === 0) {
@@ -288,15 +294,18 @@ export default function ParentDashboard({ profile, onSignOut }) {
         async (payload) => {
           const incoming = payload.new;
 
+          if (incoming.school_id !== schoolId) {
+            return;
+          }
+
           if (!messageAppliesToParent(incoming, studentIds, groupIds)) {
             return;
           }
 
-          const { data: enrichedMessage, error: enrichError } = await supabase
-            .from('messages')
-            .select(MESSAGE_SELECT)
-            .eq('id', incoming.id)
-            .maybeSingle();
+          const { data: enrichedMessage, error: enrichError } = await withSchoolFilter(
+            supabase.from('messages').select(MESSAGE_SELECT).eq('id', incoming.id),
+            schoolId
+          ).maybeSingle();
 
           if (enrichError || !enrichedMessage) {
             return;
@@ -317,7 +326,7 @@ export default function ParentDashboard({ profile, onSignOut }) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [feedReady, profile.id, studentIds, groupIds]);
+  }, [feedReady, profile.id, schoolId, studentIds, groupIds]);
 
   if (loading) {
     return (
