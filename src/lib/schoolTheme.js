@@ -110,6 +110,6 @@ export function clearSchoolTheme() {
 
 export function getSchoolNavBrand(school, roleSuffix) {
   const name = school?.name?.trim();
-  if (!name) return `Kreş Takip — ${roleSuffix}`;
+  if (!name) return `KreşTakip — ${roleSuffix}`;
   return `${name} — ${roleSuffix}`;
 }

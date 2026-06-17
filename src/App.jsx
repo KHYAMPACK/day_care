@@ -71,7 +71,9 @@ function AuthScreen() {
       <OfflineBanner />
       <main className="auth-page">
         <div className="auth-card">
-          <h1 className="auth-brand">🎈 Kreş Takip Sistemi</h1>
+          <div className="auth-brand-wrap">
+            <img src="/logo.png" alt="KreşTakip" className="auth-brand-logo" />
+          </div>
           <p className="auth-tagline">
             Veliler ve yöneticiler için nazik, sade bildirim deneyimi.
           </p>

@@ -15,6 +15,7 @@ import {
 
 const TABS = [
   { id: 'overview', label: 'Genel Bakış', icon: '📊' },
+  { id: 'students', label: 'Öğrenci Ekle', icon: '👶' },
   { id: 'audit', label: 'Mesaj Trafiği', icon: '📋' },
   { id: 'assignment', label: 'Öğretmen Atama', icon: '🏫' },
   { id: 'staff', label: 'Öğretmen Yönetimi', icon: '👩‍🏫' },
@@ -69,6 +70,15 @@ function formatRoleLabel(role) {
   if (role === USER_ROLES.director) return 'Müdür';
   if (role === USER_ROLES.parent) return 'Veli';
   return role ?? '—';
+}
+
+function formatBirthDate(value) {
+  if (!value) return '—';
+  return new Date(`${value}T12:00:00`).toLocaleDateString('tr-TR', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
 }
 
 function AccessDenied({ onSignOut }) {
@@ -771,6 +781,155 @@ function TemplatesTab({
   );
 }
 
+function StudentCreatorTab({ students, schoolId, onRefresh }) {
+  const [fullName, setFullName] = useState('');
+  const [dateOfBirth, setDateOfBirth] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
+  const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    setError(null);
+    setSuccess(null);
+
+    const trimmedName = fullName.trim();
+    if (!trimmedName) {
+      setError('Öğrenci adı soyadı zorunludur.');
+      return;
+    }
+
+    if (!dateOfBirth) {
+      setError('Doğum tarihi zorunludur.');
+      return;
+    }
+
+    setSaving(true);
+
+    const { error: insertError } = await supabase.from('students').insert({
+      full_name: trimmedName,
+      date_of_birth: dateOfBirth,
+      school_id: schoolId,
+    });
+
+    setSaving(false);
+
+    if (insertError) {
+      setError(insertError);
+      return;
+    }
+
+    setFullName('');
+    setDateOfBirth('');
+    setSuccess('Öğrenci başarıyla eklendi.');
+    await onRefresh();
+  }
+
+  async function handleDelete(student) {
+    if (
+      !window.confirm(
+        `${student.full_name} kaydını silmek istediğinize emin misiniz? Bu işlem geri alınamaz.`
+      )
+    ) {
+      return;
+    }
+
+    setDeletingId(student.id);
+    setError(null);
+    setSuccess(null);
+
+    const { error: deleteError } = await withSchoolFilter(
+      supabase.from('students').delete().eq('id', student.id),
+      schoolId
+    );
+
+    setDeletingId(null);
+
+    if (deleteError) {
+      setError(deleteError);
+      return;
+    }
+
+    setSuccess(`${student.full_name} listeden kaldırıldı.`);
+    await onRefresh();
+  }
+
+  return (
+    <section className="director-panel">
+      <div className="dash-card">
+        <h2 className="dash-section-title">Yeni öğrenci</h2>
+        <p className="dash-hint">Sadece ad soyad ve doğum tarihi yeterli — kayıt okulunuza otomatik bağlanır.</p>
+
+        <form className="dash-form" onSubmit={handleSubmit}>
+          <label className="dash-label">
+            Öğrenci Adı Soyadı
+            <input
+              className="dash-input"
+              type="text"
+              value={fullName}
+              onChange={(event) => setFullName(event.target.value)}
+              placeholder="Örn. Ayşe Yılmaz"
+              disabled={saving}
+              required
+              autoComplete="name"
+            />
+          </label>
+
+          <label className="dash-label">
+            Doğum Tarihi
+            <input
+              className="dash-input"
+              type="date"
+              value={dateOfBirth}
+              onChange={(event) => setDateOfBirth(event.target.value)}
+              disabled={saving}
+              required
+            />
+          </label>
+
+          {error && <InlineError error={error} context="general" />}
+          {success && <SuccessMessage message={success} />}
+
+          <SendButton
+            sending={saving}
+            label="Öğrenci Ekle"
+            sendingLabel="Ekleniyor…"
+          />
+        </form>
+      </div>
+
+      <div className="dash-card">
+        <h2 className="dash-section-title">Okul öğrencileri</h2>
+        {students.length === 0 ? (
+          <p className="dash-hint">Henüz kayıtlı öğrenci yok.</p>
+        ) : (
+          <ul className="match-list student-roster-list">
+            {students.map((student) => (
+              <li key={student.id} className="match-item student-roster-item">
+                <div className="student-roster-item__meta">
+                  <span className="match-item__names">{student.full_name}</span>
+                  <span className="student-roster-item__dob">
+                    {formatBirthDate(student.date_of_birth)}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="match-item__remove"
+                  onClick={() => handleDelete(student)}
+                  disabled={deletingId === student.id || saving}
+                >
+                  {deletingId === student.id ? 'Siliniyor…' : 'Sil'}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function SchoolSettingsTab({ school, schoolId, onSaved }) {
   const [logoUrl, setLogoUrl] = useState(school?.logo_url ?? '');
   const [primaryColor, setPrimaryColor] = useState(school?.primary_color ?? DEFAULT_THEME.primary);
@@ -966,7 +1125,7 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
   const [assignmentSuccess, setAssignmentSuccess] = useState(null);
 
   const displayName = profile?.full_name ?? profile?.email ?? 'Müdür';
-  const navBrand = school?.name ? `${school.name} — Müdür` : 'Kreş Takip — Müdür';
+  const navBrand = school?.name ? `${school.name} — Müdür` : 'KreşTakip — Müdür';
   const navLogoUrl = school?.logo_url ?? null;
 
   const stats = useMemo(() => {
@@ -991,7 +1150,7 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
         schoolId
       ),
       withSchoolFilter(
-        supabase.from('students').select('id, full_name').order('full_name'),
+        supabase.from('students').select('id, full_name, date_of_birth').order('full_name'),
         schoolId
       ),
       withSchoolFilter(
@@ -1513,6 +1672,10 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
           </nav>
 
           {activeTab === 'overview' && <OverviewTab stats={stats} linksCount={links.length} />}
+
+        {activeTab === 'students' && (
+          <StudentCreatorTab students={students} schoolId={schoolId} onRefresh={loadData} />
+        )}
 
         {activeTab === 'audit' && (
           <MessageAuditTab

@@ -1,8 +1,8 @@
-/* Web Push handlers for the Kreş Takip service worker */
+/* Web Push handlers for the KreşTakip service worker */
 
 self.addEventListener('push', (event) => {
   let payload = {
-    title: '🌸 Kreş Takip',
+    title: 'KreşTakip',
     body: 'Yeni bir bildiriminiz var.',
     url: '/',
   };

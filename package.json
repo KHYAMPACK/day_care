@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "sync-logos": "node scripts/sync-logos.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",
@@ -17,6 +18,7 @@
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.4",
     "vite": "^6.2.0",
-    "vite-plugin-pwa": "^1.3.0"
+    "vite-plugin-pwa": "^1.3.0",
+    "sharp": "^0.34.3"
   }
 }

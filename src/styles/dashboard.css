@@ -897,6 +897,19 @@ body {
   animation: fade-in 0.45s ease;
 }
 
+.auth-brand-wrap {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 0.25rem;
+}
+
+.auth-brand-logo {
+  display: block;
+  width: min(100%, 17rem);
+  height: auto;
+  object-fit: contain;
+}
+
 .auth-brand {
   margin: 0 0 0.35rem;
   font-size: 1.5rem;
@@ -1719,6 +1732,22 @@ body {
     width: 100%;
     text-align: center;
   }
+}
+
+.student-roster-item__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.student-roster-item__dob {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+.student-roster-list .match-item__names {
+  font-weight: 600;
 }
 
 .school-settings-form {

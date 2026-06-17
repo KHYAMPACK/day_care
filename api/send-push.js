@@ -160,7 +160,7 @@ export default async function handler(req, res) {
       });
     }
 
-    const { title = '🌸 Kreş Takip', items: clientItems, delivery } = req.body ?? {};
+    const { title = 'KreşTakip', items: clientItems, delivery } = req.body ?? {};
 
     let items = Array.isArray(clientItems) ? clientItems : [];
 

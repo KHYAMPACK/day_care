@@ -8,15 +8,16 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: [
+        'logo.png',
         'pwa-192x192.png',
         'pwa-512x512.png',
-        'pwa-192x192.svg',
-        'pwa-512x512.svg',
         'apple-touch-icon.png',
+        'favicon-16x16.png',
+        'favicon-32x32.png',
       ],
       manifest: {
-        name: 'Kreş Takip Sistemi',
-        short_name: 'Kreş Takip',
+        name: 'KreşTakip',
+        short_name: 'KreşTakip',
         description: 'Kreş bildirimleri ve veli takip uygulaması',
         lang: 'tr',
         dir: 'ltr',
@@ -24,7 +25,7 @@ export default defineConfig({
         scope: '/',
         display: 'standalone',
         orientation: 'portrait',
-        theme_color: '#c4b5fd',
+        theme_color: '#5b21b6',
         background_color: '#faf9f7',
         categories: ['education', 'productivity'],
         icons: [
@@ -45,18 +46,6 @@ export default defineConfig({
             sizes: '512x512',
             type: 'image/png',
             purpose: 'maskable',
-          },
-          {
-            src: 'pwa-192x192.svg',
-            sizes: '192x192',
-            type: 'image/svg+xml',
-            purpose: 'any',
-          },
-          {
-            src: 'pwa-512x512.svg',
-            sizes: '512x512',
-            type: 'image/svg+xml',
-            purpose: 'any',
           },
         ],
       },
