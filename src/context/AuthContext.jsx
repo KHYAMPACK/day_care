@@ -1,13 +1,16 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { applySchoolTheme, clearSchoolTheme } from '../lib/schoolTheme';
 
 const PROFILE_SELECT = 'id, role, full_name, email, school_id';
+const SCHOOL_SELECT = 'id, name, logo_url, primary_color, secondary_color';
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
+  const [school, setSchool] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileError, setProfileError] = useState(null);
@@ -32,6 +35,28 @@ export function AuthProvider({ children }) {
       mounted = false;
       subscription.unsubscribe();
     };
+  }, []);
+
+  const fetchSchool = useCallback(async (schoolId) => {
+    if (!schoolId) {
+      setSchool(null);
+      clearSchoolTheme();
+      return null;
+    }
+
+    const { data, error } = await supabase
+      .from('schools')
+      .select(SCHOOL_SELECT)
+      .eq('id', schoolId)
+      .maybeSingle();
+
+    if (error) {
+      throw error;
+    }
+
+    setSchool(data ?? null);
+    applySchoolTheme(data);
+    return data ?? null;
   }, []);
 
   const fetchProfile = useCallback(async (userId, userEmail, userMetadata) => {
@@ -90,14 +115,16 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     if (!session?.user) {
       setProfile(null);
+      setSchool(null);
       setProfileError(null);
       setProfileLoading(false);
+      clearSchoolTheme();
       return;
     }
 
     let mounted = true;
 
-    async function loadProfile() {
+    async function loadProfileAndSchool() {
       setProfileLoading(true);
       setProfileError(null);
 
@@ -110,37 +137,58 @@ export function AuthProvider({ children }) {
 
         if (!mounted) return;
         setProfile(nextProfile);
+
+        if (nextProfile?.school_id) {
+          await fetchSchool(nextProfile.school_id);
+        } else if (mounted) {
+          setSchool(null);
+          clearSchoolTheme();
+        }
       } catch (error) {
         if (!mounted) return;
         setProfile(null);
+        setSchool(null);
+        clearSchoolTheme();
         setProfileError(error);
       } finally {
         if (mounted) setProfileLoading(false);
       }
     }
 
-    loadProfile();
+    loadProfileAndSchool();
 
     return () => {
       mounted = false;
     };
-  }, [session, fetchProfile]);
+  }, [session, fetchProfile, fetchSchool]);
 
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
   }, []);
 
+  const refreshSchool = useCallback(async () => {
+    if (!profile?.school_id) {
+      setSchool(null);
+      clearSchoolTheme();
+      return null;
+    }
+
+    return fetchSchool(profile.school_id);
+  }, [profile?.school_id, fetchSchool]);
+
   const value = useMemo(
     () => ({
       session,
       profile,
+      school,
       schoolId: profile?.school_id ?? null,
       authLoading,
       profileLoading,
       profileError,
       signOut,
+      refreshSchool,
     }),
-    [session, profile, authLoading, profileLoading, profileError, signOut]
+    [session, profile, school, authLoading, profileLoading, profileError, signOut, refreshSchool]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

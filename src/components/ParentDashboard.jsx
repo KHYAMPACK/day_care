@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { withSchoolFilter } from '../lib/tenant';
 import { isPushSupported, subscribeToWebPush } from '../lib/pushNotifications';
+import { useAuth } from '../context/AuthContext';
+import { getSchoolNavBrand } from '../lib/schoolTheme';
 import { AppNavbar, ErrorMessage, InlineError, SuccessMessage, getMessageCategory, LoadingPanel } from './dashboardUi';
 import { formatChildTrackingTr, formatRelativeTimeTr } from '../utils/formatTime';
 
@@ -78,6 +80,7 @@ function FeedItem({ message, studentNameById, groupNameById, isNew, onAnimationE
 }
 
 export default function ParentDashboard({ profile, schoolId, onSignOut }) {
+  const { school } = useAuth();
   const [students, setStudents] = useState([]);
   const [studentIds, setStudentIds] = useState([]);
   const [groupIds, setGroupIds] = useState([]);
@@ -96,6 +99,8 @@ export default function ParentDashboard({ profile, schoolId, onSignOut }) {
   const [pushError, setPushError] = useState(null);
 
   const displayName = profile?.full_name ?? profile?.email ?? 'Veli';
+  const navBrand = getSchoolNavBrand(school, 'Veli Portal');
+  const navLogoUrl = school?.logo_url ?? null;
   const studentNames = useMemo(
     () => students.map((student) => student.full_name),
     [students]
@@ -331,7 +336,7 @@ export default function ParentDashboard({ profile, schoolId, onSignOut }) {
   if (loading) {
     return (
       <>
-        <AppNavbar brand="🌸 Kreş Portal" onSignOut={onSignOut} />
+        <AppNavbar brand={navBrand} logoUrl={navLogoUrl} onSignOut={onSignOut} />
         <LoadingPanel message="Akışınız yükleniyor…" />
       </>
     );
@@ -340,7 +345,7 @@ export default function ParentDashboard({ profile, schoolId, onSignOut }) {
   if (error) {
     return (
       <>
-        <AppNavbar brand="🌸 Kreş Portal" onSignOut={onSignOut} />
+        <AppNavbar brand={navBrand} logoUrl={navLogoUrl} onSignOut={onSignOut} />
         <main className="dash-page dash-error-page">
           <ErrorMessage
             error={error}
@@ -354,7 +359,7 @@ export default function ParentDashboard({ profile, schoolId, onSignOut }) {
 
   return (
     <>
-      <AppNavbar brand="🌸 Kreş Portal" onSignOut={onSignOut} />
+      <AppNavbar brand={navBrand} logoUrl={navLogoUrl} onSignOut={onSignOut} />
 
       <main className="dash-page dash-page--flush">
         <section className="welcome-card">

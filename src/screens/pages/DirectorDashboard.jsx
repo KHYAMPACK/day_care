@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { withSchoolFilter } from '../../lib/tenant';
 import { USER_ROLES } from '../../lib/roles';
+import { useAuth } from '../../context/AuthContext';
+import { DEFAULT_THEME } from '../../lib/schoolTheme';
 import {
   AppNavbar,
   ErrorMessage,
@@ -18,6 +20,7 @@ const TABS = [
   { id: 'staff', label: 'Öğretmen Yönetimi', icon: '👩‍🏫' },
   { id: 'matching', label: 'Eşleştirme', icon: '🤝' },
   { id: 'templates', label: 'Şablonlar', icon: '✨' },
+  { id: 'settings', label: 'Okul Ayarları', icon: '🎨' },
 ];
 
 const TEMPLATE_ICONS = ['💌', '🍽️', '🌙', '🚗', '💚', '🎒', '🏫', '✨', '🌸', '📢', '🍼', '☀️'];
@@ -768,7 +771,155 @@ function TemplatesTab({
   );
 }
 
+function SchoolSettingsTab({ school, schoolId, onSaved }) {
+  const [logoUrl, setLogoUrl] = useState(school?.logo_url ?? '');
+  const [primaryColor, setPrimaryColor] = useState(school?.primary_color ?? DEFAULT_THEME.primary);
+  const [secondaryColor, setSecondaryColor] = useState(
+    school?.secondary_color ?? DEFAULT_THEME.secondary
+  );
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
+
+  useEffect(() => {
+    setLogoUrl(school?.logo_url ?? '');
+    setPrimaryColor(school?.primary_color ?? DEFAULT_THEME.primary);
+    setSecondaryColor(school?.secondary_color ?? DEFAULT_THEME.secondary);
+  }, [school]);
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    setSaving(true);
+    setError(null);
+    setSuccess(null);
+
+    const { error: saveError } = await supabase
+      .from('schools')
+      .update({
+        logo_url: logoUrl.trim() || null,
+        primary_color: primaryColor || null,
+        secondary_color: secondaryColor || null,
+      })
+      .eq('id', schoolId);
+
+    setSaving(false);
+
+    if (saveError) {
+      setError(saveError);
+      return;
+    }
+
+    setSuccess('Okul ayarları kaydedildi. Tema tüm kullanıcılara yansıyacak.');
+    await onSaved();
+  }
+
+  return (
+    <section className="director-panel">
+      <div className="dash-card">
+        <h2 className="dash-section-title">Okul Ayarları</h2>
+        <p className="dash-hint">
+          Kreşinizin logosunu ve marka renklerini buradan özelleştirin. Veliler ve öğretmenler
+          giriş yaptığında bu görünümü görür.
+        </p>
+
+        <form className="dash-form school-settings-form" onSubmit={handleSubmit}>
+          <label className="dash-label">
+            Logo URL
+            <input
+              className="dash-input"
+              type="url"
+              value={logoUrl}
+              onChange={(event) => setLogoUrl(event.target.value)}
+              placeholder="https://ornek.com/logo.png"
+              disabled={saving}
+            />
+            <span className="auth-hint">PNG veya SVG bağlantısı yapıştırın.</span>
+          </label>
+
+          {logoUrl.trim() && (
+            <div className="school-settings-preview">
+              <span className="dash-label-inline">Logo önizleme</span>
+              <img
+                src={logoUrl.trim()}
+                alt="Okul logosu önizlemesi"
+                className="school-settings-logo-preview"
+              />
+            </div>
+          )}
+
+          <div className="school-settings-colors">
+            <label className="dash-label school-settings-color-field">
+              Ana renk
+              <div className="school-settings-color-row">
+                <input
+                  className="school-settings-color-input"
+                  type="color"
+                  value={primaryColor}
+                  onChange={(event) => setPrimaryColor(event.target.value)}
+                  disabled={saving}
+                  aria-label="Ana renk seçin"
+                />
+                <input
+                  className="dash-input school-settings-color-text"
+                  type="text"
+                  value={primaryColor}
+                  onChange={(event) => setPrimaryColor(event.target.value)}
+                  disabled={saving}
+                  spellCheck={false}
+                />
+              </div>
+            </label>
+
+            <label className="dash-label school-settings-color-field">
+              İkincil renk
+              <div className="school-settings-color-row">
+                <input
+                  className="school-settings-color-input"
+                  type="color"
+                  value={secondaryColor}
+                  onChange={(event) => setSecondaryColor(event.target.value)}
+                  disabled={saving}
+                  aria-label="İkincil renk seçin"
+                />
+                <input
+                  className="dash-input school-settings-color-text"
+                  type="text"
+                  value={secondaryColor}
+                  onChange={(event) => setSecondaryColor(event.target.value)}
+                  disabled={saving}
+                  spellCheck={false}
+                />
+              </div>
+            </label>
+          </div>
+
+          <div
+            className="school-settings-theme-preview"
+            style={{
+              '--preview-primary': primaryColor,
+              '--preview-secondary': secondaryColor,
+            }}
+          >
+            <span className="school-settings-theme-preview__chip">Buton örneği</span>
+            <span className="school-settings-theme-preview__panel">Kart arka planı</span>
+          </div>
+
+          {error && <InlineError error={error} context="general" />}
+          {success && <SuccessMessage message={success} />}
+
+          <SendButton
+            sending={saving}
+            label="Ayarları Kaydet"
+            sendingLabel="Kaydediliyor…"
+          />
+        </form>
+      </div>
+    </section>
+  );
+}
+
 export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
+  const { school, refreshSchool } = useAuth();
   const [activeTab, setActiveTab] = useState('overview');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
@@ -815,6 +966,8 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
   const [assignmentSuccess, setAssignmentSuccess] = useState(null);
 
   const displayName = profile?.full_name ?? profile?.email ?? 'Müdür';
+  const navBrand = school?.name ? `${school.name} — Müdür` : 'Kreş Takip — Müdür';
+  const navLogoUrl = school?.logo_url ?? null;
 
   const stats = useMemo(() => {
     const activeParentIds = new Set(links.map((link) => link.parent_id));
@@ -1299,7 +1452,7 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
   if (profile?.role !== USER_ROLES.director) {
     return (
       <>
-        <AppNavbar brand="Başak Akademi — Müdür" onSignOut={onSignOut} />
+        <AppNavbar brand={navBrand} logoUrl={navLogoUrl} onSignOut={onSignOut} />
         <AccessDenied onSignOut={onSignOut} />
       </>
     );
@@ -1308,7 +1461,7 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
   if (loading) {
     return (
       <>
-        <AppNavbar brand="Başak Akademi — Müdür" onSignOut={onSignOut} />
+        <AppNavbar brand={navBrand} logoUrl={navLogoUrl} onSignOut={onSignOut} />
         <LoadingPanel message="Müdür paneli yükleniyor…" />
       </>
     );
@@ -1317,7 +1470,7 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
   if (loadError) {
     return (
       <>
-        <AppNavbar brand="Başak Akademi — Müdür" onSignOut={onSignOut} />
+        <AppNavbar brand={navBrand} logoUrl={navLogoUrl} onSignOut={onSignOut} />
         <main className="dash-page dash-page--director dash-error-page">
           <ErrorMessage
             error={loadError}
@@ -1331,7 +1484,7 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
 
   return (
     <>
-      <AppNavbar brand="Başak Akademi — Müdür" onSignOut={onSignOut} />
+      <AppNavbar brand={navBrand} logoUrl={navLogoUrl} onSignOut={onSignOut} />
 
       <main className="dash-page dash-page--director">
         <div className="director-layout">
@@ -1442,6 +1595,10 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
             templateError={templateError}
             templateSuccess={templateSuccess}
           />
+        )}
+
+        {activeTab === 'settings' && (
+          <SchoolSettingsTab school={school} schoolId={schoolId} onSaved={refreshSchool} />
         )}
         </div>
       </main>

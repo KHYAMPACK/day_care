@@ -56,10 +56,15 @@ export function SendButton({
   );
 }
 
-export function AppNavbar({ brand, onSignOut, signOutLabel = 'Çıkış Yap' }) {
+export function AppNavbar({ brand, logoUrl, onSignOut, signOutLabel = 'Çıkış Yap' }) {
   return (
     <nav className="app-navbar">
-      <span className="app-navbar-brand">{brand}</span>
+      <span className="app-navbar-brand">
+        {logoUrl ? (
+          <img src={logoUrl} alt="" className="app-navbar-logo" />
+        ) : null}
+        <span className="app-navbar-brand__text">{brand}</span>
+      </span>
       <button className="app-navbar-signout" type="button" onClick={onSignOut}>
         {signOutLabel}
       </button>

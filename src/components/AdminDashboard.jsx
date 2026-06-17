@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { withSchoolFilter } from '../lib/tenant';
 import { notifyParentsForMessage } from '../lib/sendPush';
+import { useAuth } from '../context/AuthContext';
+import { getSchoolNavBrand } from '../lib/schoolTheme';
 import {
   AppNavbar,
   ErrorMessage,
@@ -125,6 +127,7 @@ function StudentPicker({
 }
 
 export default function AdminDashboard({ profile, schoolId, onSignOut }) {
+  const { school } = useAuth();
   const [students, setStudents] = useState([]);
   const [templates, setTemplates] = useState([]);
   const [messages, setMessages] = useState([]);
@@ -141,7 +144,8 @@ export default function AdminDashboard({ profile, schoolId, onSignOut }) {
   const [submitSuccess, setSubmitSuccess] = useState(null);
 
   const displayName = profile?.full_name ?? profile?.email ?? 'Öğretmen';
-  const navBrand = 'Başak Akademi — Öğretmen';
+  const navBrand = getSchoolNavBrand(school, 'Öğretmen');
+  const navLogoUrl = school?.logo_url ?? null;
 
   const fetchMessages = useCallback(async () => {
     const { data, error } = await withSchoolFilter(
@@ -333,7 +337,7 @@ export default function AdminDashboard({ profile, schoolId, onSignOut }) {
   if (dataLoading) {
     return (
       <>
-        <AppNavbar brand={navBrand} onSignOut={onSignOut} />
+        <AppNavbar brand={navBrand} logoUrl={navLogoUrl} onSignOut={onSignOut} />
         <LoadingPanel message="Panel yükleniyor…" />
       </>
     );
@@ -342,7 +346,7 @@ export default function AdminDashboard({ profile, schoolId, onSignOut }) {
   if (dataError) {
     return (
       <>
-        <AppNavbar brand={navBrand} onSignOut={onSignOut} />
+        <AppNavbar brand={navBrand} logoUrl={navLogoUrl} onSignOut={onSignOut} />
         <main className="dash-page dash-error-page">
           <ErrorMessage
             error={dataError}
@@ -356,7 +360,7 @@ export default function AdminDashboard({ profile, schoolId, onSignOut }) {
 
   return (
     <>
-      <AppNavbar brand={navBrand} onSignOut={onSignOut} />
+      <AppNavbar brand={navBrand} logoUrl={navLogoUrl} onSignOut={onSignOut} />
 
       <main className="dash-page dash-page--flush">
         <header className="dash-header">
