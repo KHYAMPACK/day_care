@@ -905,7 +905,9 @@ body {
 
 .auth-brand-logo {
   display: block;
-  width: min(100%, 17rem);
+  width: auto;
+  max-width: min(100%, 10.5rem);
+  max-height: 2.5rem;
   height: auto;
   object-fit: contain;
 }
