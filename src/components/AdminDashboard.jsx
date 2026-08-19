@@ -14,6 +14,16 @@ import {
   SendButton,
 } from './dashboardUi';
 import { formatRelativeTimeTr } from '../utils/formatTime';
+import { firstName, TEACHER_MODULES, TEACHER_TABS } from '../lib/demoData';
+import {
+  DemoBottomNav,
+  DemoSubHeader,
+  DemoToast,
+  ModuleGrid,
+  moduleTitle,
+  useDemoNav,
+} from './demo/DemoKit';
+import { DemoScreen, TeacherClassHome } from './demo/DemoScreens';
 
 const TARGET_ALL = 'all';
 const CHILD_NAME_PLACEHOLDER = '{{child_name}}';
@@ -142,6 +152,7 @@ export default function AdminDashboard({ profile, schoolId, onSignOut }) {
   const [sending, setSending] = useState(false);
   const [submitError, setSubmitError] = useState(null);
   const [submitSuccess, setSubmitSuccess] = useState(null);
+  const demoNav = useDemoNav('home');
 
   const displayName = profile?.full_name ?? profile?.email ?? 'Öğretmen';
   const navBrand = getSchoolNavBrand(school, 'Öğretmen');
@@ -361,94 +372,142 @@ export default function AdminDashboard({ profile, schoolId, onSignOut }) {
   return (
     <>
       <AppNavbar brand={navBrand} logoUrl={navLogoUrl} onSignOut={onSignOut} />
+      <DemoToast message={demoNav.toast} />
+      {demoNav.isModule && (
+        <DemoSubHeader
+          title={moduleTitle(demoNav.moduleId)}
+          onBack={demoNav.closeModule}
+        />
+      )}
 
-      <main className="dash-page dash-page--flush">
-        <header className="dash-header">
-          <h1 className="dash-title">Öğretmen Paneli</h1>
-          <p className="dash-subtitle">Hoş geldiniz, {displayName}.</p>
-        </header>
-
-        {dataWarning && <p className="dash-warning">{dataWarning}</p>}
-
-        <section className="dash-card">
-          <h2 className="dash-section-title">Yeni Mesaj Gönder</h2>
-
-          <form className="dash-form" onSubmit={sendMessage}>
-            <StudentPicker
+      <main className="dash-page dash-page--flush dash-page--tabbar">
+        {demoNav.isModule ? (
+          <DemoScreen
+            id={demoNav.moduleId}
+            role="teacher"
+            childName={firstName(students[0]?.full_name, 'Elif')}
+            students={students}
+            notify={demoNav.notify}
+          />
+        ) : demoNav.tab === 'attendance' ? (
+          <DemoScreen
+            id="attendance"
+            role="teacher"
+            childName={firstName(students[0]?.full_name, 'Elif')}
+            students={students}
+            notify={demoNav.notify}
+          />
+        ) : demoNav.tab === 'more' ? (
+          <ModuleGrid modules={TEACHER_MODULES} onOpen={demoNav.openModule} />
+        ) : demoNav.tab === 'home' ? (
+          <>
+            <header className="dash-header">
+              <h1 className="dash-title">Öğretmen Paneli</h1>
+              <p className="dash-subtitle">Hoş geldiniz, {displayName}.</p>
+            </header>
+            {dataWarning && <p className="dash-warning">{dataWarning}</p>}
+            <TeacherClassHome
               students={students}
-              selectedStudentIds={selectedStudentIds}
-              onToggleStudent={toggleStudentSelection}
-              onToggleSelectAll={toggleSelectAllStudents}
-              searchQuery={studentSearchQuery}
-              onSearchQueryChange={setStudentSearchQuery}
-              disabled={sending}
+              onOpen={demoNav.openModule}
+              notify={demoNav.notify}
             />
+          </>
+        ) : (
+          <>
+            <header className="dash-header">
+              <h1 className="dash-title">Mesaj gönder</h1>
+              <p className="dash-subtitle">Velilere anlık bildirim iletin.</p>
+            </header>
 
-            <label className="dash-label">
-              Mesaj
-              <span className="dash-label-inline">Şablonlar</span>
-              {templates.length === 0 ? (
-                <p className="dash-hint">Henüz şablon eklenmemiş.</p>
+            {dataWarning && <p className="dash-warning">{dataWarning}</p>}
+
+            <section className="dash-card">
+              <h2 className="dash-section-title">Yeni Mesaj Gönder</h2>
+
+              <form className="dash-form" onSubmit={sendMessage}>
+                <StudentPicker
+                  students={students}
+                  selectedStudentIds={selectedStudentIds}
+                  onToggleStudent={toggleStudentSelection}
+                  onToggleSelectAll={toggleSelectAllStudents}
+                  searchQuery={studentSearchQuery}
+                  onSearchQueryChange={setStudentSearchQuery}
+                  disabled={sending}
+                />
+
+                <label className="dash-label">
+                  Mesaj
+                  <span className="dash-label-inline">Şablonlar</span>
+                  {templates.length === 0 ? (
+                    <p className="dash-hint">Henüz şablon eklenmemiş.</p>
+                  ) : (
+                    <div className="template-scroll" role="list" aria-label="Mesaj şablonları">
+                      {templates.map((template, index) => (
+                        <button
+                          key={template.id}
+                          type="button"
+                          role="listitem"
+                          className={`template-chip template-chip--${getTemplateChipVariant(index)}`}
+                          onClick={() => handleTemplateClick(template)}
+                          disabled={sending}
+                        >
+                          {template.icon ? `${template.icon} ` : ''}
+                          {template.title}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <textarea
+                    className="dash-textarea"
+                    rows={6}
+                    value={body}
+                    onChange={(e) => setBody(e.target.value)}
+                    placeholder="Bildiriminizi yazın…"
+                    disabled={sending}
+                    required
+                  />
+                </label>
+
+                {submitError && <InlineError error={submitError} context="send" />}
+                {submitSuccess && <SuccessMessage message={submitSuccess} />}
+
+                <SendButton
+                  sending={sending}
+                  disabled={selectedStudentIds.length === 0}
+                  label="Mesaj Gönder"
+                  sendingLabel="Mesaj Gönderiliyor…"
+                />
+              </form>
+            </section>
+
+            <section className="dash-card">
+              <h2 className="dash-section-title">Gönderilen Mesajlar</h2>
+
+              {messages.length === 0 ? (
+                <p className="dash-hint">Henüz mesaj gönderilmedi.</p>
               ) : (
-                <div className="template-scroll" role="list" aria-label="Mesaj şablonları">
-                  {templates.map((template, index) => (
-                    <button
-                      key={template.id}
-                      type="button"
-                      role="listitem"
-                      className={`template-chip template-chip--${getTemplateChipVariant(index)}`}
-                      onClick={() => handleTemplateClick(template)}
-                      disabled={sending}
-                    >
-                      {template.icon ? `${template.icon} ` : ''}
-                      {template.title}
-                    </button>
+                <ul className="history-list">
+                  {messages.map((message) => (
+                    <li key={message.id} className="history-item">
+                      <div className="history-meta">
+                        <strong>{formatMessageTarget(message)}</strong>
+                        <span>{formatRelativeTimeTr(message.created_at)}</span>
+                      </div>
+                      <p className="history-body">{message.body}</p>
+                    </li>
                   ))}
-                </div>
+                </ul>
               )}
-              <textarea
-                className="dash-textarea"
-                rows={6}
-                value={body}
-                onChange={(e) => setBody(e.target.value)}
-                placeholder="Bildiriminizi yazın…"
-                disabled={sending}
-                required
-              />
-            </label>
-
-            {submitError && <InlineError error={submitError} context="send" />}
-            {submitSuccess && <SuccessMessage message={submitSuccess} />}
-
-            <SendButton
-              sending={sending}
-              disabled={selectedStudentIds.length === 0}
-              label="Mesaj Gönder"
-              sendingLabel="Mesaj Gönderiliyor…"
-            />
-          </form>
-        </section>
-
-        <section className="dash-card">
-          <h2 className="dash-section-title">Gönderilen Mesajlar</h2>
-
-          {messages.length === 0 ? (
-            <p className="dash-hint">Henüz mesaj gönderilmedi.</p>
-          ) : (
-            <ul className="history-list">
-              {messages.map((message) => (
-                <li key={message.id} className="history-item">
-                  <div className="history-meta">
-                    <strong>{formatMessageTarget(message)}</strong>
-                    <span>{formatRelativeTimeTr(message.created_at)}</span>
-                  </div>
-                  <p className="history-body">{message.body}</p>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+            </section>
+          </>
+        )}
       </main>
+
+      <DemoBottomNav
+        tabs={TEACHER_TABS}
+        active={demoNav.tab}
+        onChange={demoNav.selectTab}
+      />
     </>
   );
 }

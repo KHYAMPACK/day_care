@@ -6,6 +6,20 @@ import { useAuth } from '../context/AuthContext';
 import { getSchoolNavBrand } from '../lib/schoolTheme';
 import { AppNavbar, ErrorMessage, InlineError, SuccessMessage, getMessageCategory, LoadingPanel } from './dashboardUi';
 import { formatChildTrackingTr, formatRelativeTimeTr } from '../utils/formatTime';
+import {
+  PARENT_MODULES,
+  PARENT_TABS,
+  firstName,
+} from '../lib/demoData';
+import {
+  DemoBottomNav,
+  DemoSubHeader,
+  DemoToast,
+  ModuleGrid,
+  moduleTitle,
+  useDemoNav,
+} from './demo/DemoKit';
+import { DemoScreen, ParentDayTimeline } from './demo/DemoScreens';
 
 function getInitialNotificationPermission() {
   if (typeof window === 'undefined' || typeof Notification === 'undefined') {
@@ -97,6 +111,7 @@ export default function ParentDashboard({ profile, schoolId, onSignOut }) {
   const [pushSubscribing, setPushSubscribing] = useState(false);
   const [pushSuccess, setPushSuccess] = useState(null);
   const [pushError, setPushError] = useState(null);
+  const demoNav = useDemoNav('home');
 
   const displayName = profile?.full_name ?? profile?.email ?? 'Veli';
   const navBrand = getSchoolNavBrand(school, 'Veli Portal');
@@ -357,73 +372,122 @@ export default function ParentDashboard({ profile, schoolId, onSignOut }) {
     );
   }
 
+  const childName = firstName(studentNames[0], 'Elif');
+
   return (
     <>
       <AppNavbar brand={navBrand} logoUrl={navLogoUrl} onSignOut={onSignOut} />
+      <DemoToast message={demoNav.toast} />
+      {demoNav.isModule && (
+        <DemoSubHeader
+          title={moduleTitle(demoNav.moduleId)}
+          onBack={demoNav.closeModule}
+        />
+      )}
 
-      <main className="dash-page dash-page--flush">
-        <section className="welcome-card">
-          <h1 className="welcome-card-title">Hoş geldiniz, {displayName}</h1>
-          {studentNames.length > 0 ? (
-            <p className="welcome-card-text">{formatChildTrackingTr(studentNames)}</p>
-          ) : (
-            <p className="welcome-card-text">
-              Henüz hesabınıza bağlı bir çocuk bulunmuyor.
-            </p>
-          )}
-        </section>
-
-        {showNotificationPrompt && (
-          <section className="notify-prompt-card">
-            <p className="notify-prompt-text">
-              Kreşten gelen güncellemeleri telefonunuza anında almak için bildirimleri
-              açın.
-            </p>
-            <button
-              type="button"
-              className="notify-prompt-btn"
-              onClick={handleEnableNotifications}
-              disabled={pushSubscribing}
-            >
-              {pushSubscribing ? 'Açılıyor…' : '🔔 Anlık Bildirimleri Aç'}
-            </button>
-            {pushError && <InlineError error={pushError} context="subscribe" />}
-          </section>
-        )}
-
-        {pushSuccess && <SuccessMessage message={pushSuccess} />}
-
-        {students.length === 0 ? (
-          <section className="empty-card">
-            <h2 className="empty-title">Bağlı çocuk yok</h2>
-            <p className="empty-text">
-              Hesabınız henüz bir öğrenciyle eşleştirilmemiş. Lütfen kreş
-              yöneticinizle iletişime geçin.
-            </p>
-          </section>
-        ) : messages.length === 0 ? (
-          <section className="empty-card">
-            <h2 className="empty-title">Henüz mesaj yok</h2>
-            <p className="empty-text">
-              Kreş çocuğunuz için bildirim gönderdiğinde mesajlar burada anında
-              görünecek.
-            </p>
-          </section>
+      <main className="dash-page dash-page--flush dash-page--tabbar">
+        {demoNav.isModule ? (
+          <DemoScreen
+            id={demoNav.moduleId}
+            role="parent"
+            childName={childName}
+            students={students}
+            notify={demoNav.notify}
+          />
+        ) : demoNav.tab === 'gallery' ? (
+          <DemoScreen
+            id="gallery"
+            role="parent"
+            childName={childName}
+            students={students}
+            notify={demoNav.notify}
+          />
+        ) : demoNav.tab === 'chat' ? (
+          <DemoScreen
+            id="chat"
+            role="parent"
+            childName={childName}
+            students={students}
+            notify={demoNav.notify}
+          />
+        ) : demoNav.tab === 'more' ? (
+          <ModuleGrid modules={PARENT_MODULES} onOpen={demoNav.openModule} />
         ) : (
-          <ol className="feed-list">
-            {messages.map((message) => (
-              <FeedItem
-                key={message.id}
-                message={message}
-                studentNameById={studentNameById}
-                groupNameById={groupNameById}
-                isNew={newMessageIds.has(message.id)}
-                onAnimationEnd={() => clearNewMessageAnimation(message.id)}
-              />
-            ))}
-          </ol>
+          <>
+            <section className="welcome-card">
+              <h1 className="welcome-card-title">Hoş geldiniz, {displayName}</h1>
+              {studentNames.length > 0 ? (
+                <p className="welcome-card-text">{formatChildTrackingTr(studentNames)}</p>
+              ) : (
+                <p className="welcome-card-text">
+                  Henüz hesabınıza bağlı bir çocuk bulunmuyor.
+                </p>
+              )}
+            </section>
+
+            <ParentDayTimeline childName={childName} onOpen={demoNav.openModule} />
+
+            {showNotificationPrompt && (
+              <section className="notify-prompt-card">
+                <p className="notify-prompt-text">
+                  Kreşten gelen güncellemeleri telefonunuza anında almak için bildirimleri
+                  açın.
+                </p>
+                <button
+                  type="button"
+                  className="notify-prompt-btn"
+                  onClick={handleEnableNotifications}
+                  disabled={pushSubscribing}
+                >
+                  {pushSubscribing ? 'Açılıyor…' : '🔔 Anlık Bildirimleri Aç'}
+                </button>
+                {pushError && <InlineError error={pushError} context="subscribe" />}
+              </section>
+            )}
+
+            {pushSuccess && <SuccessMessage message={pushSuccess} />}
+
+            <h2 className="dash-section-title">Bildirimler</h2>
+
+            {students.length === 0 ? (
+              <section className="empty-card">
+                <h2 className="empty-title">Bağlı çocuk yok</h2>
+                <p className="empty-text">
+                  Hesabınız henüz bir öğrenciyle eşleştirilmemiş. Lütfen kreş
+                  yöneticinizle iletişime geçin.
+                </p>
+              </section>
+            ) : messages.length === 0 ? (
+              <section className="empty-card">
+                <h2 className="empty-title">Henüz mesaj yok</h2>
+                <p className="empty-text">
+                  Kreş çocuğunuz için bildirim gönderdiğinde mesajlar burada anında
+                  görünecek.
+                </p>
+              </section>
+            ) : (
+              <ol className="feed-list">
+                {messages.map((message) => (
+                  <FeedItem
+                    key={message.id}
+                    message={message}
+                    studentNameById={studentNameById}
+                    groupNameById={groupNameById}
+                    isNew={newMessageIds.has(message.id)}
+                    onAnimationEnd={() => clearNewMessageAnimation(message.id)}
+                  />
+                ))}
+              </ol>
+            )}
+          </>
         )}
       </main>
+
+      <DemoBottomNav
+        tabs={PARENT_TABS}
+        active={demoNav.tab}
+        onChange={demoNav.selectTab}
+      />
     </>
   );
 }

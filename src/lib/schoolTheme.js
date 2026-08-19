@@ -12,6 +12,7 @@ export const THEME_CSS_VARS = [
   '--theme-primary',
   '--theme-primary-hover',
   '--theme-primary-text',
+  '--theme-on-light',
   '--theme-secondary',
   '--theme-secondary-text',
   '--theme-accent-soft',
@@ -71,6 +72,15 @@ function contrastText(hex) {
   return relativeLuminance(rgb) > 0.62 ? '#3d3a36' : '#ffffff';
 }
 
+function inkOnLight(hex) {
+  const rgb = parseHexColor(hex);
+  if (!rgb) return DEFAULT_THEME.primaryText;
+  if (relativeLuminance(rgb) > 0.45) {
+    return mixHex(hex, '#1c1917', 0.58);
+  }
+  return toHex(rgb);
+}
+
 export function buildThemeFromSchool(school) {
   const primary = school?.primary_color?.trim() || DEFAULT_THEME.primary;
   const secondary = school?.secondary_color?.trim() || DEFAULT_THEME.secondary;
@@ -79,6 +89,7 @@ export function buildThemeFromSchool(school) {
     primary,
     primaryHover: mixHex(primary, '#000000', 0.14),
     primaryText: contrastText(primary),
+    onLight: inkOnLight(primary),
     secondary,
     secondaryText: contrastText(secondary) === '#ffffff' ? mixHex(secondary, '#000000', 0.55) : contrastText(secondary),
     accentSoft: mixHex(secondary, '#ffffff', 0.35),
@@ -95,6 +106,7 @@ export function applySchoolTheme(school) {
   root.style.setProperty('--theme-primary', theme.primary);
   root.style.setProperty('--theme-primary-hover', theme.primaryHover);
   root.style.setProperty('--theme-primary-text', theme.primaryText);
+  root.style.setProperty('--theme-on-light', theme.onLight);
   root.style.setProperty('--theme-secondary', theme.secondary);
   root.style.setProperty('--theme-secondary-text', theme.secondaryText);
   root.style.setProperty('--theme-accent-soft', theme.accentSoft);

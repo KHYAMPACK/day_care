@@ -12,9 +12,21 @@ import {
   SendButton,
   SuccessMessage,
 } from '../../components/dashboardUi';
+import { DIRECTOR_MODULES, firstName } from '../../lib/demoData';
+import {
+  DemoSubHeader,
+  DemoToast,
+  ModuleGrid,
+  moduleTitle,
+  useDemoNav,
+} from '../../components/demo/DemoKit';
+import { DemoScreen } from '../../components/demo/DemoScreens';
+import PlatformShowcase from '../../components/demo/PlatformShowcase';
 
 const TABS = [
+  { id: 'platform', label: 'Sunum', icon: '🎬' },
   { id: 'overview', label: 'Genel Bakış', icon: '📊' },
+  { id: 'modules', label: 'Modüller', icon: '🧩' },
   { id: 'students', label: 'Öğrenci Ekle', icon: '👶' },
   { id: 'audit', label: 'Mesaj Trafiği', icon: '📋' },
   { id: 'assignment', label: 'Öğretmen Atama', icon: '🏫' },
@@ -118,9 +130,9 @@ function OverviewTab({ stats, linksCount }) {
       <div className="dash-card director-overview-note">
         <h2 className="dash-section-title">Okul özeti</h2>
         <p className="dash-hint">
-          Veli eşleştirmelerini <strong>Eşleştirme</strong>, öğretmen–öğrenci atamalarını{' '}
-          <strong>Öğretmen Atama</strong>, şablonları <strong>Şablonlar</strong> sekmesinden
-          yönetebilirsiniz.
+          Müşteri sunumu için <strong>Sunum</strong> sekmesini açın. Günlük operasyonlar{' '}
+          <strong>Modüller</strong> altında. Veli eşleştirmelerini <strong>Eşleştirme</strong>,
+          öğretmen atamalarını <strong>Öğretmen Atama</strong> sekmesinden yönetebilirsiniz.
         </p>
       </div>
     </section>
@@ -1079,7 +1091,7 @@ function SchoolSettingsTab({ school, schoolId, onSaved }) {
 
 export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
   const { school, refreshSchool } = useAuth();
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState('platform');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
 
@@ -1123,6 +1135,7 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
   const [assignmentSaving, setAssignmentSaving] = useState(false);
   const [assignmentError, setAssignmentError] = useState(null);
   const [assignmentSuccess, setAssignmentSuccess] = useState(null);
+  const demoNav = useDemoNav('modules');
 
   const displayName = profile?.full_name ?? profile?.email ?? 'Müdür';
   const navBrand = school?.name ? `${school.name} — Müdür` : 'KreşTakip — Müdür';
@@ -1659,7 +1672,10 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
                   key={tab.id}
                   type="button"
                   className={`director-tab${activeTab === tab.id ? ' director-tab--active' : ''}`}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => {
+                    setActiveTab(tab.id);
+                    if (tab.id !== 'modules' && tab.id !== 'platform') demoNav.closeModule();
+                  }}
                   aria-current={activeTab === tab.id ? 'page' : undefined}
                 >
                   <span className="director-tab__icon" aria-hidden="true">
@@ -1671,7 +1687,55 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
             </div>
           </nav>
 
+          {activeTab === 'platform' && (
+            <section className="director-panel">
+              <DemoToast message={demoNav.toast} />
+              {demoNav.moduleId ? (
+                <>
+                  <DemoSubHeader
+                    title={moduleTitle(demoNav.moduleId)}
+                    onBack={demoNav.closeModule}
+                  />
+                  <DemoScreen
+                    id={demoNav.moduleId}
+                    role="director"
+                    childName={firstName(students[0]?.full_name, 'Elif')}
+                    students={students}
+                    notify={demoNav.notify}
+                  />
+                </>
+              ) : (
+                <PlatformShowcase schoolName={school?.name} onOpen={demoNav.openModule} />
+              )}
+            </section>
+          )}
+
           {activeTab === 'overview' && <OverviewTab stats={stats} linksCount={links.length} />}
+
+        {activeTab === 'modules' && (
+          <section className="director-panel">
+            <DemoToast message={demoNav.toast} />
+            {demoNav.moduleId ? (
+              <>
+                <DemoSubHeader
+                  title={moduleTitle(demoNav.moduleId)}
+                  onBack={demoNav.closeModule}
+                />
+                <DemoScreen
+                  id={demoNav.moduleId}
+                  role="director"
+                  childName={firstName(students[0]?.full_name, 'Elif')}
+                  students={students}
+                  notify={demoNav.notify}
+                />
+              </>
+            ) : (
+              <div className="dash-card">
+                <ModuleGrid modules={DIRECTOR_MODULES} onOpen={demoNav.openModule} />
+              </div>
+            )}
+          </section>
+        )}
 
         {activeTab === 'students' && (
           <StudentCreatorTab students={students} schoolId={schoolId} onRefresh={loadData} />

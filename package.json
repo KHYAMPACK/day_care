@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "sync-logos": "node scripts/sync-logos.mjs"
+    "sync-logos": "node scripts/sync-logos.mjs",
+    "seed-demo": "node scripts/seed-demo-school.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",
