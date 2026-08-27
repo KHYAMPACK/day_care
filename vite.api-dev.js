@@ -1,9 +1,24 @@
 import path from 'node:path';
 
-const API_FILES = {
-  '/api/send-push': { file: 'send-push.js', methods: ['POST'] },
-  '/api/cron-calendar-reminders': { file: 'cron-calendar-reminders.js', methods: ['GET', 'POST'] },
-};
+const API_ROUTES = [
+  { match: (url) => url === '/api/tenant', file: 'tenant.js', methods: ['GET'] },
+  {
+    match: (url) => url === '/api/manifest.webmanifest',
+    file: 'manifest.webmanifest.js',
+    methods: ['GET'],
+  },
+  {
+    match: (url) => url === '/api/branding/icon' || url.startsWith('/api/branding/icon?'),
+    file: 'branding/icon.js',
+    methods: ['GET'],
+  },
+  { match: (url) => url === '/api/send-push', file: 'send-push.js', methods: ['POST'] },
+  {
+    match: (url) => url === '/api/cron-calendar-reminders',
+    file: 'cron-calendar-reminders.js',
+    methods: ['GET', 'POST'],
+  },
+];
 
 function attachVercelResponse(res) {
   if (typeof res.status !== 'function') {
@@ -31,14 +46,22 @@ async function readJsonBody(req) {
   return JSON.parse(raw);
 }
 
+function findRoute(url, method) {
+  return API_ROUTES.find((route) => route.match(url) && route.methods.includes(method));
+}
+
 export function vercelApiDevPlugin() {
   return {
     name: 'vercel-api-dev',
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
         const url = req.url?.split('?')[0];
-        const route = API_FILES[url];
-        if (!route || !route.methods.includes(req.method)) {
+        const fullUrl = req.url ?? '';
+        const route =
+          findRoute(url, req.method) ??
+          (req.method === 'GET' ? findRoute(fullUrl.split('?')[0], req.method) : null);
+
+        if (!route) {
           next();
           return;
         }
@@ -54,7 +77,7 @@ export function vercelApiDevPlugin() {
           const mod = await server.ssrLoadModule(modulePath);
           await mod.default(req, res);
         } catch (error) {
-          console.error('vite api:', url, error);
+          console.error('vite api:', fullUrl, error);
           if (!res.headersSent) {
             attachVercelResponse(res);
             res.status(500).json({ error: error.message ?? 'API hatası' });

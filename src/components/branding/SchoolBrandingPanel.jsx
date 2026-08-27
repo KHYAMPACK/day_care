@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../lib/supabase';
+import { isValidCustomDomain, normalizeCustomDomain } from '../../lib/customDomain';
 import {
   DEFAULT_THEME,
   applySchoolTheme,
@@ -53,6 +54,7 @@ export default function SchoolBrandingPanel({ school, schoolId, onSaved }) {
   const [logoUrl, setLogoUrl] = useState(school?.logo_url ?? '');
   const [primaryColor, setPrimaryColor] = useState(school?.primary_color ?? DEFAULT_THEME.primary);
   const [secondaryColor, setSecondaryColor] = useState(school?.secondary_color ?? DEFAULT_THEME.secondary);
+  const [customDomain, setCustomDomain] = useState(school?.custom_domain ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
@@ -61,6 +63,7 @@ export default function SchoolBrandingPanel({ school, schoolId, onSaved }) {
     setLogoUrl(school?.logo_url ?? '');
     setPrimaryColor(school?.primary_color ?? DEFAULT_THEME.primary);
     setSecondaryColor(school?.secondary_color ?? DEFAULT_THEME.secondary);
+    setCustomDomain(school?.custom_domain ?? '');
   }, [school]);
 
   useEffect(() => {
@@ -82,6 +85,12 @@ export default function SchoolBrandingPanel({ school, schoolId, onSaved }) {
       return;
     }
 
+    const normalizedDomain = normalizeCustomDomain(customDomain);
+    if (customDomain.trim() && !isValidCustomDomain(customDomain)) {
+      setError(new Error('Alan adı geçersiz. Örnek: veli.atlasegitimkurumu.com'));
+      return;
+    }
+
     setSaving(true);
     setError(null);
     setSuccess(null);
@@ -92,6 +101,7 @@ export default function SchoolBrandingPanel({ school, schoolId, onSaved }) {
           logo_url: logoUrl.trim() || null,
           primary_color: primary,
           secondary_color: secondary,
+          custom_domain: normalizedDomain || null,
         })
         .eq('id', schoolId);
       if (updateError) throw updateError;
@@ -108,8 +118,8 @@ export default function SchoolBrandingPanel({ school, schoolId, onSaved }) {
     <section className="dash-card brand-panel">
       <h2 className="dash-section-title">Okul markası</h2>
       <p className="dash-hint">
-        Logo ve renkler tüm öğretmen ve veli ekranlarında görünür. Birincil renk butonlarda,
-        ikincil renk arka plan ve üst barda kullanılır.
+        Logo, renkler ve veli uygulaması alan adı tüm ekranlarda ve PWA kurulumunda
+        kullanılır. Birincil renk butonlarda, ikincil renk arka plan ve üst barda kullanılır.
       </p>
 
       {error && <InlineError error={error} context="general" />}
@@ -126,6 +136,23 @@ export default function SchoolBrandingPanel({ school, schoolId, onSaved }) {
             placeholder="https://…/logo.png"
             disabled={saving}
           />
+        </label>
+
+        <label className="dash-label">
+          Veli uygulaması alan adı
+          <input
+            className="dash-input"
+            type="text"
+            value={customDomain}
+            onChange={(event) => setCustomDomain(event.target.value)}
+            placeholder="veli.atlasegitimkurumu.com"
+            disabled={saving}
+            autoComplete="off"
+            spellCheck={false}
+          />
+          <span className="auth-hint">
+            Yalnızca alt alan adı girin (www değil). DNS kaydını Vercel projenize yönlendirin.
+          </span>
         </label>
 
         <div className="brand-form__colors">

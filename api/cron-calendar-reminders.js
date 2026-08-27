@@ -9,6 +9,7 @@ import {
   getSupabaseAdmin,
   sendWebPushItems,
 } from './lib/webPush.js';
+import { buildPushIconUrl, fetchSchoolBrandingById, getRequestOrigin } from './lib/tenant.js';
 
 function isAuthorizedCron(req) {
   const secret = process.env.CRON_SECRET;
@@ -121,8 +122,13 @@ export default async function handler(req, res) {
         continue;
       }
 
+      const tenant = await fetchSchoolBrandingById(event.school_id);
+      const origin = getRequestOrigin(req) ?? process.env.APP_ORIGIN ?? null;
+      const pushIcon = buildPushIconUrl(origin, tenant);
+
       const result = await sendWebPushItems(items, {
-        title: 'OkulTakip',
+        title: tenant.name,
+        icon: pushIcon,
         tag: `calendar-${event.id}`,
       });
 

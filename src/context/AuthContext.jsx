@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { applySchoolTheme, clearSchoolTheme } from '../lib/schoolTheme';
 
 const PROFILE_SELECT = 'id, role, full_name, email, school_id, phone';
-const SCHOOL_SELECT = 'id, name, logo_url, primary_color, secondary_color';
+const SCHOOL_SELECT = 'id, name, logo_url, primary_color, secondary_color, custom_domain';
 
 const AuthContext = createContext(null);
 

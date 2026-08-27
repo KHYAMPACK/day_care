@@ -42,7 +42,7 @@ export function getVapidConfig() {
   return { publicKey, privateKey, subject };
 }
 
-export async function sendWebPushItems(items, { title, tag } = {}) {
+export async function sendWebPushItems(items, { title, tag, icon } = {}) {
   if (!items.length) {
     return { sent: 0, failed: 0, total: 0, skipped: true };
   }
@@ -57,6 +57,7 @@ export async function sendWebPushItems(items, { title, tag } = {}) {
         body,
         url,
         tag: itemTag ?? tag ?? 'daycare-notification',
+        icon: icon ?? null,
       });
 
       return webpush.sendNotification(subscription, payload);

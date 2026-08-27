@@ -18,8 +18,8 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     self.registration.showNotification(payload.title, {
       body: payload.body,
-      icon: '/pwa-192x192.png',
-      badge: '/pwa-192x192.png',
+      icon: payload.icon ?? '/pwa-192x192.png',
+      badge: payload.icon ?? '/pwa-192x192.png',
       tag: payload.tag ?? 'daycare-notification',
       renotify: true,
       data: { url: payload.url ?? '/' },

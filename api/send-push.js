@@ -5,6 +5,12 @@ import {
   getSupabaseAdmin,
   sendWebPushItems,
 } from './lib/webPush.js';
+import {
+  buildPushIconUrl,
+  buildTenantPayload,
+  fetchSchoolBrandingById,
+  getRequestOrigin,
+} from './lib/tenant.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -39,7 +45,7 @@ export default async function handler(req, res) {
 
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('role')
+      .select('role, school_id')
       .eq('id', user.id)
       .single();
 
@@ -47,7 +53,13 @@ export default async function handler(req, res) {
       return res.status(403).json({ error: 'Only teachers and directors can send push notifications' });
     }
 
-    const { title = 'OkulTakip', items: clientItems, delivery } = req.body ?? {};
+    const { title: clientTitle, items: clientItems, delivery } = req.body ?? {};
+    const tenant = profile.school_id
+      ? await fetchSchoolBrandingById(profile.school_id)
+      : buildTenantPayload(null);
+    const origin = getRequestOrigin(req) ?? process.env.APP_ORIGIN ?? null;
+    const pushTitle = clientTitle ?? tenant.name;
+    const pushIcon = buildPushIconUrl(origin, tenant);
 
     let items = Array.isArray(clientItems) ? clientItems : [];
 
@@ -71,7 +83,8 @@ export default async function handler(req, res) {
     }
 
     const result = await sendWebPushItems(items, {
-      title,
+      title: pushTitle,
+      icon: pushIcon,
       tag: 'daycare-notification',
     });
 

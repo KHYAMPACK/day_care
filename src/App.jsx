@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { supabase } from './lib/supabase';
 import { useAuth } from './context/AuthContext';
+import { useTenant } from './context/TenantContext';
 import {
   INVALID_SCHOOL_CODE_MESSAGE,
   resolveSchoolIdByCode,
@@ -17,6 +18,7 @@ import {
 import { USER_ROLES } from './lib/roles';
 
 function AuthScreen() {
+  const { tenant, tenantSchoolId } = useTenant();
   const [mode, setMode] = useState('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -35,16 +37,20 @@ function AuthScreen() {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
       } else {
-        const trimmedCode = schoolCode.trim();
-        if (!trimmedCode) {
-          setAuthError('Okul kodu zorunludur.');
-          return;
-        }
+        let resolvedSchoolId = tenantSchoolId;
 
-        const resolvedSchoolId = await resolveSchoolIdByCode(trimmedCode);
         if (!resolvedSchoolId) {
-          setAuthError(INVALID_SCHOOL_CODE_MESSAGE);
-          return;
+          const trimmedCode = schoolCode.trim();
+          if (!trimmedCode) {
+            setAuthError('Okul kodu zorunludur.');
+            return;
+          }
+
+          resolvedSchoolId = await resolveSchoolIdByCode(trimmedCode);
+          if (!resolvedSchoolId) {
+            setAuthError(INVALID_SCHOOL_CODE_MESSAGE);
+            return;
+          }
         }
 
         const { error } = await supabase.auth.signUp({
@@ -71,15 +77,12 @@ function AuthScreen() {
       <OfflineBanner />
       <main className="auth-page">
         <div className="auth-card">
-          <div className="auth-brand-wrap">
-            <img src="/logo.png" alt="OkulTakip" className="auth-brand-logo" />
-          </div>
           <h1 className="auth-brand">
-            {mode === 'login' ? 'Giriş' : 'Kayıt'}
+            {tenant.resolved ? tenant.name : mode === 'login' ? 'Giriş' : 'Kayıt'}
           </h1>
-          <p className="auth-tagline">
-            Veliler ve yöneticiler için nazik, sade bildirim deneyimi.
-          </p>
+            {tenant.resolved ? (
+            <p className="auth-tagline">{mode === 'login' ? 'Giriş yapın' : 'Kayıt olun'}</p>
+          ) : null}
 
           <form className="auth-form" onSubmit={handleAuthSubmit}>
             {mode === 'signup' && (
@@ -96,23 +99,25 @@ function AuthScreen() {
                   />
                 </label>
 
-                <label className="auth-label">
-                  Okul Kodu
-                  <input
-                    className="auth-input auth-input--code"
-                    type="text"
-                    value={schoolCode}
-                    onChange={(e) => setSchoolCode(e.target.value.toUpperCase())}
-                    required
-                    autoComplete="off"
-                    autoCapitalize="characters"
-                    spellCheck={false}
-                    placeholder="MEMNUN1"
-                  />
-                  <span className="auth-hint">
-                    Okul yönetiminizden aldığınız davet kodunu girin.
-                  </span>
-                </label>
+                {!tenantSchoolId && (
+                  <label className="auth-label">
+                    Okul Kodu
+                    <input
+                      className="auth-input auth-input--code"
+                      type="text"
+                      value={schoolCode}
+                      onChange={(e) => setSchoolCode(e.target.value.toUpperCase())}
+                      required
+                      autoComplete="off"
+                      autoCapitalize="characters"
+                      spellCheck={false}
+                      placeholder="MEMNUN1"
+                    />
+                    <span className="auth-hint">
+                      Okul yönetiminizden aldığınız davet kodunu girin.
+                    </span>
+                  </label>
+                )}
               </>
             )}
 
@@ -180,8 +185,9 @@ function AuthScreen() {
 function AppRoutes() {
   const { session, profile, schoolId, authLoading, profileLoading, profileError, signOut } =
     useAuth();
+  const { tenantSchoolId, tenantLoading } = useTenant();
 
-  if (authLoading) {
+  if (authLoading || tenantLoading) {
     return (
       <>
         <OfflineBanner />
@@ -234,6 +240,22 @@ function AppRoutes() {
           <button className="auth-submit" type="button" onClick={signOut}>
             Çıkış Yap
           </button>
+        </main>
+      </>
+    );
+  }
+
+  if (tenantSchoolId && profile.school_id !== tenantSchoolId) {
+    return (
+      <>
+        <OfflineBanner />
+        <main className="app-centered app-centered--wide">
+          <ErrorMessage
+            error="Bu hesap bu okulun alan adıyla eşleşmiyor. Lütfen doğru okul adresinden giriş yapın."
+            context="auth"
+            onRetry={signOut}
+            retryLabel="Çıkış Yap"
+          />
         </main>
       </>
     );
