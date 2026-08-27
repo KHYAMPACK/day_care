@@ -111,6 +111,15 @@ export function applySchoolTheme(school) {
   root.style.setProperty('--theme-secondary-text', theme.secondaryText);
   root.style.setProperty('--theme-accent-soft', theme.accentSoft);
   root.style.setProperty('--theme-accent-border', theme.accentBorder);
+  root.style.setProperty('--bg-page', mixHex(theme.secondary, '#ffffff', 0.72));
+}
+
+export function normalizeHexColor(value) {
+  if (!value || typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const withHash = trimmed.startsWith('#') ? trimmed : `#${trimmed}`;
+  return parseHexColor(withHash) ? withHash.toLowerCase() : null;
 }
 
 export function clearSchoolTheme() {
@@ -118,10 +127,11 @@ export function clearSchoolTheme() {
 
   const root = document.documentElement;
   THEME_CSS_VARS.forEach((cssVar) => root.style.removeProperty(cssVar));
+  root.style.removeProperty('--bg-page');
 }
 
 export function getSchoolNavBrand(school, roleSuffix) {
   const name = school?.name?.trim();
-  if (!name) return `KreşTakip — ${roleSuffix}`;
+  if (!name) return `OkulTakip — ${roleSuffix}`;
   return `${name} — ${roleSuffix}`;
 }

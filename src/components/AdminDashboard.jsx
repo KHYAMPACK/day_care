@@ -3,7 +3,6 @@ import { supabase } from '../lib/supabase';
 import { withSchoolFilter } from '../lib/tenant';
 import { notifyParentsForMessage } from '../lib/sendPush';
 import { useAuth } from '../context/AuthContext';
-import { getSchoolNavBrand } from '../lib/schoolTheme';
 import {
   AppNavbar,
   ErrorMessage,
@@ -14,16 +13,16 @@ import {
   SendButton,
 } from './dashboardUi';
 import { formatRelativeTimeTr } from '../utils/formatTime';
-import { firstName, TEACHER_MODULES, TEACHER_TABS } from '../lib/demoData';
-import {
-  DemoBottomNav,
-  DemoSubHeader,
-  DemoToast,
-  ModuleGrid,
-  moduleTitle,
-  useDemoNav,
-} from './demo/DemoKit';
-import { DemoScreen, TeacherClassHome } from './demo/DemoScreens';
+import { TEACHER_TABS } from '../lib/demoData';
+import { DemoBottomNav, getTabFromSearch, useDemoNav } from './demo/DemoKit';
+import { Icon } from './ui/Icon';
+import { Avatar } from './ui/Avatar';
+import TeacherAnnouncements from './announcements/TeacherAnnouncements';
+import AcademicCalendar from './calendar/AcademicCalendar';
+import TeacherCurriculum from './curriculum/TeacherCurriculum';
+import TeacherAttendance from './attendance/TeacherAttendance';
+import TeacherExams from './exams/TeacherExams';
+import { uniqueGrades } from '../lib/calendar';
 
 const TARGET_ALL = 'all';
 const CHILD_NAME_PLACEHOLDER = '{{child_name}}';
@@ -152,11 +151,13 @@ export default function AdminDashboard({ profile, schoolId, onSignOut }) {
   const [sending, setSending] = useState(false);
   const [submitError, setSubmitError] = useState(null);
   const [submitSuccess, setSubmitSuccess] = useState(null);
+  const [showMessages, setShowMessages] = useState(() => getTabFromSearch('home') === 'messages');
   const demoNav = useDemoNav('home');
 
   const displayName = profile?.full_name ?? profile?.email ?? 'Öğretmen';
-  const navBrand = getSchoolNavBrand(school, 'Öğretmen');
   const navLogoUrl = school?.logo_url ?? null;
+  const schoolName = school?.name ?? 'OkulTakip';
+  const viewerGrades = useMemo(() => uniqueGrades(students), [students]);
 
   const fetchMessages = useCallback(async () => {
     const { data, error } = await withSchoolFilter(
@@ -190,16 +191,22 @@ export default function AdminDashboard({ profile, schoolId, onSignOut }) {
       setDataError(null);
       setDataWarning(null);
 
-      const [studentsRes, templatesRes] = await Promise.all([
-        withSchoolFilter(
+      let studentsRes = await withSchoolFilter(
+        supabase.from('students').select('id, full_name, grade').order('full_name'),
+        schoolId
+      );
+
+      if (studentsRes.error && /grade/i.test(studentsRes.error.message ?? '')) {
+        studentsRes = await withSchoolFilter(
           supabase.from('students').select('id, full_name').order('full_name'),
           schoolId
-        ),
-        withSchoolFilter(
-          supabase.from('message_templates').select('id, title, body, icon').order('title'),
-          schoolId
-        ),
-      ]);
+        );
+      }
+
+      const templatesRes = await withSchoolFilter(
+        supabase.from('message_templates').select('id, title, body, icon').order('title'),
+        schoolId
+      );
 
       if (!mounted) return;
 
@@ -348,7 +355,7 @@ export default function AdminDashboard({ profile, schoolId, onSignOut }) {
   if (dataLoading) {
     return (
       <>
-        <AppNavbar brand={navBrand} logoUrl={navLogoUrl} onSignOut={onSignOut} />
+        <AppNavbar schoolName={schoolName} roleLabel="Öğretmen" logoUrl={navLogoUrl} onSignOut={onSignOut} />
         <LoadingPanel message="Panel yükleniyor…" />
       </>
     );
@@ -357,7 +364,7 @@ export default function AdminDashboard({ profile, schoolId, onSignOut }) {
   if (dataError) {
     return (
       <>
-        <AppNavbar brand={navBrand} logoUrl={navLogoUrl} onSignOut={onSignOut} />
+        <AppNavbar schoolName={schoolName} roleLabel="Öğretmen" logoUrl={navLogoUrl} onSignOut={onSignOut} />
         <main className="dash-page dash-error-page">
           <ErrorMessage
             error={dataError}
@@ -371,55 +378,76 @@ export default function AdminDashboard({ profile, schoolId, onSignOut }) {
 
   return (
     <>
-      <AppNavbar brand={navBrand} logoUrl={navLogoUrl} onSignOut={onSignOut} />
-      <DemoToast message={demoNav.toast} />
-      {demoNav.isModule && (
-        <DemoSubHeader
-          title={moduleTitle(demoNav.moduleId)}
-          onBack={demoNav.closeModule}
-        />
-      )}
+      <AppNavbar schoolName={schoolName} roleLabel="Öğretmen" logoUrl={navLogoUrl} onSignOut={onSignOut} />
 
       <main className="dash-page dash-page--flush dash-page--tabbar">
-        {demoNav.isModule ? (
-          <DemoScreen
-            id={demoNav.moduleId}
-            role="teacher"
-            childName={firstName(students[0]?.full_name, 'Elif')}
-            students={students}
-            notify={demoNav.notify}
-          />
+        {demoNav.tab === 'announcements' ? (
+          <TeacherAnnouncements profile={profile} schoolId={schoolId} students={students} />
+        ) : demoNav.tab === 'calendar' ? (
+          <AcademicCalendar schoolId={schoolId} viewerGrades={viewerGrades.length ? viewerGrades : null} />
+        ) : demoNav.tab === 'exams' ? (
+          <TeacherExams profile={profile} schoolId={schoolId} students={students} />
+        ) : demoNav.tab === 'curriculum' ? (
+          <TeacherCurriculum profile={profile} schoolId={schoolId} />
         ) : demoNav.tab === 'attendance' ? (
-          <DemoScreen
-            id="attendance"
-            role="teacher"
-            childName={firstName(students[0]?.full_name, 'Elif')}
-            students={students}
-            notify={demoNav.notify}
-          />
-        ) : demoNav.tab === 'more' ? (
-          <ModuleGrid modules={TEACHER_MODULES} onOpen={demoNav.openModule} />
-        ) : demoNav.tab === 'home' ? (
-          <>
-            <header className="dash-header">
-              <h1 className="dash-title">Öğretmen Paneli</h1>
-              <p className="dash-subtitle">Hoş geldiniz, {displayName}.</p>
-            </header>
-            {dataWarning && <p className="dash-warning">{dataWarning}</p>}
-            <TeacherClassHome
-              students={students}
-              onOpen={demoNav.openModule}
-              notify={demoNav.notify}
-            />
-          </>
+          <TeacherAttendance profile={profile} schoolId={schoolId} />
         ) : (
           <>
             <header className="dash-header">
-              <h1 className="dash-title">Mesaj gönder</h1>
-              <p className="dash-subtitle">Velilere anlık bildirim iletin.</p>
+              <h1 className="dash-title">{showMessages ? 'Mesaj gönder' : 'Sınıf'}</h1>
+              <p className="dash-subtitle">
+                {showMessages
+                  ? 'Velilere anlık bildirim iletin.'
+                  : `Hoş geldiniz, ${displayName}.`}
+              </p>
             </header>
-
             {dataWarning && <p className="dash-warning">{dataWarning}</p>}
+
+            {!showMessages ? (
+            <section className="dash-card">
+              <h2 className="dash-section-title">Sınıfınız</h2>
+              {students.length === 0 ? (
+                <p className="dash-hint">
+                  Size atanan öğrenci yok. Müdürünüz Öğretmen Atama sekmesinden sınıf
+                  ataması yaptığında burada görünecek.
+                </p>
+              ) : (
+                <>
+                  <p className="dash-hint">
+                    {students.length} öğrenci atandı. Velilere bildirim için{' '}
+                    <strong>Mesaj gönder</strong>, sınıf duyurusu için{' '}
+                    <strong>Duyurular</strong> sekmesini kullanın.
+                  </p>
+                  <button
+                    type="button"
+                    className="demo-btn demo-btn--primary home-msg-btn"
+                    onClick={() => setShowMessages(true)}
+                  >
+                    Mesaj gönder
+                  </button>
+                  <ul className="student-pill-list">
+                    {students.map((student) => (
+                      <li key={student.id} className="student-pill">
+                        <Avatar name={student.full_name} size={36} />
+                        <strong className="student-pill__name">{student.full_name}</strong>
+                        {student.grade ? (
+                          <span className="student-pill__meta">{student.grade}. sınıf</span>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </section>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className="demo-btn home-msg-back"
+                  onClick={() => setShowMessages(false)}
+                >
+                  ← Sınıfa dön
+                </button>
 
             <section className="dash-card">
               <h2 className="dash-section-title">Yeni Mesaj Gönder</h2>
@@ -451,7 +479,7 @@ export default function AdminDashboard({ profile, schoolId, onSignOut }) {
                           onClick={() => handleTemplateClick(template)}
                           disabled={sending}
                         >
-                          {template.icon ? `${template.icon} ` : ''}
+                          {template.icon ? <Icon name={template.icon} size={14} /> : null}
                           {template.title}
                         </button>
                       ))}
@@ -499,6 +527,8 @@ export default function AdminDashboard({ profile, schoolId, onSignOut }) {
                 </ul>
               )}
             </section>
+              </>
+            )}
           </>
         )}
       </main>
@@ -506,7 +536,10 @@ export default function AdminDashboard({ profile, schoolId, onSignOut }) {
       <DemoBottomNav
         tabs={TEACHER_TABS}
         active={demoNav.tab}
-        onChange={demoNav.selectTab}
+        onChange={(tab) => {
+          setShowMessages(false);
+          demoNav.selectTab(tab);
+        }}
       />
     </>
   );

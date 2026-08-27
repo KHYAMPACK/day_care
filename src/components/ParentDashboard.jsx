@@ -3,23 +3,51 @@ import { supabase } from '../lib/supabase';
 import { withSchoolFilter } from '../lib/tenant';
 import { isPushSupported, subscribeToWebPush } from '../lib/pushNotifications';
 import { useAuth } from '../context/AuthContext';
-import { getSchoolNavBrand } from '../lib/schoolTheme';
 import { AppNavbar, ErrorMessage, InlineError, SuccessMessage, getMessageCategory, LoadingPanel } from './dashboardUi';
 import { formatChildTrackingTr, formatRelativeTimeTr } from '../utils/formatTime';
+import { PARENT_TABS } from '../lib/demoData';
+import { DemoBottomNav, useDemoNav } from './demo/DemoKit';
+import { AvatarStack } from './ui/Avatar';
+import { Icon, IconWell } from './ui/Icon';
+import ParentAnnouncements from './announcements/ParentAnnouncements';
+import ParentTeacherWhatsApp from './announcements/ParentTeacherWhatsApp';
+import AcademicCalendar, { TomorrowEventsCard } from './calendar/AcademicCalendar';
+import ParentCurriculum, { ParentCurriculumRecap, useParentCurriculumRecap } from './curriculum/ParentCurriculum';
+import ParentWeeklyReport from './attendance/ParentWeeklyReport';
+import ParentExams from './exams/ParentExams';
 import {
-  PARENT_MODULES,
-  PARENT_TABS,
-  firstName,
-} from '../lib/demoData';
-import {
-  DemoBottomNav,
-  DemoSubHeader,
-  DemoToast,
-  ModuleGrid,
-  moduleTitle,
-  useDemoNav,
-} from './demo/DemoKit';
-import { DemoScreen, ParentDayTimeline } from './demo/DemoScreens';
+  CALENDAR_SELECT,
+  addDaysIso,
+  eventVisibleForGrades,
+  istanbulDateIso,
+  uniqueGrades,
+} from '../lib/calendar';
+
+const FEED_GROUPS = [
+  { key: 'today', label: 'Bugün', variant: 'peach', icon: 'sun' },
+  { key: 'yesterday', label: 'Dün', variant: 'lavender', icon: 'moon' },
+  { key: 'week', label: 'Bu hafta', variant: 'sky', icon: 'calendar' },
+  { key: 'older', label: 'Daha eski', variant: 'gray', icon: 'clock' },
+];
+
+function feedGroupKey(createdAt) {
+  const day = istanbulDateIso(new Date(createdAt));
+  const today = istanbulDateIso();
+  if (day === today) return 'today';
+  if (day === addDaysIso(today, -1)) return 'yesterday';
+  if (day >= addDaysIso(today, -6)) return 'week';
+  return 'older';
+}
+
+function groupFeedMessages(messages) {
+  const buckets = { today: [], yesterday: [], week: [], older: [] };
+  messages.forEach((message) => {
+    buckets[feedGroupKey(message.created_at)].push(message);
+  });
+  return FEED_GROUPS.map((group) => ({ ...group, items: buckets[group.key] })).filter(
+    (group) => group.items.length > 0
+  );
+}
 
 function getInitialNotificationPermission() {
   if (typeof window === 'undefined' || typeof Notification === 'undefined') {
@@ -71,9 +99,7 @@ function FeedItem({ message, studentNameById, groupNameById, isNew, onAnimationE
       onAnimationEnd={isNew ? onAnimationEnd : undefined}
     >
       <article className={`feed-card feed-card--${category.key}`}>
-        <div className={`feed-badge feed-badge--${category.key}`} aria-hidden="true">
-          {category.icon}
-        </div>
+        <IconWell name={category.icon} variant={category.key} />
         <div className="feed-content">
           <header className="feed-header">
             <div>
@@ -111,11 +137,11 @@ export default function ParentDashboard({ profile, schoolId, onSignOut }) {
   const [pushSubscribing, setPushSubscribing] = useState(false);
   const [pushSuccess, setPushSuccess] = useState(null);
   const [pushError, setPushError] = useState(null);
+  const [calendarEvents, setCalendarEvents] = useState([]);
   const demoNav = useDemoNav('home');
 
-  const displayName = profile?.full_name ?? profile?.email ?? 'Veli';
-  const navBrand = getSchoolNavBrand(school, 'Veli Portal');
   const navLogoUrl = school?.logo_url ?? null;
+  const schoolName = school?.name ?? 'OkulTakip';
   const studentNames = useMemo(
     () => students.map((student) => student.full_name),
     [students]
@@ -135,6 +161,15 @@ export default function ParentDashboard({ profile, schoolId, onSignOut }) {
     });
     return map;
   }, [students]);
+
+  const viewerGrades = useMemo(() => uniqueGrades(students), [students]);
+  const curriculumRecap = useParentCurriculumRecap(students);
+  const tomorrowEvents = useMemo(() => {
+    const tomorrow = addDaysIso(istanbulDateIso(), 1);
+    return calendarEvents.filter(
+      (event) => event.starts_on === tomorrow && eventVisibleForGrades(event, viewerGrades)
+    );
+  }, [calendarEvents, viewerGrades]);
 
   const fetchMessages = useCallback(async (ids, gids) => {
     if (ids.length === 0) {
@@ -212,7 +247,9 @@ export default function ParentDashboard({ profile, schoolId, onSignOut }) {
           students!inner (
             id,
             full_name,
-            school_id
+            school_id,
+            grade,
+            class_id
           )
         `
         )
@@ -298,6 +335,29 @@ export default function ParentDashboard({ profile, schoolId, onSignOut }) {
   }, [profile.id, schoolId, fetchMessages]);
 
   useEffect(() => {
+    let mounted = true;
+
+    withSchoolFilter(
+      supabase
+        .from('calendar_events')
+        .select(CALENDAR_SELECT)
+        .order('starts_on', { ascending: true }),
+      schoolId
+    ).then(({ data, error }) => {
+        if (!mounted) return;
+        if (error) {
+          setCalendarEvents([]);
+          return;
+        }
+        setCalendarEvents(data ?? []);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [schoolId]);
+
+  useEffect(() => {
     if (!feedReady || studentIds.length === 0) {
       return;
     }
@@ -351,7 +411,7 @@ export default function ParentDashboard({ profile, schoolId, onSignOut }) {
   if (loading) {
     return (
       <>
-        <AppNavbar brand={navBrand} logoUrl={navLogoUrl} onSignOut={onSignOut} />
+        <AppNavbar schoolName={schoolName} roleLabel="Veli" logoUrl={navLogoUrl} onSignOut={onSignOut} />
         <LoadingPanel message="Akışınız yükleniyor…" />
       </>
     );
@@ -360,7 +420,7 @@ export default function ParentDashboard({ profile, schoolId, onSignOut }) {
   if (error) {
     return (
       <>
-        <AppNavbar brand={navBrand} logoUrl={navLogoUrl} onSignOut={onSignOut} />
+        <AppNavbar schoolName={schoolName} roleLabel="Veli" logoUrl={navLogoUrl} onSignOut={onSignOut} />
         <main className="dash-page dash-error-page">
           <ErrorMessage
             error={error}
@@ -372,74 +432,65 @@ export default function ParentDashboard({ profile, schoolId, onSignOut }) {
     );
   }
 
-  const childName = firstName(studentNames[0], 'Elif');
-
   return (
     <>
-      <AppNavbar brand={navBrand} logoUrl={navLogoUrl} onSignOut={onSignOut} />
-      <DemoToast message={demoNav.toast} />
-      {demoNav.isModule && (
-        <DemoSubHeader
-          title={moduleTitle(demoNav.moduleId)}
-          onBack={demoNav.closeModule}
-        />
-      )}
+      <AppNavbar schoolName={schoolName} roleLabel="Veli" logoUrl={navLogoUrl} onSignOut={onSignOut} />
 
       <main className="dash-page dash-page--flush dash-page--tabbar">
-        {demoNav.isModule ? (
-          <DemoScreen
-            id={demoNav.moduleId}
-            role="parent"
-            childName={childName}
-            students={students}
-            notify={demoNav.notify}
-          />
-        ) : demoNav.tab === 'gallery' ? (
-          <DemoScreen
-            id="gallery"
-            role="parent"
-            childName={childName}
-            students={students}
-            notify={demoNav.notify}
-          />
+        {demoNav.tab === 'announcements' ? (
+          <ParentAnnouncements profile={profile} schoolId={schoolId} />
         ) : demoNav.tab === 'chat' ? (
-          <DemoScreen
-            id="chat"
-            role="parent"
-            childName={childName}
-            students={students}
-            notify={demoNav.notify}
-          />
-        ) : demoNav.tab === 'more' ? (
-          <ModuleGrid modules={PARENT_MODULES} onOpen={demoNav.openModule} />
+          <ParentTeacherWhatsApp />
+        ) : demoNav.tab === 'calendar' ? (
+          <AcademicCalendar schoolId={schoolId} viewerGrades={viewerGrades} />
+        ) : demoNav.tab === 'exams' ? (
+          <ParentExams students={students} schoolId={schoolId} />
+        ) : demoNav.tab === 'curriculum' ? (
+          <ParentCurriculum students={students} />
         ) : (
           <>
-            <section className="welcome-card">
-              <h1 className="welcome-card-title">Hoş geldiniz, {displayName}</h1>
+            <section className="page-hero">
+              <h1 className="page-hero__title">Gün</h1>
+              <p className="page-hero__subtitle">
+                {new Intl.DateTimeFormat('tr-TR', {
+                  timeZone: 'Europe/Istanbul',
+                  day: 'numeric',
+                  month: 'long',
+                }).format(new Date())}
+              </p>
+              {studentNames.length > 0 ? <AvatarStack names={studentNames} size={42} /> : null}
               {studentNames.length > 0 ? (
-                <p className="welcome-card-text">{formatChildTrackingTr(studentNames)}</p>
+                <p className="page-hero__subtitle">{formatChildTrackingTr(studentNames)}</p>
               ) : (
-                <p className="welcome-card-text">
-                  Henüz hesabınıza bağlı bir çocuk bulunmuyor.
-                </p>
+                <p className="page-hero__subtitle">Henüz hesabınıza bağlı bir çocuk bulunmuyor.</p>
               )}
             </section>
 
-            <ParentDayTimeline childName={childName} onOpen={demoNav.openModule} />
-
+            <TomorrowEventsCard
+              events={tomorrowEvents}
+              onOpenCalendar={() => demoNav.selectTab('calendar')}
+            />
+            <ParentWeeklyReport students={students} schoolId={schoolId} />
+            <ParentCurriculumRecap
+              childrenData={curriculumRecap}
+              onOpen={() => demoNav.selectTab('curriculum')}
+            />
             {showNotificationPrompt && (
               <section className="notify-prompt-card">
-                <p className="notify-prompt-text">
-                  Kreşten gelen güncellemeleri telefonunuza anında almak için bildirimleri
-                  açın.
-                </p>
+                <div className="notify-prompt-head">
+                  <IconWell name="bell" variant="lavender" />
+                  <p className="notify-prompt-text">
+                    Okuldan gelen güncellemeleri telefonunuza anında almak için bildirimleri
+                    açın.
+                  </p>
+                </div>
                 <button
                   type="button"
                   className="notify-prompt-btn"
                   onClick={handleEnableNotifications}
                   disabled={pushSubscribing}
                 >
-                  {pushSubscribing ? 'Açılıyor…' : '🔔 Anlık Bildirimleri Aç'}
+                  {pushSubscribing ? 'Açılıyor…' : 'Anlık Bildirimleri Aç'}
                 </button>
                 {pushError && <InlineError error={pushError} context="subscribe" />}
               </section>
@@ -447,13 +498,11 @@ export default function ParentDashboard({ profile, schoolId, onSignOut }) {
 
             {pushSuccess && <SuccessMessage message={pushSuccess} />}
 
-            <h2 className="dash-section-title">Bildirimler</h2>
-
             {students.length === 0 ? (
               <section className="empty-card">
                 <h2 className="empty-title">Bağlı çocuk yok</h2>
                 <p className="empty-text">
-                  Hesabınız henüz bir öğrenciyle eşleştirilmemiş. Lütfen kreş
+                  Hesabınız henüz bir öğrenciyle eşleştirilmemiş. Lütfen okul
                   yöneticinizle iletişime geçin.
                 </p>
               </section>
@@ -461,23 +510,34 @@ export default function ParentDashboard({ profile, schoolId, onSignOut }) {
               <section className="empty-card">
                 <h2 className="empty-title">Henüz mesaj yok</h2>
                 <p className="empty-text">
-                  Kreş çocuğunuz için bildirim gönderdiğinde mesajlar burada anında
+                  Okul öğrenciniz için bildirim gönderdiğinde mesajlar burada anında
                   görünecek.
                 </p>
               </section>
             ) : (
-              <ol className="feed-list">
-                {messages.map((message) => (
-                  <FeedItem
-                    key={message.id}
-                    message={message}
-                    studentNameById={studentNameById}
-                    groupNameById={groupNameById}
-                    isNew={newMessageIds.has(message.id)}
-                    onAnimationEnd={() => clearNewMessageAnimation(message.id)}
-                  />
-                ))}
-              </ol>
+              groupFeedMessages(messages).map((group) => (
+                <section key={group.key} className="feed-group">
+                  <div className="feed-group__header">
+                    <span className={`section-pill section-pill--${group.variant}`}>
+                      <Icon name={group.icon} size={14} />
+                      {group.label}
+                      <span className="section-pill__count">({group.items.length})</span>
+                    </span>
+                  </div>
+                  <ol className="feed-list">
+                    {group.items.map((message) => (
+                      <FeedItem
+                        key={message.id}
+                        message={message}
+                        studentNameById={studentNameById}
+                        groupNameById={groupNameById}
+                        isNew={newMessageIds.has(message.id)}
+                        onAnimationEnd={() => clearNewMessageAnimation(message.id)}
+                      />
+                    ))}
+                  </ol>
+                </section>
+              ))
             )}
           </>
         )}

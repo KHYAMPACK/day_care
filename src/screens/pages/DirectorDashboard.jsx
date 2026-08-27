@@ -3,7 +3,6 @@ import { supabase } from '../../lib/supabase';
 import { withSchoolFilter } from '../../lib/tenant';
 import { USER_ROLES } from '../../lib/roles';
 import { useAuth } from '../../context/AuthContext';
-import { DEFAULT_THEME } from '../../lib/schoolTheme';
 import {
   AppNavbar,
   ErrorMessage,
@@ -12,33 +11,45 @@ import {
   SendButton,
   SuccessMessage,
 } from '../../components/dashboardUi';
-import { DIRECTOR_MODULES, firstName } from '../../lib/demoData';
 import {
-  DemoSubHeader,
-  DemoToast,
-  ModuleGrid,
-  moduleTitle,
-  useDemoNav,
-} from '../../components/demo/DemoKit';
-import { DemoScreen } from '../../components/demo/DemoScreens';
-import PlatformShowcase from '../../components/demo/PlatformShowcase';
+  formatPhoneDisplay,
+  isValidWhatsAppPhone,
+  normalizePhone,
+} from '../../lib/announcements';
+import TeacherAnnouncements from '../../components/announcements/TeacherAnnouncements';
+import AcademicCalendar from '../../components/calendar/AcademicCalendar';
+import ClassSetup from '../../components/curriculum/ClassSetup';
+import CurriculumAssignmentPanel from '../../components/curriculum/CurriculumAssignmentPanel';
+import DirectorCurriculum from '../../components/curriculum/DirectorCurriculum';
+import DirectorAttendance from '../../components/attendance/DirectorAttendance';
+import DirectorExams from '../../components/exams/DirectorExams';
+import SchoolBrandingPanel from '../../components/branding/SchoolBrandingPanel';
+import { getTabFromSearch } from '../../components/demo/DemoKit';
+import { STUDENT_GRADES, formatStudentGrade } from '../../lib/calendar';
+import { Icon, TEMPLATE_ICON_NAMES, resolveIconName } from '../../components/ui/Icon';
+import {
+  loadCurriculumCatalog,
+  loadSchoolAssignments,
+  loadSchoolClasses,
+} from '../../lib/curriculum';
 
 const TABS = [
-  { id: 'platform', label: 'Sunum', icon: '🎬' },
-  { id: 'overview', label: 'Genel Bakış', icon: '📊' },
-  { id: 'modules', label: 'Modüller', icon: '🧩' },
-  { id: 'students', label: 'Öğrenci Ekle', icon: '👶' },
-  { id: 'audit', label: 'Mesaj Trafiği', icon: '📋' },
-  { id: 'assignment', label: 'Öğretmen Atama', icon: '🏫' },
-  { id: 'staff', label: 'Öğretmen Yönetimi', icon: '👩‍🏫' },
-  { id: 'matching', label: 'Eşleştirme', icon: '🤝' },
-  { id: 'templates', label: 'Şablonlar', icon: '✨' },
-  { id: 'settings', label: 'Okul Ayarları', icon: '🎨' },
+  { id: 'overview', label: 'Genel Bakış', icon: 'chart' },
+  { id: 'announcements', label: 'Duyurular', icon: 'megaphone' },
+  { id: 'calendar', label: 'Takvim', icon: 'calendar' },
+  { id: 'exams', label: 'Sınavlar', icon: 'file' },
+  { id: 'curriculum', label: 'Müfredat', icon: 'book' },
+  { id: 'attendance', label: 'Yoklama', icon: 'check' },
+  { id: 'students', label: 'Öğrenci Ekle', icon: 'child' },
+  { id: 'audit', label: 'Mesaj Trafiği', icon: 'clipboard' },
+  { id: 'assignment', label: 'Öğretmen Atama', icon: 'school' },
+  { id: 'staff', label: 'Öğretmen Yönetimi', icon: 'teacher' },
+  { id: 'matching', label: 'Eşleştirme', icon: 'users' },
+  { id: 'templates', label: 'Şablonlar', icon: 'sparkle' },
 ];
 
-const TEMPLATE_ICONS = ['💌', '🍽️', '🌙', '🚗', '💚', '🎒', '🏫', '✨', '🌸', '📢', '🍼', '☀️'];
-
-const EMPTY_TEMPLATE = { title: '', body: '', icon: '💌' };
+const TEMPLATE_ICONS = TEMPLATE_ICON_NAMES;
+const EMPTY_TEMPLATE = { title: '', body: '', icon: 'mail' };
 
 const MESSAGE_AUDIT_SELECT = `
   id,
@@ -84,15 +95,6 @@ function formatRoleLabel(role) {
   return role ?? '—';
 }
 
-function formatBirthDate(value) {
-  if (!value) return '—';
-  return new Date(`${value}T12:00:00`).toLocaleDateString('tr-TR', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  });
-}
-
 function AccessDenied({ onSignOut }) {
   return (
     <main className="dash-page dash-page--director dash-error-page">
@@ -110,7 +112,7 @@ function StatCard({ icon, label, value, variant = 'lavender' }) {
   return (
     <article className={`stat-card stat-card--${variant}`}>
       <span className="stat-card__icon" aria-hidden="true">
-        {icon}
+        <Icon name={icon} size={18} />
       </span>
       <p className="stat-card__value">{value}</p>
       <p className="stat-card__label">{label}</p>
@@ -118,21 +120,22 @@ function StatCard({ icon, label, value, variant = 'lavender' }) {
   );
 }
 
-function OverviewTab({ stats, linksCount }) {
+function OverviewTab({ stats, linksCount, school, schoolId, onBrandingSaved }) {
   return (
     <section className="director-panel">
       <div className="stat-grid">
-        <StatCard icon="🎒" label="Toplam Öğrenci" value={stats.students} variant="sky" />
-        <StatCard icon="👨‍👩‍👧" label="Aktif Veli" value={stats.activeParents} variant="mint" />
-        <StatCard icon="👩‍🏫" label="Kayıtlı Öğretmen" value={stats.teachers} variant="peach" />
-        <StatCard icon="🔗" label="Veli–Öğrenci Eşleşmesi" value={linksCount} variant="lavender" />
+        <StatCard icon="backpack" label="Toplam Öğrenci" value={stats.students} variant="sky" />
+        <StatCard icon="users" label="Aktif Veli" value={stats.activeParents} variant="mint" />
+        <StatCard icon="teacher" label="Kayıtlı Öğretmen" value={stats.teachers} variant="peach" />
+        <StatCard icon="link" label="Veli–Öğrenci Eşleşmesi" value={linksCount} variant="lavender" />
       </div>
+      <SchoolBrandingPanel school={school} schoolId={schoolId} onSaved={onBrandingSaved} />
       <div className="dash-card director-overview-note">
         <h2 className="dash-section-title">Okul özeti</h2>
         <p className="dash-hint">
-          Müşteri sunumu için <strong>Sunum</strong> sekmesini açın. Günlük operasyonlar{' '}
-          <strong>Modüller</strong> altında. Veli eşleştirmelerini <strong>Eşleştirme</strong>,
-          öğretmen atamalarını <strong>Öğretmen Atama</strong> sekmesinden yönetebilirsiniz.
+          Veli eşleştirmelerini <strong>Eşleştirme</strong>, öğretmen atamalarını{' '}
+          <strong>Öğretmen Atama</strong> sekmesinden yönetebilirsiniz. Şube ve müfredat ders
+          ataması da oradadır. Sınıf duyuruları <strong>Duyurular</strong> altındadır.
         </p>
       </div>
     </section>
@@ -344,6 +347,38 @@ function MessageAuditTab({ messages, loading, error, onRefresh }) {
   );
 }
 
+function StaffTeacherPhoneField({ teacher, disabled, onSave }) {
+  const [phone, setPhone] = useState(formatPhoneDisplay(teacher.phone) || '');
+
+  useEffect(() => {
+    setPhone(formatPhoneDisplay(teacher.phone) || '');
+  }, [teacher.phone]);
+
+  return (
+    <form
+      className="staff-teacher-item__phone"
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSave(teacher, phone);
+      }}
+    >
+      <input
+        className="dash-input"
+        type="tel"
+        inputMode="tel"
+        value={phone}
+        onChange={(event) => setPhone(event.target.value)}
+        placeholder="0532 123 45 67"
+        disabled={disabled}
+        aria-label={`${teacher.full_name ?? 'Öğretmen'} WhatsApp numarası`}
+      />
+      <button type="submit" className="director-btn-secondary" disabled={disabled}>
+        Kaydet
+      </button>
+    </form>
+  );
+}
+
 function StaffManagerTab({
   teachers,
   searchQuery,
@@ -357,6 +392,7 @@ function StaffManagerTab({
   staffSuccess,
   onPromote,
   onDemote,
+  onSavePhone,
   onRefreshTeachers,
   teachersLoading,
   teachersError,
@@ -445,7 +481,10 @@ function StaffManagerTab({
         <div className="director-card-header">
           <div>
             <h2 className="dash-section-title">Aktif öğretmenler</h2>
-            <p className="dash-hint">{teachers.length} kayıtlı öğretmen.</p>
+            <p className="dash-hint">
+              {teachers.length} kayıtlı öğretmen. WhatsApp numarası velilerin Mesaj sekmesinde
+              görünür.
+            </p>
           </div>
           <button
             type="button"
@@ -470,6 +509,11 @@ function StaffManagerTab({
                   <strong>{teacher.full_name ?? teacher.email ?? teacher.id}</strong>
                   <span className="staff-search-item__meta">{teacher.email ?? '—'}</span>
                 </div>
+                <StaffTeacherPhoneField
+                  teacher={teacher}
+                  disabled={staffActionLoading}
+                  onSave={onSavePhone}
+                />
                 <button
                   type="button"
                   className="director-btn-danger"
@@ -528,8 +572,8 @@ function TeacherAssignmentTab({
       <div className="dash-card">
         <h2 className="dash-section-title">Sınıf / Öğretmen Atama</h2>
         <p className="dash-hint">
-          Bir öğretmen seçin ve sorumlu olacağı öğrencileri işaretleyin. Kaydettiğinizde mevcut
-          atamalar güncellenir.
+          Bir öğretmen seçin ve mesaj gönderebileceği öğrencileri işaretleyin. Müfredat için
+          üstteki şube + ders atamasını kullanın.
         </p>
 
         <label className="dash-label">
@@ -701,13 +745,13 @@ function TemplatesTab({
                   key={icon}
                   type="button"
                   role="listitem"
-                  className={`icon-picker__btn${form.icon === icon ? ' icon-picker__btn--active' : ''}`}
+                  className={`icon-picker__btn${resolveIconName(form.icon) === icon ? ' icon-picker__btn--active' : ''}`}
                   onClick={() => onIconPick(icon)}
                   disabled={saving}
                   aria-label={`İkon ${icon}`}
-                  aria-pressed={form.icon === icon}
+                  aria-pressed={resolveIconName(form.icon) === icon}
                 >
-                  {icon}
+                  <Icon name={icon} size={18} />
                 </button>
               ))}
             </div>
@@ -759,7 +803,7 @@ function TemplatesTab({
               <li key={template.id} className="template-admin-item">
                 <div className="template-admin-item__main">
                   <span className="template-admin-item__icon" aria-hidden="true">
-                    {template.icon ?? '💌'}
+                    <Icon name={template.icon ?? 'mail'} size={18} />
                   </span>
                   <div>
                     <strong>{template.title}</strong>
@@ -795,9 +839,10 @@ function TemplatesTab({
 
 function StudentCreatorTab({ students, schoolId, onRefresh }) {
   const [fullName, setFullName] = useState('');
-  const [dateOfBirth, setDateOfBirth] = useState('');
+  const [grade, setGrade] = useState('');
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const [updatingGradeId, setUpdatingGradeId] = useState(null);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
 
@@ -812,16 +857,11 @@ function StudentCreatorTab({ students, schoolId, onRefresh }) {
       return;
     }
 
-    if (!dateOfBirth) {
-      setError('Doğum tarihi zorunludur.');
-      return;
-    }
-
     setSaving(true);
 
     const { error: insertError } = await supabase.from('students').insert({
       full_name: trimmedName,
-      date_of_birth: dateOfBirth,
+      grade: grade ? Number(grade) : null,
       school_id: schoolId,
     });
 
@@ -833,7 +873,7 @@ function StudentCreatorTab({ students, schoolId, onRefresh }) {
     }
 
     setFullName('');
-    setDateOfBirth('');
+    setGrade('');
     setSuccess('Öğrenci başarıyla eklendi.');
     await onRefresh();
   }
@@ -867,11 +907,37 @@ function StudentCreatorTab({ students, schoolId, onRefresh }) {
     await onRefresh();
   }
 
+  async function handleGradeChange(student, nextGrade) {
+    setUpdatingGradeId(student.id);
+    setError(null);
+    setSuccess(null);
+
+    const { error: updateError } = await withSchoolFilter(
+      supabase
+        .from('students')
+        .update({ grade: nextGrade ? Number(nextGrade) : null })
+        .eq('id', student.id),
+      schoolId
+    );
+
+    setUpdatingGradeId(null);
+
+    if (updateError) {
+      setError(updateError);
+      return;
+    }
+
+    await onRefresh();
+  }
+
   return (
     <section className="director-panel">
       <div className="dash-card">
         <h2 className="dash-section-title">Yeni öğrenci</h2>
-        <p className="dash-hint">Sadece ad soyad ve doğum tarihi yeterli — kayıt okulunuza otomatik bağlanır.</p>
+        <p className="dash-hint">
+          Ad soyad ve sınıf — kayıt okulunuza otomatik bağlanır. Sınıf, deneme sınavı
+          bildirimlerinin doğru veliye gitmesi için gerekir.
+        </p>
 
         <form className="dash-form" onSubmit={handleSubmit}>
           <label className="dash-label">
@@ -889,15 +955,20 @@ function StudentCreatorTab({ students, schoolId, onRefresh }) {
           </label>
 
           <label className="dash-label">
-            Doğum Tarihi
-            <input
+            Sınıf
+            <select
               className="dash-input"
-              type="date"
-              value={dateOfBirth}
-              onChange={(event) => setDateOfBirth(event.target.value)}
+              value={grade}
+              onChange={(event) => setGrade(event.target.value)}
               disabled={saving}
-              required
-            />
+            >
+              <option value="">Seçilmedi</option>
+              {STUDENT_GRADES.map((value) => (
+                <option key={value} value={value}>
+                  {value}. sınıf
+                </option>
+              ))}
+            </select>
           </label>
 
           {error && <InlineError error={error} context="general" />}
@@ -921,9 +992,25 @@ function StudentCreatorTab({ students, schoolId, onRefresh }) {
               <li key={student.id} className="match-item student-roster-item">
                 <div className="student-roster-item__meta">
                   <span className="match-item__names">{student.full_name}</span>
-                  <span className="student-roster-item__dob">
-                    {formatBirthDate(student.date_of_birth)}
-                  </span>
+                  {student.grade ? (
+                    <span className="student-roster-item__grade">
+                      {formatStudentGrade(student.grade)}
+                    </span>
+                  ) : null}
+                  <select
+                    className="dash-input"
+                    value={student.grade ?? ''}
+                    onChange={(event) => handleGradeChange(student, event.target.value)}
+                    disabled={updatingGradeId === student.id || saving}
+                    aria-label={`${student.full_name} sınıfı`}
+                  >
+                    <option value="">Sınıf yok</option>
+                    {STUDENT_GRADES.map((value) => (
+                      <option key={value} value={value}>
+                        {value}. sınıf
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <button
                   type="button"
@@ -942,162 +1029,18 @@ function StudentCreatorTab({ students, schoolId, onRefresh }) {
   );
 }
 
-function SchoolSettingsTab({ school, schoolId, onSaved }) {
-  const [logoUrl, setLogoUrl] = useState(school?.logo_url ?? '');
-  const [primaryColor, setPrimaryColor] = useState(school?.primary_color ?? DEFAULT_THEME.primary);
-  const [secondaryColor, setSecondaryColor] = useState(
-    school?.secondary_color ?? DEFAULT_THEME.secondary
-  );
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(null);
-
-  useEffect(() => {
-    setLogoUrl(school?.logo_url ?? '');
-    setPrimaryColor(school?.primary_color ?? DEFAULT_THEME.primary);
-    setSecondaryColor(school?.secondary_color ?? DEFAULT_THEME.secondary);
-  }, [school]);
-
-  async function handleSubmit(event) {
-    event.preventDefault();
-    setSaving(true);
-    setError(null);
-    setSuccess(null);
-
-    const { error: saveError } = await supabase
-      .from('schools')
-      .update({
-        logo_url: logoUrl.trim() || null,
-        primary_color: primaryColor || null,
-        secondary_color: secondaryColor || null,
-      })
-      .eq('id', schoolId);
-
-    setSaving(false);
-
-    if (saveError) {
-      setError(saveError);
-      return;
-    }
-
-    setSuccess('Okul ayarları kaydedildi. Tema tüm kullanıcılara yansıyacak.');
-    await onSaved();
-  }
-
-  return (
-    <section className="director-panel">
-      <div className="dash-card">
-        <h2 className="dash-section-title">Okul Ayarları</h2>
-        <p className="dash-hint">
-          Kreşinizin logosunu ve marka renklerini buradan özelleştirin. Veliler ve öğretmenler
-          giriş yaptığında bu görünümü görür.
-        </p>
-
-        <form className="dash-form school-settings-form" onSubmit={handleSubmit}>
-          <label className="dash-label">
-            Logo URL
-            <input
-              className="dash-input"
-              type="url"
-              value={logoUrl}
-              onChange={(event) => setLogoUrl(event.target.value)}
-              placeholder="https://ornek.com/logo.png"
-              disabled={saving}
-            />
-            <span className="auth-hint">PNG veya SVG bağlantısı yapıştırın.</span>
-          </label>
-
-          {logoUrl.trim() && (
-            <div className="school-settings-preview">
-              <span className="dash-label-inline">Logo önizleme</span>
-              <img
-                src={logoUrl.trim()}
-                alt="Okul logosu önizlemesi"
-                className="school-settings-logo-preview"
-              />
-            </div>
-          )}
-
-          <div className="school-settings-colors">
-            <label className="dash-label school-settings-color-field">
-              Ana renk
-              <div className="school-settings-color-row">
-                <input
-                  className="school-settings-color-input"
-                  type="color"
-                  value={primaryColor}
-                  onChange={(event) => setPrimaryColor(event.target.value)}
-                  disabled={saving}
-                  aria-label="Ana renk seçin"
-                />
-                <input
-                  className="dash-input school-settings-color-text"
-                  type="text"
-                  value={primaryColor}
-                  onChange={(event) => setPrimaryColor(event.target.value)}
-                  disabled={saving}
-                  spellCheck={false}
-                />
-              </div>
-            </label>
-
-            <label className="dash-label school-settings-color-field">
-              İkincil renk
-              <div className="school-settings-color-row">
-                <input
-                  className="school-settings-color-input"
-                  type="color"
-                  value={secondaryColor}
-                  onChange={(event) => setSecondaryColor(event.target.value)}
-                  disabled={saving}
-                  aria-label="İkincil renk seçin"
-                />
-                <input
-                  className="dash-input school-settings-color-text"
-                  type="text"
-                  value={secondaryColor}
-                  onChange={(event) => setSecondaryColor(event.target.value)}
-                  disabled={saving}
-                  spellCheck={false}
-                />
-              </div>
-            </label>
-          </div>
-
-          <div
-            className="school-settings-theme-preview"
-            style={{
-              '--preview-primary': primaryColor,
-              '--preview-secondary': secondaryColor,
-            }}
-          >
-            <span className="school-settings-theme-preview__chip">Buton örneği</span>
-            <span className="school-settings-theme-preview__panel">Kart arka planı</span>
-          </div>
-
-          {error && <InlineError error={error} context="general" />}
-          {success && <SuccessMessage message={success} />}
-
-          <SendButton
-            sending={saving}
-            label="Ayarları Kaydet"
-            sendingLabel="Kaydediliyor…"
-          />
-        </form>
-      </div>
-    </section>
-  );
-}
-
 export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
   const { school, refreshSchool } = useAuth();
-  const [activeTab, setActiveTab] = useState('platform');
+  const [activeTab, setActiveTab] = useState(() => getTabFromSearch('overview'));
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
 
   const [parents, setParents] = useState([]);
   const [students, setStudents] = useState([]);
   const [teachers, setTeachers] = useState([]);
+  const [classes, setClasses] = useState([]);
+  const [curriculumSubjects, setCurriculumSubjects] = useState([]);
+  const [curriculumAssignments, setCurriculumAssignments] = useState([]);
   const [links, setLinks] = useState([]);
   const [templates, setTemplates] = useState([]);
 
@@ -1135,11 +1078,10 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
   const [assignmentSaving, setAssignmentSaving] = useState(false);
   const [assignmentError, setAssignmentError] = useState(null);
   const [assignmentSuccess, setAssignmentSuccess] = useState(null);
-  const demoNav = useDemoNav('modules');
 
   const displayName = profile?.full_name ?? profile?.email ?? 'Müdür';
-  const navBrand = school?.name ? `${school.name} — Müdür` : 'KreşTakip — Müdür';
   const navLogoUrl = school?.logo_url ?? null;
+  const schoolName = school?.name ?? 'OkulTakip';
 
   const stats = useMemo(() => {
     const activeParentIds = new Set(links.map((link) => link.parent_id));
@@ -1163,13 +1105,13 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
         schoolId
       ),
       withSchoolFilter(
-        supabase.from('students').select('id, full_name, date_of_birth').order('full_name'),
+        supabase.from('students').select('id, full_name, grade, class_id').order('full_name'),
         schoolId
       ),
       withSchoolFilter(
         supabase
           .from('profiles')
-          .select('id, full_name, email')
+          .select('id, full_name, email, phone')
           .eq('role', USER_ROLES.teacher)
           .order('full_name'),
         schoolId
@@ -1184,9 +1126,17 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
       ),
     ]);
 
+    let studentsResult = studentsRes;
+    if (studentsResult.error && /class_id/i.test(studentsResult.error.message ?? '')) {
+      studentsResult = await withSchoolFilter(
+        supabase.from('students').select('id, full_name, grade').order('full_name'),
+        schoolId
+      );
+    }
+
     const firstError =
       parentsRes.error ??
-      studentsRes.error ??
+      studentsResult.error ??
       teachersRes.error ??
       linksRes.error ??
       templatesRes.error ??
@@ -1196,7 +1146,7 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
       throw firstError;
     }
 
-    const schoolStudents = studentsRes.data ?? [];
+    const schoolStudents = studentsResult.data ?? [];
     const schoolParents = parentsRes.data ?? [];
     const studentIdSet = new Set(schoolStudents.map((student) => student.id));
     const parentIdSet = new Set(schoolParents.map((parent) => parent.id));
@@ -1209,6 +1159,21 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
     setTeachers(teachersRes.data ?? []);
     setLinks(schoolLinks);
     setTemplates(templatesRes.data ?? []);
+
+    try {
+      const [schoolClasses, catalog, assignments] = await Promise.all([
+        loadSchoolClasses(schoolId),
+        loadCurriculumCatalog(),
+        loadSchoolAssignments(schoolId),
+      ]);
+      setClasses(schoolClasses);
+      setCurriculumSubjects(catalog.subjects);
+      setCurriculumAssignments(assignments);
+    } catch {
+      setClasses([]);
+      setCurriculumSubjects([]);
+      setCurriculumAssignments([]);
+    }
   }, [schoolId]);
 
   const loadTodayMessages = useCallback(async () => {
@@ -1242,7 +1207,7 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
       const { data, error } = await withSchoolFilter(
         supabase
           .from('profiles')
-          .select('id, full_name, email, role')
+          .select('id, full_name, email, role, phone')
           .eq('role', USER_ROLES.teacher)
           .order('full_name'),
         schoolId
@@ -1451,7 +1416,7 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
     setTemplateForm({
       title: template.title,
       body: template.body,
-      icon: template.icon ?? '💌',
+      icon: resolveIconName(template.icon ?? 'mail'),
     });
     setTemplateError(null);
     setTemplateSuccess(null);
@@ -1473,7 +1438,7 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
     const payload = {
       title: templateForm.title.trim(),
       body: templateForm.body.trim(),
-      icon: templateForm.icon || '💌',
+      icon: resolveIconName(templateForm.icon || 'mail'),
       school_id: schoolId,
     };
 
@@ -1621,10 +1586,47 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
     await refreshTeachers({ showLoading: false });
   }
 
+  async function handleSaveTeacherPhone(teacher, rawPhone) {
+    const trimmed = rawPhone.trim();
+    const label = teacher.full_name ?? teacher.email ?? 'Öğretmen';
+
+    if (trimmed && !isValidWhatsAppPhone(trimmed)) {
+      setStaffError(new Error(`Lütfen ${label} için geçerli bir cep numarası girin. Örnek: 0532 123 45 67`));
+      setStaffSuccess(null);
+      return;
+    }
+
+    setStaffActionLoading(true);
+    setStaffError(null);
+    setStaffSuccess(null);
+
+    const { error } = await withSchoolFilter(
+      supabase
+        .from('profiles')
+        .update({ phone: trimmed ? normalizePhone(trimmed) : null })
+        .eq('id', teacher.id),
+      schoolId
+    );
+
+    setStaffActionLoading(false);
+
+    if (error) {
+      setStaffError(error);
+      return;
+    }
+
+    setStaffSuccess(
+      trimmed
+        ? `${label} için WhatsApp numarası kaydedildi.`
+        : `${label} WhatsApp numarası kaldırıldı.`
+    );
+    await refreshTeachers({ showLoading: false });
+  }
+
   if (profile?.role !== USER_ROLES.director) {
     return (
       <>
-        <AppNavbar brand={navBrand} logoUrl={navLogoUrl} onSignOut={onSignOut} />
+        <AppNavbar schoolName={schoolName} roleLabel="Müdür" logoUrl={navLogoUrl} onSignOut={onSignOut} />
         <AccessDenied onSignOut={onSignOut} />
       </>
     );
@@ -1633,7 +1635,7 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
   if (loading) {
     return (
       <>
-        <AppNavbar brand={navBrand} logoUrl={navLogoUrl} onSignOut={onSignOut} />
+        <AppNavbar schoolName={schoolName} roleLabel="Müdür" logoUrl={navLogoUrl} onSignOut={onSignOut} />
         <LoadingPanel message="Müdür paneli yükleniyor…" />
       </>
     );
@@ -1642,7 +1644,7 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
   if (loadError) {
     return (
       <>
-        <AppNavbar brand={navBrand} logoUrl={navLogoUrl} onSignOut={onSignOut} />
+        <AppNavbar schoolName={schoolName} roleLabel="Müdür" logoUrl={navLogoUrl} onSignOut={onSignOut} />
         <main className="dash-page dash-page--director dash-error-page">
           <ErrorMessage
             error={loadError}
@@ -1656,12 +1658,12 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
 
   return (
     <>
-      <AppNavbar brand={navBrand} logoUrl={navLogoUrl} onSignOut={onSignOut} />
+      <AppNavbar schoolName={schoolName} roleLabel="Müdür" logoUrl={navLogoUrl} onSignOut={onSignOut} />
 
       <main className="dash-page dash-page--director">
         <div className="director-layout">
           <header className="dash-header">
-            <h1 className="dash-title">Müdür Paneli</h1>
+            <h1 className="dash-title">Müdür</h1>
             <p className="dash-subtitle">Hoş geldiniz, {displayName}.</p>
           </header>
 
@@ -1672,14 +1674,11 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
                   key={tab.id}
                   type="button"
                   className={`director-tab${activeTab === tab.id ? ' director-tab--active' : ''}`}
-                  onClick={() => {
-                    setActiveTab(tab.id);
-                    if (tab.id !== 'modules' && tab.id !== 'platform') demoNav.closeModule();
-                  }}
+                  onClick={() => setActiveTab(tab.id)}
                   aria-current={activeTab === tab.id ? 'page' : undefined}
                 >
                   <span className="director-tab__icon" aria-hidden="true">
-                    {tab.icon}
+                    <Icon name={tab.icon} size={15} />
                   </span>
                   {tab.label}
                 </button>
@@ -1687,58 +1686,57 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
             </div>
           </nav>
 
-          {activeTab === 'platform' && (
-            <section className="director-panel">
-              <DemoToast message={demoNav.toast} />
-              {demoNav.moduleId ? (
-                <>
-                  <DemoSubHeader
-                    title={moduleTitle(demoNav.moduleId)}
-                    onBack={demoNav.closeModule}
-                  />
-                  <DemoScreen
-                    id={demoNav.moduleId}
-                    role="director"
-                    childName={firstName(students[0]?.full_name, 'Elif')}
-                    students={students}
-                    notify={demoNav.notify}
-                  />
-                </>
-              ) : (
-                <PlatformShowcase schoolName={school?.name} onOpen={demoNav.openModule} />
-              )}
-            </section>
+          {activeTab === 'overview' && (
+            <OverviewTab
+              stats={stats}
+              linksCount={links.length}
+              school={school}
+              schoolId={schoolId}
+              onBrandingSaved={refreshSchool}
+            />
           )}
 
-          {activeTab === 'overview' && <OverviewTab stats={stats} linksCount={links.length} />}
-
-        {activeTab === 'modules' && (
+        {activeTab === 'announcements' && (
           <section className="director-panel">
-            <DemoToast message={demoNav.toast} />
-            {demoNav.moduleId ? (
-              <>
-                <DemoSubHeader
-                  title={moduleTitle(demoNav.moduleId)}
-                  onBack={demoNav.closeModule}
-                />
-                <DemoScreen
-                  id={demoNav.moduleId}
-                  role="director"
-                  childName={firstName(students[0]?.full_name, 'Elif')}
-                  students={students}
-                  notify={demoNav.notify}
-                />
-              </>
-            ) : (
-              <div className="dash-card">
-                <ModuleGrid modules={DIRECTOR_MODULES} onOpen={demoNav.openModule} />
-              </div>
-            )}
+            <TeacherAnnouncements profile={profile} schoolId={schoolId} students={students} />
           </section>
         )}
 
+        {activeTab === 'calendar' && (
+          <section className="director-panel">
+            <AcademicCalendar schoolId={schoolId} canEdit />
+          </section>
+        )}
+
+        {activeTab === 'exams' && (
+          <section className="director-panel">
+            <DirectorExams schoolId={schoolId} />
+          </section>
+        )}
+
+        {activeTab === 'curriculum' && (
+          <DirectorCurriculum
+            schoolId={schoolId}
+            classCount={classes.length}
+            studentCount={students.length}
+            studentsInClassCount={students.filter((student) => student.class_id).length}
+            curriculumAssignmentCount={curriculumAssignments.length}
+            onNavigateTab={setActiveTab}
+          />
+        )}
+
+        {activeTab === 'attendance' && <DirectorAttendance schoolId={schoolId} />}
+
         {activeTab === 'students' && (
-          <StudentCreatorTab students={students} schoolId={schoolId} onRefresh={loadData} />
+          <section className="director-panel">
+            <ClassSetup
+              classes={classes}
+              students={students}
+              schoolId={schoolId}
+              onRefresh={loadData}
+            />
+            <StudentCreatorTab students={students} schoolId={schoolId} onRefresh={loadData} />
+          </section>
         )}
 
         {activeTab === 'audit' && (
@@ -1751,23 +1749,32 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
         )}
 
         {activeTab === 'assignment' && (
-          <TeacherAssignmentTab
-            teachers={teachers}
-            students={students}
-            selectedTeacherId={assignmentTeacherId}
-            onTeacherChange={handleAssignmentTeacherChange}
-            selectedStudentIds={assignmentSelectedStudentIds}
-            onToggleStudent={toggleAssignmentStudent}
-            onToggleSelectAll={toggleAssignmentSelectAll}
-            assignmentSearchQuery={assignmentSearchQuery}
-            onAssignmentSearchChange={setAssignmentSearchQuery}
-            savedStudentIds={assignmentSavedStudentIds}
-            onSave={handleSaveTeacherAssignment}
-            saving={assignmentSaving}
-            loading={assignmentLoading && Boolean(assignmentTeacherId)}
-            error={assignmentError}
-            success={assignmentSuccess}
-          />
+          <section className="director-panel">
+            <CurriculumAssignmentPanel
+              teachers={teachers}
+              classes={classes}
+              subjects={curriculumSubjects}
+              assignments={curriculumAssignments}
+              onRefresh={loadData}
+            />
+            <TeacherAssignmentTab
+              teachers={teachers}
+              students={students}
+              selectedTeacherId={assignmentTeacherId}
+              onTeacherChange={handleAssignmentTeacherChange}
+              selectedStudentIds={assignmentSelectedStudentIds}
+              onToggleStudent={toggleAssignmentStudent}
+              onToggleSelectAll={toggleAssignmentSelectAll}
+              assignmentSearchQuery={assignmentSearchQuery}
+              onAssignmentSearchChange={setAssignmentSearchQuery}
+              savedStudentIds={assignmentSavedStudentIds}
+              onSave={handleSaveTeacherAssignment}
+              saving={assignmentSaving}
+              loading={assignmentLoading && Boolean(assignmentTeacherId)}
+              error={assignmentError}
+              success={assignmentSuccess}
+            />
+          </section>
         )}
 
         {activeTab === 'staff' && (
@@ -1784,6 +1791,7 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
             staffSuccess={staffSuccess}
             onPromote={handlePromoteTeacher}
             onDemote={handleDemoteTeacher}
+            onSavePhone={handleSaveTeacherPhone}
             onRefreshTeachers={() => refreshTeachers({ showLoading: true })}
             teachersLoading={teachersLoading}
             teachersError={teachersError}
@@ -1822,10 +1830,6 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
             templateError={templateError}
             templateSuccess={templateSuccess}
           />
-        )}
-
-        {activeTab === 'settings' && (
-          <SchoolSettingsTab school={school} schoolId={schoolId} onSaved={refreshSchool} />
         )}
         </div>
       </main>

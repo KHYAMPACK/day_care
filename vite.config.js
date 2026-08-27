@@ -1,9 +1,19 @@
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+import { vercelApiDevPlugin } from './vite.api-dev.js';
 
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '');
+  for (const [key, value] of Object.entries(env)) {
+    if (process.env[key] === undefined) {
+      process.env[key] = value;
+    }
+  }
+
+  return {
   plugins: [
+    vercelApiDevPlugin(),
     react(),
     VitePWA({
       registerType: 'autoUpdate',
@@ -16,9 +26,9 @@ export default defineConfig({
         'favicon-32x32.png',
       ],
       manifest: {
-        name: 'KreşTakip',
-        short_name: 'KreşTakip',
-        description: 'Kreş bildirimleri ve veli takip uygulaması',
+        name: 'OkulTakip',
+        short_name: 'OkulTakip',
+        description: 'Okul bildirimleri ve veli takip uygulaması',
         lang: 'tr',
         dir: 'ltr',
         start_url: '/',
@@ -62,4 +72,5 @@ export default defineConfig({
       },
     }),
   ],
+  };
 });

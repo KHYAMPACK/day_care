@@ -72,8 +72,11 @@ function AuthScreen() {
       <main className="auth-page">
         <div className="auth-card">
           <div className="auth-brand-wrap">
-            <img src="/logo.png" alt="KreşTakip" className="auth-brand-logo" />
+            <img src="/logo.png" alt="OkulTakip" className="auth-brand-logo" />
           </div>
+          <h1 className="auth-brand">
+            {mode === 'login' ? 'Giriş' : 'Kayıt'}
+          </h1>
           <p className="auth-tagline">
             Veliler ve yöneticiler için nazik, sade bildirim deneyimi.
           </p>
@@ -107,7 +110,7 @@ function AuthScreen() {
                     placeholder="MEMNUN1"
                   />
                   <span className="auth-hint">
-                    Kreş yönetiminizden aldığınız davet kodunu girin.
+                    Okul yönetiminizden aldığınız davet kodunu girin.
                   </span>
                 </label>
               </>

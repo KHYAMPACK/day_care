@@ -16,7 +16,8 @@ dist-ssr/
 .env.production
 .env.development
 
-# Editor directories and files
+# Temporary PDF page renders
+.tmp-atlas-pages/
 .vscode/
 .idea/
 *.suo

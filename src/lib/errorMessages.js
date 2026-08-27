@@ -8,6 +8,9 @@ const CONTEXT_TITLES = {
   send: 'Mesaj gönderilemedi',
   push: 'Bildirim gönderilemedi',
   subscribe: 'Bildirim açılamadı',
+  calendar: 'Takvim yüklenemedi',
+  curriculum: 'Müfredat yüklenemedi',
+  attendance: 'Yoklama yüklenemedi',
   general: 'Bir sorun oluştu',
 };
 
@@ -25,7 +28,32 @@ const FRIENDLY_PREFIXES = [
   'Veli',
   'Grup',
   'Öğrenci',
+  'Takvim',
+  'Müfredat',
+  'Yoklama',
+  'Ünite',
+  'Şube',
+  'Yarın',
+  'Sınıf',
   'Şifre',
+  'PIN',
+  'İzin',
+  'Etkinlik',
+  'Anket',
+  'Soru',
+  'Seçenek',
+  'En az',
+  'En fazla',
+  'Bu anket',
+  'Bu öğrenci',
+  'Yayımlanmış',
+  'Taslak',
+  'Yayımlamak',
+  'Bekleyen',
+  'Kağıt',
+  'Aydınlatma',
+  'İşlem',
+  'Mevcut',
   'Geçersiz',
   'No push',
   'Mesaj kaydedildi',
@@ -113,12 +141,54 @@ function mapSubscribeMessage(raw) {
     return 'Bu cihaz veya tarayıcı anlık bildirimleri desteklemiyor.';
   }
   if (lower.includes('vapid')) {
-    return 'Bildirim ayarları henüz yapılandırılmamış. Kreş yöneticinize bildirin.';
+    return 'Bildirim ayarları henüz yapılandırılmamış. Okul yöneticinize bildirin.';
   }
   if (lower.includes('oturum')) {
     return 'Oturumunuz sona ermiş olabilir. Çıkış yapıp tekrar giriş yapın.';
   }
   return 'Anlık bildirimler açılamadı. Lütfen tekrar deneyin.';
+}
+
+function mapCalendarMessage(raw) {
+  const lower = raw.toLowerCase();
+  if (lower.includes('calendar_events') || lower.includes('schema cache')) {
+    return 'Takvim tablosu henüz oluşturulmadı. supabase/migrations/021_academic_calendar.sql dosyasını Supabase SQL Editor’da çalıştırın.';
+  }
+  return 'Takvim yüklenemedi. Lütfen tekrar deneyin.';
+}
+
+function mapAttendanceMessage(raw) {
+  const lower = raw.toLowerCase();
+  if (
+    lower.includes('attendance_sessions') ||
+    lower.includes('attendance_records') ||
+    lower.includes('save_class_attendance') ||
+    lower.includes('could not find the table') ||
+    /relation .+ does not exist/.test(lower)
+  ) {
+    return 'Yoklama tabloları henüz oluşturulmadı. supabase/migrations/024_attendance.sql dosyasını Supabase SQL Editor’da çalıştırın.';
+  }
+  if (lower.includes('infinite recursion') || lower.includes('42p17')) {
+    return 'Yoklama yetkileri düzeltilmeli. supabase/migrations/024_attendance.sql dosyasını Supabase SQL Editor’da çalıştırın.';
+  }
+  if (lower.includes('schema cache') || lower.includes('duration_weeks')) {
+    return 'Yoklama tabloları var ama API henüz görmüyor. Supabase Dashboard → Project Settings → API → Reload schema deyip bu sayfayı yenileyin.';
+  }
+  return 'Yoklama yüklenemedi. Lütfen tekrar deneyin.';
+}
+
+function mapCurriculumMessage(raw) {
+  const lower = raw.toLowerCase();
+  if (lower.includes('infinite recursion') || lower.includes('42p17')) {
+    return 'Müfredat yetkileri düzeltilmeli. supabase/migrations/023_curriculum_rls_fix.sql dosyasını Supabase SQL Editor’da çalıştırın.';
+  }
+  if (lower.includes('schema cache') || lower.includes('could not find the table')) {
+    return 'Müfredat tabloları var ama API henüz görmüyor. Supabase Dashboard → Project Settings → API → Reload schema deyip bu sayfayı yenileyin.';
+  }
+  if (/relation .+ does not exist/.test(lower)) {
+    return 'Müfredat tabloları henüz oluşturulmadı. supabase/migrations/022_curriculum.sql dosyasını Supabase SQL Editor’da çalıştırın.';
+  }
+  return 'Müfredat yüklenemedi. Lütfen tekrar deneyin.';
 }
 
 function mapPushMessage(raw) {
@@ -140,7 +210,7 @@ export function formatAppError(error, context = 'general') {
       type: 'info',
       title: null,
       message: raw,
-      icon: '💭',
+      icon: 'thought',
     };
   }
 
@@ -149,7 +219,7 @@ export function formatAppError(error, context = 'general') {
       type: 'offline',
       title: 'İnternet bağlantısı yok',
       message: 'Bağlantınızı kontrol edin ve tekrar deneyin.',
-      icon: '📡',
+      icon: 'wifi',
     };
   }
 
@@ -158,7 +228,7 @@ export function formatAppError(error, context = 'general') {
       type: 'auth',
       title: CONTEXT_TITLES.auth,
       message: mapAuthMessage(raw),
-      icon: '🔐',
+      icon: 'lock',
     };
   }
 
@@ -167,7 +237,7 @@ export function formatAppError(error, context = 'general') {
       type: 'permission',
       title: CONTEXT_TITLES[context] ?? CONTEXT_TITLES.general,
       message: 'Bu işlem için yetkiniz bulunmuyor.',
-      icon: '🌸',
+      icon: 'flower',
     };
   }
 
@@ -176,7 +246,34 @@ export function formatAppError(error, context = 'general') {
       type: 'general',
       title: CONTEXT_TITLES.subscribe,
       message: mapSubscribeMessage(raw),
-      icon: '🔔',
+      icon: 'bell',
+    };
+  }
+
+  if (context === 'calendar') {
+    return {
+      type: 'general',
+      title: CONTEXT_TITLES.calendar,
+      message: mapCalendarMessage(raw),
+      icon: 'calendar',
+    };
+  }
+
+  if (context === 'curriculum') {
+    return {
+      type: 'general',
+      title: CONTEXT_TITLES.curriculum,
+      message: mapCurriculumMessage(raw),
+      icon: 'book',
+    };
+  }
+
+  if (context === 'attendance') {
+    return {
+      type: 'general',
+      title: CONTEXT_TITLES.attendance,
+      message: mapAttendanceMessage(raw),
+      icon: 'check',
     };
   }
 
@@ -185,7 +282,7 @@ export function formatAppError(error, context = 'general') {
       type: 'general',
       title: CONTEXT_TITLES.push,
       message: isOffline(error, raw) ? 'Bağlantınızı kontrol edin ve tekrar deneyin.' : mapPushMessage(raw),
-      icon: '📱',
+      icon: 'phone',
     };
   }
 
@@ -193,7 +290,7 @@ export function formatAppError(error, context = 'general') {
     type: 'general',
     title: CONTEXT_TITLES[context] ?? CONTEXT_TITLES.general,
     message: 'Bir şeyler ters gitti. Lütfen biraz sonra tekrar deneyin.',
-    icon: '🌿',
+    icon: 'leaf',
   };
 }
 

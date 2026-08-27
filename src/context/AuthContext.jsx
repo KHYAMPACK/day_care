@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { supabase } from '../lib/supabase';
 import { applySchoolTheme, clearSchoolTheme } from '../lib/schoolTheme';
 
-const PROFILE_SELECT = 'id, role, full_name, email, school_id';
+const PROFILE_SELECT = 'id, role, full_name, email, school_id, phone';
 const SCHOOL_SELECT = 'id, name, logo_url, primary_color, secondary_color';
 
 const AuthContext = createContext(null);
@@ -176,6 +176,21 @@ export function AuthProvider({ children }) {
     return fetchSchool(profile.school_id);
   }, [profile?.school_id, fetchSchool]);
 
+  const refreshProfile = useCallback(async () => {
+    if (!session?.user) {
+      setProfile(null);
+      return null;
+    }
+
+    const nextProfile = await fetchProfile(
+      session.user.id,
+      session.user.email,
+      session.user.user_metadata
+    );
+    setProfile(nextProfile);
+    return nextProfile;
+  }, [session, fetchProfile]);
+
   const value = useMemo(
     () => ({
       session,
@@ -187,8 +202,19 @@ export function AuthProvider({ children }) {
       profileError,
       signOut,
       refreshSchool,
+      refreshProfile,
     }),
-    [session, profile, school, authLoading, profileLoading, profileError, signOut, refreshSchool]
+    [
+      session,
+      profile,
+      school,
+      authLoading,
+      profileLoading,
+      profileError,
+      signOut,
+      refreshSchool,
+      refreshProfile,
+    ]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

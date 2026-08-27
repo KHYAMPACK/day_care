@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 
-export const PUSH_NOTIFICATION_TITLE = 'KreşTakip';
+export const PUSH_NOTIFICATION_TITLE = 'OkulTakip';
 
 export async function sendPushNotifications({ delivery }) {
   console.log('sendPushNotifications: calling /api/send-push with delivery', delivery);

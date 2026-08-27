@@ -29,7 +29,7 @@ export async function subscribeToWebPush() {
   if (!vapidPublicKey) {
     return {
       subscription: null,
-      error: 'Bildirim ayarları henüz yapılandırılmamış. Kreş yöneticinize bildirin.',
+      error: 'Bildirim ayarları henüz yapılandırılmamış. Okul yöneticinize bildirin.',
     };
   }
 

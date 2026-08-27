@@ -1,4 +1,7 @@
+import { useMemo } from 'react';
 import { formatAppError, useOnlineStatus } from '../lib/errorMessages';
+import { Avatar } from './ui/Avatar';
+import { Icon } from './ui/Icon';
 
 const CHIP_VARIANTS = ['lavender', 'mint', 'peach', 'sky'];
 
@@ -7,14 +10,14 @@ export function getTemplateChipVariant(index) {
 }
 
 const CATEGORIES = {
-  lunch: { key: 'lunch', label: 'Öğle Yemeği', icon: '🍽️' },
-  nap: { key: 'nap', label: 'Uyku Saati', icon: '🌙' },
-  pickup: { key: 'pickup', label: 'Alma Zamanı', icon: '🚗' },
-  health: { key: 'health', label: 'Sağlık', icon: '💚' },
-  trip: { key: 'trip', label: 'Gezi', icon: '🎒' },
-  group: { key: 'group', label: 'Sınıf', icon: '🏫' },
-  individual: { key: 'individual', label: 'Kişisel', icon: '✨' },
-  default: { key: 'default', label: 'Güncelleme', icon: '💌' },
+  lunch: { key: 'lunch', label: 'Öğle Yemeği', icon: 'utensils' },
+  nap: { key: 'nap', label: 'Uyku Saati', icon: 'moon' },
+  pickup: { key: 'pickup', label: 'Alma Zamanı', icon: 'car' },
+  health: { key: 'health', label: 'Sağlık', icon: 'heart' },
+  trip: { key: 'trip', label: 'Gezi', icon: 'backpack' },
+  group: { key: 'group', label: 'Sınıf', icon: 'school' },
+  individual: { key: 'individual', label: 'Kişisel', icon: 'sparkle' },
+  default: { key: 'default', label: 'Güncelleme', icon: 'mail' },
 };
 
 export function getMessageCategory(message) {
@@ -47,29 +50,74 @@ export function SendButton({
   disabled,
   label = 'Mesaj Gönder',
   sendingLabel = 'Mesaj Gönderiliyor…',
+  className,
 }) {
   return (
-    <button className="dash-send-btn" type="submit" disabled={disabled || sending}>
+    <button
+      className={['dash-send-btn', className].filter(Boolean).join(' ')}
+      type="submit"
+      disabled={disabled || sending}
+    >
       {sending && <span className="dash-spinner" aria-hidden="true" />}
       {sending ? sendingLabel : label}
     </button>
   );
 }
 
-export function AppNavbar({ brand, logoUrl, onSignOut, signOutLabel = 'Çıkış Yap' }) {
+export function PageHeader({
+  brand,
+  schoolName,
+  roleLabel,
+  logoUrl,
+  onSignOut,
+  signOutLabel = 'Çıkış Yap',
+}) {
+  const parsed = useMemo(() => {
+    if (schoolName) {
+      return { name: schoolName.trim(), role: roleLabel?.trim() || null };
+    }
+    if (!brand) return { name: 'OkulTakip', role: null };
+    const parts = brand.split(' — ');
+    if (parts.length >= 2) {
+      return { name: parts.slice(0, -1).join(' — ').trim(), role: parts.at(-1).trim() };
+    }
+    return { name: brand.trim(), role: null };
+  }, [brand, roleLabel, schoolName]);
+
   return (
-    <nav className="app-navbar">
-      <span className="app-navbar-brand">
-        {logoUrl ? (
-          <img src={logoUrl} alt="" className="app-navbar-logo" />
-        ) : null}
-        <span className="app-navbar-brand__text">{brand}</span>
-      </span>
-      <button className="app-navbar-signout" type="button" onClick={onSignOut}>
-        {signOutLabel}
-      </button>
-    </nav>
+    <header className="page-header">
+      <div className="page-header__brand">
+        <div className="page-header__logo-wrap" aria-hidden={logoUrl ? undefined : true}>
+          {logoUrl ? (
+            <img src={logoUrl} alt="" className="page-header__logo" />
+          ) : (
+            <span className="page-header__logo-fallback">
+              <Avatar name={parsed.name} size={40} />
+            </span>
+          )}
+        </div>
+        <div className="page-header__titles">
+          <p className="page-header__school">{parsed.name}</p>
+          {parsed.role ? <p className="page-header__role">{parsed.role}</p> : null}
+        </div>
+      </div>
+      {onSignOut ? (
+        <button
+          className="page-header__icon-btn"
+          type="button"
+          onClick={onSignOut}
+          aria-label={signOutLabel}
+          title={signOutLabel}
+        >
+          <Icon name="logout" size={18} />
+        </button>
+      ) : null}
+    </header>
   );
+}
+
+export function AppNavbar(props) {
+  return <PageHeader {...props} />;
 }
 
 export function OfflineBanner() {
@@ -78,7 +126,7 @@ export function OfflineBanner() {
 
   return (
     <div className="offline-banner" role="status">
-      <span aria-hidden="true">📡</span>
+      <Icon name="wifi" size={16} />
       Çevrimdışısınız — internet bağlantınızı kontrol edin.
     </div>
   );
@@ -90,7 +138,7 @@ export function ErrorMessage({ error, context = 'general', onRetry, retryLabel =
   return (
     <div className={`error-card error-card--${formatted.type}`} role="alert">
       <span className="error-card__icon" aria-hidden="true">
-        {formatted.icon}
+        <Icon name={formatted.icon} size={22} />
       </span>
       {formatted.title && <h2 className="error-card__title">{formatted.title}</h2>}
       <p className="error-card__text">{formatted.message}</p>
@@ -109,7 +157,7 @@ export function InlineError({ error, context = 'general' }) {
   return (
     <p className={`inline-error inline-error--${formatted.type}`} role="alert">
       <span className="inline-error__icon" aria-hidden="true">
-        {formatted.icon}
+        <Icon name={formatted.icon} size={16} />
       </span>
       <span>{formatted.message}</span>
     </p>
@@ -121,7 +169,7 @@ export function SuccessMessage({ message }) {
 
   return (
     <p className="success-message" role="status">
-      <span aria-hidden="true">✨</span>
+      <Icon name="check" size={16} />
       {message}
     </p>
   );
