@@ -59,6 +59,8 @@ export default function SchoolBrandingPanel({ school, schoolId, onSaved }) {
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
 
+  const domainLocked = Boolean(school?.custom_domain?.trim());
+
   useEffect(() => {
     setLogoUrl(school?.logo_url ?? '');
     setPrimaryColor(school?.primary_color ?? DEFAULT_THEME.primary);
@@ -86,7 +88,7 @@ export default function SchoolBrandingPanel({ school, schoolId, onSaved }) {
     }
 
     const normalizedDomain = normalizeCustomDomain(customDomain);
-    if (customDomain.trim() && !isValidCustomDomain(customDomain)) {
+    if (!domainLocked && customDomain.trim() && !isValidCustomDomain(customDomain)) {
       setError(new Error('Alan adı geçersiz. Örnek: veli.atlasegitimkurumu.com'));
       return;
     }
@@ -95,14 +97,19 @@ export default function SchoolBrandingPanel({ school, schoolId, onSaved }) {
     setError(null);
     setSuccess(null);
     try {
+      const payload = {
+        logo_url: logoUrl.trim() || null,
+        primary_color: primary,
+        secondary_color: secondary,
+      };
+
+      if (!domainLocked) {
+        payload.custom_domain = normalizedDomain || null;
+      }
+
       const { error: updateError } = await supabase
         .from('schools')
-        .update({
-          logo_url: logoUrl.trim() || null,
-          primary_color: primary,
-          secondary_color: secondary,
-          custom_domain: normalizedDomain || null,
-        })
+        .update(payload)
         .eq('id', schoolId);
       if (updateError) throw updateError;
       setSuccess('Marka ayarları kaydedildi.');
@@ -146,12 +153,15 @@ export default function SchoolBrandingPanel({ school, schoolId, onSaved }) {
             value={customDomain}
             onChange={(event) => setCustomDomain(event.target.value)}
             placeholder="veli.atlasegitimkurumu.com"
-            disabled={saving}
+            disabled={saving || domainLocked}
+            readOnly={domainLocked}
             autoComplete="off"
             spellCheck={false}
           />
           <span className="auth-hint">
-            Yalnızca alt alan adı girin (www değil). DNS kaydını Vercel projenize yönlendirin.
+            {domainLocked
+              ? 'Alan adı kurulumda belirlendi ve değiştirilemez. DNS ve Vercel bu adrese göre yapılandırıldı.'
+              : 'Yalnızca alt alan adı girin (www değil). Kaydettikten sonra değiştirilemez — DNS ve Vercel ayarlarını buna göre yapın.'}
           </span>
         </label>
 
