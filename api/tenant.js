@@ -1,4 +1,4 @@
-import { resolveTenantFromRequest } from './lib/tenant.js';
+import { resolveTenantFromRequest } from './_lib/tenant.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {

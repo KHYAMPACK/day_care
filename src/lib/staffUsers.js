@@ -73,13 +73,13 @@ async function staffApiRequest(path, body) {
 }
 
 export function createStaffUser(payload) {
-  return staffApiRequest('/api/create-staff-user', payload);
+  return staffApiRequest('/api/staff', { action: 'create', ...payload });
 }
 
 export function resetStaffPin(userId) {
-  return staffApiRequest('/api/reset-staff-pin', { user_id: userId });
+  return staffApiRequest('/api/staff', { action: 'reset-pin', user_id: userId });
 }
 
 export function deleteStaffUser(userId) {
-  return staffApiRequest('/api/delete-staff-user', { user_id: userId });
+  return staffApiRequest('/api/staff', { action: 'delete', user_id: userId });
 }

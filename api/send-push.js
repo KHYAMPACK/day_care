@@ -4,13 +4,13 @@ import {
   fetchSubscriptionRows,
   getSupabaseAdmin,
   sendWebPushItems,
-} from './lib/webPush.js';
+} from './_lib/webPush.js';
 import {
   buildPushIconUrl,
   buildTenantPayload,
   fetchSchoolBrandingById,
   getRequestOrigin,
-} from './lib/tenant.js';
+} from './_lib/tenant.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {

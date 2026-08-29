@@ -14,18 +14,8 @@ const API_ROUTES = [
   },
   { match: (url) => url === '/api/send-push', file: 'send-push.js', methods: ['POST'] },
   {
-    match: (url) => url === '/api/create-staff-user',
-    file: 'create-staff-user.js',
-    methods: ['POST'],
-  },
-  {
-    match: (url) => url === '/api/reset-staff-pin',
-    file: 'reset-staff-pin.js',
-    methods: ['POST'],
-  },
-  {
-    match: (url) => url === '/api/delete-staff-user',
-    file: 'delete-staff-user.js',
+    match: (url) => url === '/api/staff',
+    file: 'staff.js',
     methods: ['POST'],
   },
   {

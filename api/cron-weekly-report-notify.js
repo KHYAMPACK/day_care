@@ -6,8 +6,8 @@ import {
   fetchSubscriptionRows,
   getSupabaseAdmin,
   sendWebPushItems,
-} from './lib/webPush.js';
-import { buildPushIconUrl, fetchSchoolBrandingById, getRequestOrigin } from './lib/tenant.js';
+} from './_lib/webPush.js';
+import { buildPushIconUrl, fetchSchoolBrandingById, getRequestOrigin } from './_lib/tenant.js';
 
 const WEEKLY_REPORT_KIND = 'weekly_report';
 

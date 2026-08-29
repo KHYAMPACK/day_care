@@ -1,5 +1,5 @@
-import { getSupabaseAdmin, buildPushItems, fetchSubscriptionRows, sendWebPushItems } from './lib/webPush.js';
-import { buildPushIconUrl, fetchSchoolBrandingById, getRequestOrigin } from './lib/tenant.js';
+import { getSupabaseAdmin, buildPushItems, fetchSubscriptionRows, sendWebPushItems } from './_lib/webPush.js';
+import { buildPushIconUrl, fetchSchoolBrandingById, getRequestOrigin } from './_lib/tenant.js';
 
 const HOMEWORK_KIND = 'homework_assigned';
 

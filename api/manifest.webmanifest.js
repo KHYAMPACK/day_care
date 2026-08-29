@@ -1,4 +1,4 @@
-import { buildManifest, getRequestOrigin, resolveTenantFromRequest } from './lib/tenant.js';
+import { buildManifest, getRequestOrigin, resolveTenantFromRequest } from './_lib/tenant.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {

@@ -14,8 +14,8 @@ import {
   fetchSubscriptionRows,
   getSupabaseAdmin,
   sendWebPushItems,
-} from './lib/webPush.js';
-import { buildPushIconUrl, fetchSchoolBrandingById, getRequestOrigin } from './lib/tenant.js';
+} from './_lib/webPush.js';
+import { buildPushIconUrl, fetchSchoolBrandingById, getRequestOrigin } from './_lib/tenant.js';
 
 function isAuthorizedCron(req) {
   const secret = process.env.CRON_SECRET;
