@@ -16,7 +16,15 @@ import {
   sortAnnouncements,
 } from '../../lib/announcements';
 
-export default function TeacherAnnouncements({ profile, schoolId, students = [] }) {
+import TeacherParentMessages from '../messages/TeacherParentMessages';
+
+export default function TeacherAnnouncements({
+  profile,
+  schoolId,
+  students = [],
+  templates = [],
+  enableParentMessages = false,
+}) {
   const { refreshProfile } = useAuth();
   const [announcements, setAnnouncements] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -291,6 +299,15 @@ export default function TeacherAnnouncements({ profile, schoolId, students = [] 
           )}
         </div>
       </form>
+
+      {enableParentMessages ? (
+        <TeacherParentMessages
+          profile={profile}
+          schoolId={schoolId}
+          students={students}
+          templates={templates}
+        />
+      ) : null}
 
       {loading ? (
         <p className="dash-hint">Duyurular yükleniyor…</p>

@@ -188,8 +188,8 @@ export default function DirectorCurriculum({
             done={classCount > 0}
             title="1. Şube oluşturun"
             detail="5-A, 6-B gibi sınıf şubelerini tanımlayın."
-            actionLabel="Öğrenci Ekle sekmesine git"
-            onAction={onNavigateTab ? () => goToTab('students') : null}
+            actionLabel="Öğrenci Yönetimi sekmesine git"
+            onAction={onNavigateTab ? () => goToTab('student-mgmt') : null}
           />
           <SetupStep
             done={studentCount > 0 && studentsInClassCount === studentCount}
@@ -199,10 +199,10 @@ export default function DirectorCurriculum({
                 ? 'Henüz öğrenci yok.'
                 : `${studentsInClassCount}/${studentCount} öğrenci bir şubeye bağlı.`
             }
-            actionLabel="Öğrenci Ekle sekmesine git"
+            actionLabel="Öğrenci Yönetimi sekmesine git"
             onAction={
               onNavigateTab && (studentCount === 0 || studentsInClassCount < studentCount)
-                ? () => goToTab('students')
+                ? () => goToTab('student-mgmt')
                 : null
             }
           />

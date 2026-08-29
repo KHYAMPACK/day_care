@@ -14,6 +14,32 @@ const API_ROUTES = [
   },
   { match: (url) => url === '/api/send-push', file: 'send-push.js', methods: ['POST'] },
   {
+    match: (url) => url === '/api/create-staff-user',
+    file: 'create-staff-user.js',
+    methods: ['POST'],
+  },
+  {
+    match: (url) => url === '/api/reset-staff-pin',
+    file: 'reset-staff-pin.js',
+    methods: ['POST'],
+  },
+  {
+    match: (url) => url === '/api/delete-staff-user',
+    file: 'delete-staff-user.js',
+    methods: ['POST'],
+  },
+  {
+    match: (url) => url === '/api/exam-notify-publish',
+    file: 'exam-notify-publish.js',
+    methods: ['POST'],
+  },
+  { match: (url) => url === '/api/exam-import', file: 'exam-import.js', methods: ['POST'] },
+  {
+    match: (url) => url === '/api/cron-weekly-report-notify',
+    file: 'cron-weekly-report-notify.js',
+    methods: ['GET', 'POST'],
+  },
+  {
     match: (url) => url === '/api/cron-calendar-reminders',
     file: 'cron-calendar-reminders.js',
     methods: ['GET', 'POST'],

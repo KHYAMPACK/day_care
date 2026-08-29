@@ -12,6 +12,15 @@ export default defineConfig(({ mode }) => {
   }
 
   return {
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('@react-pdf')) return 'react-pdf';
+        },
+      },
+    },
+  },
   plugins: [
     vercelApiDevPlugin(),
     react(),
@@ -32,6 +41,7 @@ export default defineConfig(({ mode }) => {
         cleanupOutdatedCaches: true,
         clientsClaim: true,
         skipWaiting: true,
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
       },
       devOptions: {
         enabled: true,

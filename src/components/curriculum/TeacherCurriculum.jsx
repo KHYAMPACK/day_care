@@ -10,17 +10,24 @@ import {
   loadCurriculumWeekNote,
   upsertCurriculumWeekNote,
   classProgressForUnit,
+  formatClassLabel,
   formatAssignmentLabel,
   formatPlannedUnitBanner,
   formatWeekRangeTr,
   expandSubjectSchedule,
   formatScheduleWeekRange,
+  loadSchoolClasses,
+  loadCurriculumSubjects,
   loadTeacherAssignments,
+  getTeacherSubjectSlug,
+  getTeacherBransDisplay,
+  resolveSubjectForClass,
   plannedUnitForWeek,
   weekOverlapsHoliday,
 } from '../../lib/curriculum';
 import { InlineError, SendButton, SuccessMessage } from '../dashboardUi';
 import { Icon } from '../ui/Icon';
+import AtlasClassPicker from '../atlas/AtlasClassPicker';
 
 function WeekHeader({ weekIndex, isHoliday, showSchedule, onToggleSchedule, subjectName }) {
   return (
@@ -46,8 +53,13 @@ function WeekHeader({ weekIndex, isHoliday, showSchedule, onToggleSchedule, subj
   );
 }
 
-export default function TeacherCurriculum({ profile, schoolId }) {
+export default function TeacherCurriculum({ profile, schoolId, atlasSchedule = false }) {
+  const subjectSlug = getTeacherSubjectSlug(profile);
+  const bransDisplay = getTeacherBransDisplay(profile);
   const [assignments, setAssignments] = useState([]);
+  const [classes, setClasses] = useState([]);
+  const [subjects, setSubjects] = useState([]);
+  const [selectedClassId, setSelectedClassId] = useState(null);
   const [units, setUnits] = useState([]);
   const [students, setStudents] = useState([]);
   const [progress, setProgress] = useState([]);
@@ -64,8 +76,12 @@ export default function TeacherCurriculum({ profile, schoolId }) {
   const [success, setSuccess] = useState(null);
 
   const selected = assignments.find((row) => row.id === assignmentId) ?? assignments[0] ?? null;
-  const subject = selected?.curriculum_subjects ?? null;
-  const klass = selected?.classes ?? null;
+  const klass = atlasSchedule
+    ? classes.find((row) => row.id === selectedClassId) ?? null
+    : selected?.classes ?? null;
+  const subject = atlasSchedule
+    ? resolveSubjectForClass(subjects, subjectSlug, klass?.grade)
+    : selected?.curriculum_subjects ?? null;
   const subjectUnits = useMemo(
     () => units.filter((unit) => unit.subject_id === subject?.id),
     [units, subject]
@@ -81,7 +97,7 @@ export default function TeacherCurriculum({ profile, schoolId }) {
 
   useEffect(() => {
     setShowSchedule(false);
-  }, [assignmentId]);
+  }, [assignmentId, selectedClassId]);
 
   const loadRoster = useCallback(async (classId) => {
     if (!classId) {
@@ -117,12 +133,29 @@ export default function TeacherCurriculum({ profile, schoolId }) {
     setLoading(true);
     setError(null);
     try {
-      const rows = await loadTeacherAssignments(profile.id);
-      setAssignments(rows);
-      setAssignmentId((current) => {
-        if (current && rows.some((row) => row.id === current)) return current;
-        return rows[0]?.id ?? '';
-      });
+      if (atlasSchedule) {
+        if (!subjectSlug) {
+          setClasses([]);
+        } else {
+          const [allClasses, catalogSubjects] = await Promise.all([
+            loadSchoolClasses(schoolId),
+            loadCurriculumSubjects(),
+          ]);
+          setClasses(allClasses);
+          setSubjects(catalogSubjects);
+          setSelectedClassId((current) =>
+            current && allClasses.some((row) => row.id === current) ? current : null
+          );
+        }
+        setAssignments([]);
+      } else {
+        const rows = await loadTeacherAssignments(profile.id);
+        setAssignments(rows);
+        setAssignmentId((current) => {
+          if (current && rows.some((row) => row.id === current)) return current;
+          return rows[0]?.id ?? '';
+        });
+      }
 
       const [unitsRes, eventsRes] = await Promise.all([
         supabase.from('curriculum_units').select(UNIT_SELECT).order('sort_order'),
@@ -153,7 +186,7 @@ export default function TeacherCurriculum({ profile, schoolId }) {
     } finally {
       setLoading(false);
     }
-  }, [profile.id, schoolId]);
+  }, [atlasSchedule, profile.id, subjectSlug, schoolId]);
 
   useEffect(() => {
     load();
@@ -196,6 +229,20 @@ export default function TeacherCurriculum({ profile, schoolId }) {
     };
   }, [klass?.id, subject?.id, weekIndex]);
 
+  function handleSelectClass(classId) {
+    setSelectedClassId(classId);
+    setShowSchedule(false);
+    setSuccess(null);
+    setError(null);
+  }
+
+  function handleBackToClasses() {
+    setSelectedClassId(null);
+    setShowSchedule(false);
+    setSuccess(null);
+    setError(null);
+  }
+
   async function handleSave(event) {
     event.preventDefault();
     if (!klass?.id || !subject?.id) return;
@@ -204,7 +251,7 @@ export default function TeacherCurriculum({ profile, schoolId }) {
     setSuccess(null);
     try {
       let updated = 0;
-      if (focusUnit) {
+      if (focusUnit && !atlasSchedule) {
         const count = Number.parseInt(questions, 10);
         if (Number.isNaN(count) || count < 0) {
           throw new Error('Soru sayısı 0 veya daha büyük bir sayı olmalıdır.');
@@ -214,6 +261,13 @@ export default function TeacherCurriculum({ profile, schoolId }) {
           unitId: focusUnit.id,
           completed,
           questionsSolved: count,
+        });
+      } else if (focusUnit && atlasSchedule) {
+        updated = await applyUnitProgressToClass({
+          classId: klass.id,
+          unitId: focusUnit.id,
+          completed,
+          questionsSolved: 0,
         });
       }
       await upsertCurriculumWeekNote({
@@ -226,7 +280,9 @@ export default function TeacherCurriculum({ profile, schoolId }) {
       if (focusUnit) {
         setSuccess(
           updated
-            ? `${formatAssignmentLabel(selected)} kaydı ${updated} öğrenciye işlendi.`
+            ? atlasSchedule
+              ? `${formatClassLabel(klass?.grade, klass?.name)} kaydı ${updated} öğrenciye işlendi.`
+              : `${formatAssignmentLabel(selected)} kaydı ${updated} öğrenciye işlendi.`
             : 'Bu şubede henüz öğrenci yok. Müdür şubeye öğrenci yerleştirsin.'
         );
         await loadRoster(klass.id);
@@ -250,25 +306,73 @@ export default function TeacherCurriculum({ profile, schoolId }) {
 
   return (
     <>
-      <header className="dash-header">
-        <h1 className="dash-title">Müfredat</h1>
-        <p className="dash-subtitle">
-          Bu haftanın konusunu işaretleyip soru sayısını yazın. Kayıt sınıftaki her öğrenciye gider.
-        </p>
-      </header>
+      {!atlasSchedule ? (
+        <header className="dash-header">
+          <h1 className="dash-title">Müfredat</h1>
+          <p className="dash-subtitle">
+            Bu haftanın konusunu işaretleyip soru sayısını yazın. Kayıt sınıftaki her öğrenciye gider.
+          </p>
+        </header>
+      ) : null}
 
       {error && <InlineError error={error} context="curriculum" />}
 
-      {!error && assignments.length === 0 ? (
+      {!error && atlasSchedule && !subjectSlug ? (
+        <section className="dash-card">
+          <p className="dash-hint">
+            Branşınız tanımlı değil. Müdürünüz Öğretmen Yönetimi sekmesinden branş ataması yapmalı.
+          </p>
+        </section>
+      ) : !error && !atlasSchedule && assignments.length === 0 ? (
         <section className="dash-card">
           <p className="dash-hint">
             Size atanmış şube ve ders yok. Müdürünüz Öğretmen Atama sekmesinden şube + ders
             eşleştirmesi yapsın.
           </p>
         </section>
-      ) : assignments.length > 0 ? (
+      ) : !error && atlasSchedule && !classes.length ? (
+        <section className="dash-card">
+          <p className="dash-hint">Henüz şube tanımlı değil.</p>
+        </section>
+      ) : !error && atlasSchedule && classes.length && !selectedClassId ? (
+        <section className="director-panel atlas-lessons">
+          <header className="atlas-lessons__header">
+            <h2 className="dash-section-title">Müfredat</h2>
+            <p className="dash-hint">{bransDisplay?.name}</p>
+          </header>
+          <AtlasClassPicker
+            classes={classes}
+            subjectName={bransDisplay?.name}
+            hint="Müfredat kaydı için sınıf seçin."
+            onSelectClass={handleSelectClass}
+          />
+        </section>
+      ) : !error && atlasSchedule && selectedClassId && !subject ? (
+        <section className="dash-card">
+          <p className="dash-hint">
+            Seçilen sınıf için {bransDisplay?.name ?? 'branş'} müfredatı bulunamadı.
+          </p>
+          <button type="button" className="demo-btn" onClick={handleBackToClasses}>
+            ← Sınıflar
+          </button>
+        </section>
+      ) : (atlasSchedule ? Boolean(selectedClassId && subject) : assignments.length > 0) ? (
         <>
-          {assignments.length > 1 ? (
+          {atlasSchedule ? (
+            <header className="atlas-lessons__header">
+              <button
+                type="button"
+                className="demo-btn demo-btn--ghost atlas-lessons__back"
+                onClick={handleBackToClasses}
+              >
+                ← Sınıflar
+              </button>
+              <h2 className="dash-section-title">
+                {formatClassLabel(klass?.grade, klass?.name)}
+              </h2>
+              <p className="dash-hint">{subject?.name ?? bransDisplay?.name}</p>
+            </header>
+          ) : assignments.length > 1 ? (
             <div className="cur-assign-chips" role="tablist" aria-label="Şube ve ders">
               {assignments.map((assignment) => (
                 <button
@@ -370,18 +474,20 @@ export default function TeacherCurriculum({ profile, schoolId }) {
                   </button>
                 </div>
 
-                <label className="dash-label">
-                  Sınıfta çözülen soru
-                  <input
-                    className="dash-input"
-                    type="number"
-                    min="0"
-                    inputMode="numeric"
-                    value={questions}
-                    onChange={(event) => setQuestions(event.target.value)}
-                    disabled={saving}
-                  />
-                </label>
+                {!atlasSchedule ? (
+                  <label className="dash-label">
+                    Sınıfta çözülen soru
+                    <input
+                      className="dash-input"
+                      type="number"
+                      min="0"
+                      inputMode="numeric"
+                      value={questions}
+                      onChange={(event) => setQuestions(event.target.value)}
+                      disabled={saving}
+                    />
+                  </label>
+                ) : null}
 
                 <label className="dash-label">
                   Haftalık not (isteğe bağlı)

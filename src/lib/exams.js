@@ -27,6 +27,10 @@ function isExamTableMissing(error) {
   );
 }
 
+function isExamCalendarColumnMissing(error) {
+  return /exam_kind|exam_subject|exam_term|exam_round|schema cache/i.test(error?.message ?? '');
+}
+
 export function isExamEvent(event) {
   return event?.event_type === 'exam' || event?.event_type === 'common_exam';
 }
@@ -190,6 +194,40 @@ export async function ensureExamSessionForEvent({ schoolId, event }) {
     throw error;
   }
   return data;
+}
+
+export async function createMockExamEvent({ schoolId, title, heldOn, audienceGrades = [], body = '' }) {
+  const basePayload = {
+    school_id: schoolId,
+    title: title.trim(),
+    body: body.trim(),
+    event_type: 'exam',
+    starts_on: heldOn,
+    ends_on: heldOn,
+    audience_grades: audienceGrades.length ? audienceGrades : null,
+    notify: true,
+    source: 'counselor',
+  };
+
+  let result = await withSchoolFilter(
+    supabase
+      .from('calendar_events')
+      .insert({ ...basePayload, exam_kind: 'mock' })
+      .select(EXAM_CALENDAR_SELECT)
+      .single(),
+    schoolId
+  );
+
+  if (result.error && isExamCalendarColumnMissing(result.error)) {
+    result = await withSchoolFilter(
+      supabase.from('calendar_events').insert(basePayload).select(CALENDAR_SELECT).single(),
+      schoolId
+    );
+  }
+
+  if (result.error) throw result.error;
+  const session = await ensureExamSessionForEvent({ schoolId, event: result.data });
+  return { event: result.data, session };
 }
 
 export async function publishExamSession(sessionId, publish = true) {

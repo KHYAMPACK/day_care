@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { formatAppError, useOnlineStatus } from '../lib/errorMessages';
 import { Avatar } from './ui/Avatar';
 import { Icon } from './ui/Icon';
@@ -69,9 +69,17 @@ export function PageHeader({
   schoolName,
   roleLabel,
   logoUrl,
+  userName,
   onSignOut,
   signOutLabel = 'Çıkış Yap',
+  onNotificationsClick,
+  notificationCount = 0,
+  notificationsOpen = false,
+  notificationsLabel = 'Bildirimler',
 }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const profileRef = useRef(null);
+
   const parsed = useMemo(() => {
     if (schoolName) {
       return { name: schoolName.trim(), role: roleLabel?.trim() || null };
@@ -84,32 +92,90 @@ export function PageHeader({
     return { name: brand.trim(), role: null };
   }, [brand, roleLabel, schoolName]);
 
+  const profileName = userName?.trim() || parsed.name;
+
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+
+    function handlePointerDown(event) {
+      if (profileRef.current && !profileRef.current.contains(event.target)) {
+        setMenuOpen(false);
+      }
+    }
+
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') setMenuOpen(false);
+    }
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [menuOpen]);
+
   return (
     <header className="page-header">
-      <div className="page-header__brand">
-        <div className="page-header__logo-wrap" aria-hidden={logoUrl ? undefined : true}>
-          {logoUrl ? (
-            <img src={logoUrl} alt="" className="page-header__logo" />
-          ) : (
-            <span className="page-header__logo-fallback">
-              <Avatar name={parsed.name} size={40} />
-            </span>
-          )}
-        </div>
-        <div className="page-header__titles">
-          <p className="page-header__school">{parsed.name}</p>
-          {parsed.role ? <p className="page-header__role">{parsed.role}</p> : null}
-        </div>
-      </div>
-      {onSignOut ? (
+      <div className="page-header__profile" ref={profileRef}>
         <button
-          className="page-header__icon-btn"
           type="button"
-          onClick={onSignOut}
-          aria-label={signOutLabel}
-          title={signOutLabel}
+          className="page-header__brand page-header__brand-btn"
+          onClick={() => setMenuOpen((open) => !open)}
+          aria-expanded={menuOpen}
+          aria-haspopup="menu"
+          aria-label="Profil menüsü"
         >
-          <Icon name="logout" size={18} />
+          <div className="page-header__logo-wrap" aria-hidden={logoUrl ? undefined : true}>
+            {logoUrl ? (
+              <img src={logoUrl} alt="" className="page-header__logo" />
+            ) : (
+              <span className="page-header__logo-fallback">
+                <Avatar name={parsed.name} size={40} />
+              </span>
+            )}
+          </div>
+          <div className="page-header__titles">
+            <p className="page-header__school">{parsed.name}</p>
+            {parsed.role ? <p className="page-header__role">{parsed.role}</p> : null}
+          </div>
+        </button>
+        {menuOpen ? (
+          <div className="page-header__menu" role="menu">
+            <p className="page-header__menu-name">{profileName}</p>
+            {parsed.role ? <p className="page-header__menu-role">{parsed.role}</p> : null}
+            {onSignOut ? (
+              <button
+                type="button"
+                className="page-header__menu-signout"
+                role="menuitem"
+                onClick={() => {
+                  setMenuOpen(false);
+                  onSignOut();
+                }}
+              >
+                <Icon name="logout" size={16} />
+                {signOutLabel}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+      {onNotificationsClick ? (
+        <button
+          className="page-header__icon-btn page-header__icon-btn--notify"
+          type="button"
+          onClick={onNotificationsClick}
+          aria-label={notificationsOpen ? 'Bildirimleri kapat' : notificationsLabel}
+          title={notificationsOpen ? 'Bildirimleri kapat' : notificationsLabel}
+          aria-expanded={notificationsOpen}
+        >
+          <Icon name={notificationsOpen ? 'x' : 'bell'} size={18} />
+          {!notificationsOpen && notificationCount > 0 ? (
+            <span className="page-header__notify-badge" aria-hidden="true">
+              {notificationCount > 9 ? '9+' : notificationCount}
+            </span>
+          ) : null}
         </button>
       ) : null}
     </header>

@@ -263,8 +263,8 @@ function Glyph({ name }) {
     case 'bell':
       return (
         <>
-          <path d="M6 16h12l-1.2-2.2A6 6 0 0 1 6.5 9C6.5 6.8 8.8 5 12 5s5.5 1.8 5.5 4" />
-          <path d="M10 18a2 2 0 0 0 4 0" />
+          <path d="M10.268 21a2 2 0 0 0 3.464 0" />
+          <path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326" />
         </>
       );
     case 'phone':
@@ -330,6 +330,8 @@ function Glyph({ name }) {
       );
     case 'plus':
       return <path d="M12 6v12M6 12h12" />;
+    case 'x':
+      return <path d="M8 8l8 8M16 8l-8 8" />;
     default:
       return (
         <>

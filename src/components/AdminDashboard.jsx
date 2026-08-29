@@ -13,15 +13,24 @@ import {
   SendButton,
 } from './dashboardUi';
 import { formatRelativeTimeTr } from '../utils/formatTime';
-import { TEACHER_TABS } from '../lib/demoData';
+import { getTeacherTabs, defaultTeacherTab } from '../lib/demoData';
+import { hasAtlasSchedule, hasHomeworkTracking } from '../lib/schoolFeatures';
 import { DemoBottomNav, getTabFromSearch, useDemoNav } from './demo/DemoKit';
 import { Icon } from './ui/Icon';
 import { Avatar } from './ui/Avatar';
+import { AnimatedView } from './ui/AnimatedView';
+import { usePresence } from '../lib/motion';
 import TeacherAnnouncements from './announcements/TeacherAnnouncements';
 import AcademicCalendar from './calendar/AcademicCalendar';
 import TeacherCurriculum from './curriculum/TeacherCurriculum';
 import TeacherAttendance from './attendance/TeacherAttendance';
-import TeacherExams from './exams/TeacherExams';
+import TeacherHomework from './homework/TeacherHomework';
+import TeacherAtlasLessons from './atlas/TeacherAtlasLessons';
+import TeacherAtlasQuestions from './atlas/TeacherAtlasQuestions';
+import {
+  AtlasTeacherAlertsView,
+  useAtlasTeacherAlerts,
+} from './atlas/AtlasTeacherAlerts';
 import { uniqueGrades } from '../lib/calendar';
 
 const TARGET_ALL = 'all';
@@ -137,6 +146,17 @@ function StudentPicker({
 
 export default function AdminDashboard({ profile, schoolId, onSignOut }) {
   const { school } = useAuth();
+  const atlasSchedule = hasAtlasSchedule(school);
+  const homeworkTracking = hasHomeworkTracking(school);
+  const teacherTabs = useMemo(
+    () => getTeacherTabs(atlasSchedule, homeworkTracking),
+    [atlasSchedule, homeworkTracking]
+  );
+  const [catchUpPreset, setCatchUpPreset] = useState(null);
+  const [questionsCatchUp, setQuestionsCatchUp] = useState(null);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const notificationsPresent = usePresence(notificationsOpen);
+  const atlasAlerts = useAtlasTeacherAlerts(atlasSchedule ? profile?.id : null);
   const [students, setStudents] = useState([]);
   const [templates, setTemplates] = useState([]);
   const [messages, setMessages] = useState([]);
@@ -151,8 +171,11 @@ export default function AdminDashboard({ profile, schoolId, onSignOut }) {
   const [sending, setSending] = useState(false);
   const [submitError, setSubmitError] = useState(null);
   const [submitSuccess, setSubmitSuccess] = useState(null);
-  const [showMessages, setShowMessages] = useState(() => getTabFromSearch('home') === 'messages');
-  const demoNav = useDemoNav('home');
+  const [showMessages, setShowMessages] = useState(() => {
+    const tab = getTabFromSearch(defaultTeacherTab(atlasSchedule));
+    return tab === 'messages';
+  });
+  const demoNav = useDemoNav(defaultTeacherTab(atlasSchedule));
 
   const displayName = profile?.full_name ?? profile?.email ?? 'Öğretmen';
   const navLogoUrl = school?.logo_url ?? null;
@@ -352,10 +375,45 @@ export default function AdminDashboard({ profile, schoolId, onSignOut }) {
     setSubmitSuccess(null);
   }
 
+  function handleAlertCatchUp(preset) {
+    setNotificationsOpen(false);
+    if (preset.resumeActivity || preset.sessionId) {
+      setQuestionsCatchUp(preset);
+      demoNav.selectTab('questions');
+    } else {
+      setCatchUpPreset(preset);
+      demoNav.selectTab('lessons');
+    }
+  }
+
+  const teacherNavbarProps = useMemo(
+    () => ({
+      schoolName,
+      roleLabel: 'Öğretmen',
+      logoUrl: navLogoUrl,
+      userName: displayName,
+      onSignOut,
+      ...(atlasSchedule
+        ? {
+            onNotificationsClick: () => setNotificationsOpen((open) => !open),
+            notificationCount: atlasAlerts.totalCount,
+            notificationsOpen,
+          }
+        : {}),
+    }),
+    [schoolName, navLogoUrl, displayName, onSignOut, atlasSchedule, atlasAlerts.totalCount, notificationsOpen]
+  );
+
+  useEffect(() => {
+    if (atlasSchedule && profile?.id) {
+      atlasAlerts.refresh();
+    }
+  }, [demoNav.tab, atlasSchedule, profile?.id, atlasAlerts.refresh]);
+
   if (dataLoading) {
     return (
       <>
-        <AppNavbar schoolName={schoolName} roleLabel="Öğretmen" logoUrl={navLogoUrl} onSignOut={onSignOut} />
+        <AppNavbar {...teacherNavbarProps} />
         <LoadingPanel message="Panel yükleniyor…" />
       </>
     );
@@ -364,7 +422,7 @@ export default function AdminDashboard({ profile, schoolId, onSignOut }) {
   if (dataError) {
     return (
       <>
-        <AppNavbar schoolName={schoolName} roleLabel="Öğretmen" logoUrl={navLogoUrl} onSignOut={onSignOut} />
+        <AppNavbar {...teacherNavbarProps} />
         <main className="dash-page dash-error-page">
           <ErrorMessage
             error={dataError}
@@ -378,17 +436,69 @@ export default function AdminDashboard({ profile, schoolId, onSignOut }) {
 
   return (
     <>
-      <AppNavbar schoolName={schoolName} roleLabel="Öğretmen" logoUrl={navLogoUrl} onSignOut={onSignOut} />
+      <AppNavbar {...teacherNavbarProps} />
+
+      {atlasSchedule && notificationsPresent ? (
+        <div className={`atlas-notifications-layer${notificationsOpen ? '' : ' atlas-notifications-layer--out'}`}>
+          <button
+            type="button"
+            className="atlas-notifications-backdrop"
+            aria-label="Bildirimleri kapat"
+            onClick={() => setNotificationsOpen(false)}
+          />
+          <section className="atlas-notifications-panel" aria-label="Bildirimler">
+            <div className="atlas-notifications-panel__header">
+              <h2 className="atlas-notifications-panel__title">Bildirimler</h2>
+            </div>
+            <AtlasTeacherAlertsView
+              {...atlasAlerts}
+              hideQuestionAlerts={false}
+              showEmptyState
+              onCatchUp={handleAlertCatchUp}
+              onRefresh={atlasAlerts.refresh}
+            />
+          </section>
+        </div>
+      ) : null}
 
       <main className="dash-page dash-page--flush dash-page--tabbar">
-        {demoNav.tab === 'announcements' ? (
-          <TeacherAnnouncements profile={profile} schoolId={schoolId} students={students} />
+        {atlasSchedule && profile?.id ? (
+          <AtlasTeacherAlertsView
+            {...atlasAlerts}
+            hideQuestionAlerts={demoNav.tab === 'questions'}
+            onCatchUp={handleAlertCatchUp}
+            onRefresh={atlasAlerts.refresh}
+          />
+        ) : null}
+        <AnimatedView viewKey={`${demoNav.tab}-${showMessages ? 'messages' : 'main'}`}>
+        {demoNav.tab === 'questions' ? (
+          <TeacherAtlasQuestions
+            profile={profile}
+            schoolId={schoolId}
+            catchUpPreset={questionsCatchUp}
+            onCatchUpConsumed={() => setQuestionsCatchUp(null)}
+          />
+        ) : demoNav.tab === 'announcements' ? (
+          <TeacherAnnouncements
+            profile={profile}
+            schoolId={schoolId}
+            students={students}
+            templates={templates}
+            enableParentMessages={atlasSchedule}
+          />
         ) : demoNav.tab === 'calendar' ? (
           <AcademicCalendar schoolId={schoolId} viewerGrades={viewerGrades.length ? viewerGrades : null} />
-        ) : demoNav.tab === 'exams' ? (
-          <TeacherExams profile={profile} schoolId={schoolId} students={students} />
         ) : demoNav.tab === 'curriculum' ? (
-          <TeacherCurriculum profile={profile} schoolId={schoolId} />
+          <TeacherCurriculum profile={profile} schoolId={schoolId} atlasSchedule={atlasSchedule} />
+        ) : demoNav.tab === 'homework' ? (
+          <TeacherHomework profile={profile} schoolId={schoolId} atlasSchedule={atlasSchedule} />
+        ) : demoNav.tab === 'lessons' ? (
+          <TeacherAtlasLessons
+            profile={profile}
+            schoolId={schoolId}
+            catchUpPreset={catchUpPreset}
+            onCatchUpConsumed={() => setCatchUpPreset(null)}
+          />
         ) : demoNav.tab === 'attendance' ? (
           <TeacherAttendance profile={profile} schoolId={schoolId} />
         ) : (
@@ -531,13 +641,15 @@ export default function AdminDashboard({ profile, schoolId, onSignOut }) {
             )}
           </>
         )}
+        </AnimatedView>
       </main>
 
       <DemoBottomNav
-        tabs={TEACHER_TABS}
+        tabs={teacherTabs}
         active={demoNav.tab}
         onChange={(tab) => {
           setShowMessages(false);
+          setNotificationsOpen(false);
           demoNav.selectTab(tab);
         }}
       />

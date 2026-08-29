@@ -8,14 +8,21 @@
     "build": "vite build",
     "preview": "vite preview",
     "sync-logos": "node scripts/sync-logos.mjs",
-    "seed-demo": "node scripts/seed-demo-school.mjs"
+    "seed-demo": "node scripts/seed-demo-school.mjs",
+    "reset-demo-teacher": "node scripts/reset-demo-teacher.mjs",
+    "reset-demo-parent": "node scripts/reset-demo-parent.mjs",
+    "create-director": "node scripts/create-director.mjs"
   },
   "dependencies": {
+    "@expo-google-fonts/noto-sans": "^0.4.2",
+    "@fontsource/noto-sans": "^5.3.0",
+    "@react-pdf/renderer": "^4.9.0",
     "@supabase/supabase-js": "^2.49.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "sharp": "^0.34.3",
-    "web-push": "^3.6.7"
+    "web-push": "^3.6.7",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.4",

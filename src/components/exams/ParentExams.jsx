@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { istanbulDateIso, uniqueGrades } from '../../lib/calendar';
+import { resolveExamConfig } from '../../lib/examConfig';
 import {
   EXAM_KIND,
   examKindFromEvent,
@@ -10,13 +11,22 @@ import {
   loadPublishedResultsForStudents,
   splitExamsByTiming,
 } from '../../lib/exams';
-import { readExamDemoConfig } from '../../lib/examDemoConfig';
+import {
+  buildProgressSeries,
+  loadPublishedSubjectResultsForStudents,
+  loadRankingsForStudents,
+} from '../../lib/lgsExam';
+import { getDemoParentExamPack } from '../../lib/examDemoData';
+import { isDemoSchool } from '../../lib/parentDemoData';
 import { InlineError } from '../dashboardUi';
+import ParentExamReport from './ParentExamReport';
+import ParentErrorReport from './ParentErrorReport';
 
-export default function ParentExams({ students, schoolId }) {
-  const [config, setConfig] = useState(() => readExamDemoConfig());
+export default function ParentExams({ students, schoolId, school, classes = [] }) {
+  const [config, setConfig] = useState(() => resolveExamConfig(school));
   const [events, setEvents] = useState([]);
-  const [results, setResults] = useState([]);
+  const [subjectResults, setSubjectResults] = useState([]);
+  const [rankings, setRankings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -27,33 +37,51 @@ export default function ParentExams({ students, schoolId }) {
     setLoading(true);
     setError(null);
     try {
-      const [calendarRows, resultRows] = await Promise.all([
+      const cfg = resolveExamConfig(school);
+      const [calendarRows, subjectRows, rankingRows, legacyRows] = await Promise.all([
         loadExamCalendarEvents(schoolId, { includePast: false }),
-        readExamDemoConfig().storeResults
-          ? loadPublishedResultsForStudents(studentIds)
-          : Promise.resolve([]),
+        cfg.storeResults ? loadPublishedSubjectResultsForStudents(studentIds) : Promise.resolve([]),
+        cfg.storeResults ? loadRankingsForStudents(studentIds) : Promise.resolve([]),
+        cfg.storeResults ? loadPublishedResultsForStudents(studentIds) : Promise.resolve([]),
       ]);
-      setEvents(calendarRows);
-      setResults(resultRows);
+      const resolvedRankings = rankingRows.length
+        ? rankingRows
+        : legacyRows.map((row) => ({
+            session_id: row.session_id,
+            student_id: row.student_id,
+            total_net: row.net,
+            lgs_score: row.score,
+            exam_sessions: row.exam_sessions,
+          }));
+
+      const useDemoExams =
+        isDemoSchool(school) &&
+        cfg.storeResults &&
+        resolvedRankings.length === 0 &&
+        subjectRows.length === 0 &&
+        students.length > 0;
+
+      if (useDemoExams) {
+        const pack = getDemoParentExamPack(students);
+        setEvents(calendarRows);
+        setSubjectResults(pack.subjectResults);
+        setRankings(pack.rankings);
+      } else {
+        setEvents(calendarRows);
+        setSubjectResults(subjectRows);
+        setRankings(resolvedRankings);
+      }
     } catch (loadError) {
       setError(loadError);
     } finally {
       setLoading(false);
     }
-  }, [schoolId, studentIds]);
+  }, [schoolId, studentIds, school, students]);
 
   useEffect(() => {
+    setConfig(resolveExamConfig(school));
     load();
-  }, [load]);
-
-  useEffect(() => {
-    function sync() {
-      setConfig(readExamDemoConfig());
-      load();
-    }
-    window.addEventListener('exam-demo-config', sync);
-    return () => window.removeEventListener('exam-demo-config', sync);
-  }, [load]);
+  }, [school, load]);
 
   const filtered = useMemo(
     () => filterExamEvents(events, { config, grades: childGrades }),
@@ -65,22 +93,14 @@ export default function ParentExams({ students, schoolId }) {
     [filtered]
   );
 
-  const resultsByChild = useMemo(() => {
-    if (!config.storeResults) return [];
-    return students.map((student) => ({
-      student,
-      items: results
-        .filter((row) => row.student_id === student.id)
-        .map((row) => ({
-          id: row.id,
-          title: row.exam_sessions?.title ?? 'Sınav',
-          heldOn: row.exam_sessions?.held_on,
-          kind: row.exam_sessions?.kind,
-          net: row.net,
-        }))
-        .sort((a, b) => (b.heldOn ?? '').localeCompare(a.heldOn ?? '')),
-    }));
-  }, [students, results, config.storeResults]);
+  const progressByChild = useMemo(() => {
+    const map = new Map();
+    for (const student of students) {
+      const series = buildProgressSeries(rankings.filter((r) => r.student_id === student.id));
+      map.set(student.id, series);
+    }
+    return map;
+  }, [students, rankings]);
 
   if (loading) {
     return (
@@ -94,7 +114,7 @@ export default function ParentExams({ students, schoolId }) {
     <>
       <header className="dash-header">
         <h1 className="dash-title">Sınavlar</h1>
-        <p className="dash-subtitle">Ortak sınav ve deneme takvimi · yayınlanan netler</p>
+        <p className="dash-subtitle">Deneme takvimi · yayınlanan karneler</p>
       </header>
 
       {error && <InlineError error={error} context="calendar" />}
@@ -129,28 +149,37 @@ export default function ParentExams({ students, schoolId }) {
           {config.storeResults ? (
             <section className="dash-card">
               <h2 className="dash-section-title">Sonuçlar</h2>
-              {resultsByChild.every((group) => group.items.length === 0) ? (
+              {students.map((student) => {
+                const klass = classes.find((c) => c.id === student.class_id);
+                const hasData =
+                  subjectResults.some((r) => r.student_id === student.id) ||
+                  rankings.some((r) => r.student_id === student.id);
+                if (!hasData) return null;
+                return (
+                  <div key={student.id} className="exam-child-block">
+                    <ParentExamReport
+                      student={student}
+                      klass={klass}
+                      subjectResults={subjectResults}
+                      rankings={rankings}
+                    />
+                    {rankings
+                      .filter((r) => r.student_id === student.id && r.exam_sessions?.answer_key_id)
+                      .map((r) => (
+                        <ParentErrorReport
+                          key={`${student.id}-${r.session_id}`}
+                          session={r.exam_sessions}
+                          studentId={student.id}
+                        />
+                      ))}
+                  </div>
+                );
+              })}
+              {!students.some((student) =>
+                rankings.some((r) => r.student_id === student.id)
+              ) ? (
                 <p className="dash-hint">Yayınlanmış sonuç yok.</p>
-              ) : (
-                resultsByChild.map(({ student, items }) =>
-                  items.length === 0 ? null : (
-                    <div key={student.id} className="exam-child-block">
-                      <h3 className="dash-section-title">{student.full_name}</h3>
-                      <ul className="exam-list">
-                        {items.map((item) => (
-                          <li key={item.id}>
-                            <strong>{item.title}</strong>
-                            <span className="dash-hint">
-                              {item.heldOn ? formatExamWhen({ starts_on: item.heldOn }) : ''}
-                              {item.net != null ? ` · Net: ${item.net}` : ''}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )
-                )
-              )}
+              ) : null}
             </section>
           ) : null}
         </>

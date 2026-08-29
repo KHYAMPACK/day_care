@@ -21,10 +21,10 @@ export function useDemoNav(initialTab = 'home') {
 }
 
 export function DemoBottomNav({ tabs, active, onChange }) {
-  const columnCount = Math.min(Math.max(tabs.length, 1), 6);
+  const columnCount = Math.min(Math.max(tabs.length, 1), 7);
   return (
     <nav
-      className="demo-tabbar"
+      className={`demo-tabbar${tabs.length > 6 ? ' demo-tabbar--dense' : ''}`}
       aria-label="Ana gezinme"
       style={{ gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))` }}
     >

@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { MOTION_OVERLAY_MS, usePresence } from '../../lib/motion';
 
 export function ConfirmDialog({
   open,
@@ -13,12 +14,13 @@ export function ConfirmDialog({
 }) {
   const titleId = useId();
   const cancelRef = useRef(null);
+  const present = usePresence(open, MOTION_OVERLAY_MS);
 
   useEffect(() => {
-    if (!open) return undefined;
+    if (!present) return undefined;
 
     function onKeyDown(event) {
-      if (event.key === 'Escape' && !confirming) {
+      if (event.key === 'Escape' && open && !confirming) {
         onCancel?.();
       }
     }
@@ -26,21 +28,21 @@ export function ConfirmDialog({
     document.addEventListener('keydown', onKeyDown);
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    cancelRef.current?.focus();
+    if (open) cancelRef.current?.focus();
 
     return () => {
       document.removeEventListener('keydown', onKeyDown);
       document.body.style.overflow = previousOverflow;
     };
-  }, [open, confirming, onCancel]);
+  }, [present, open, confirming, onCancel]);
 
-  if (!open) return null;
+  if (!present) return null;
 
   return createPortal(
     <div
-      className="app-dialog"
+      className={`app-dialog${open ? '' : ' app-dialog--out'}`}
       role="presentation"
-      onClick={confirming ? undefined : onCancel}
+      onClick={open && !confirming ? onCancel : undefined}
     >
       <div
         className="app-dialog__panel"

@@ -1,10 +1,10 @@
 -- Exam tracking: MEB ortak sınavlar + deneme sonuçları.
+--
+-- Prerequisite: run 026_exams_common_exam_enum.sql first (separate query / transaction).
 
 -- ---------------------------------------------------------------------------
--- calendar_event_type: common_exam
+-- calendar_events exam columns
 -- ---------------------------------------------------------------------------
-
-alter type public.calendar_event_type add value if not exists 'common_exam';
 
 alter table public.calendar_events
   add column if not exists exam_kind text,

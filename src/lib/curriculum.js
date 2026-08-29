@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import { withSchoolFilter } from './tenant';
 import { addDaysIso, istanbulDateIso } from './calendar';
+import { CURRICULUM_SUBJECT_DEFS } from './dersligCatalog.js';
 
 export const ACADEMIC_YEAR_ANCHOR = '2026-09-14';
 
@@ -24,6 +25,44 @@ export function formatAssignmentLabel(assignment) {
   const subject = assignment?.curriculum_subjects;
   if (!klass || !subject) return 'Atama';
   return `${formatClassLabel(klass.grade, klass.name)} · ${subject.name}`;
+}
+
+/** Teacher branş slug from profile (subject_slug preferred over joined subject). */
+export function getTeacherSubjectSlug(profile) {
+  return profile?.subject_slug ?? profile?.curriculum_subjects?.slug ?? null;
+}
+
+/** Resolve grade-specific curriculum subject for a branş slug and class grade. */
+export function resolveSubjectForClass(subjects, subjectSlug, classGrade) {
+  if (!subjectSlug || classGrade == null) return null;
+  return (
+    (subjects ?? []).find(
+      (subject) => subject.slug === subjectSlug && subject.grade === classGrade
+    ) ?? null
+  );
+}
+
+/** Display metadata for teacher branş (name, color, icon) from slug. */
+export function getTeacherBransDisplay(profile) {
+  const slug = getTeacherSubjectSlug(profile);
+  if (!slug) return null;
+  const def = CURRICULUM_SUBJECT_DEFS.find((row) => row.slug === slug);
+  return {
+    slug,
+    name: def?.name ?? slug,
+    color: def?.color,
+    icon: def?.icon,
+  };
+}
+
+export async function loadCurriculumSubjects() {
+  const { data, error } = await supabase
+    .from('curriculum_subjects')
+    .select(SUBJECT_SELECT)
+    .order('grade', { ascending: true })
+    .order('sort_order', { ascending: true });
+  if (error) throw error;
+  return data ?? [];
 }
 
 function parseIsoUtc(isoDate) {

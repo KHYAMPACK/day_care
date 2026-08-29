@@ -2,8 +2,9 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { supabase } from '../lib/supabase';
 import { applySchoolTheme, clearSchoolTheme } from '../lib/schoolTheme';
 
-const PROFILE_SELECT = 'id, role, full_name, email, school_id, phone';
-const SCHOOL_SELECT = 'id, name, logo_url, primary_color, secondary_color, custom_domain';
+const PROFILE_SELECT =
+  'id, role, full_name, email, username, school_id, phone, subject_id, subject_slug, curriculum_subjects ( id, name, grade, color, icon, slug )';
+const SCHOOL_SELECT = 'id, name, logo_url, primary_color, secondary_color, custom_domain, features';
 
 const AuthContext = createContext(null);
 

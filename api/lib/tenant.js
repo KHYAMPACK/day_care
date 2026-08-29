@@ -56,6 +56,9 @@ function getSupabaseAnon() {
   return createClient(supabaseUrl, supabaseAnonKey);
 }
 
+const DEV_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
+const DEV_SCHOOL_CODE = 'DEMO123';
+
 async function querySchoolByDomain(hostname) {
   const normalized = normalizeHostname(hostname);
   if (!normalized) return null;
@@ -66,6 +69,36 @@ async function querySchoolByDomain(hostname) {
   });
 
   if (error) {
+    throw error;
+  }
+
+  return data?.[0] ?? null;
+}
+
+async function querySchoolByCode(schoolCode) {
+  const supabase = getSupabaseAnon();
+
+  const { data, error } = await supabase.rpc('resolve_school_by_code', {
+    p_code: schoolCode,
+  });
+
+  if (error) {
+    // RPC may not exist until migration 038 is applied — fall back to id-only lookup
+    if (/resolve_school_by_code|could not find the function/i.test(error.message ?? '')) {
+      const { data: schoolId, error: idError } = await supabase.rpc('resolve_school_id_by_code', {
+        p_code: schoolCode,
+      });
+      if (idError) throw idError;
+      if (!schoolId) return null;
+      return {
+        id: schoolId,
+        name: 'Yıldızlar Demo Kreşi',
+        logo_url: null,
+        primary_color: null,
+        secondary_color: null,
+        custom_domain: null,
+      };
+    }
     throw error;
   }
 
@@ -103,6 +136,11 @@ export async function resolveTenantByHost(hostname) {
   }
 
   try {
+    if (DEV_HOSTS.has(normalized)) {
+      const school = await querySchoolByCode(DEV_SCHOOL_CODE);
+      return buildTenantPayload(school);
+    }
+
     const school = await querySchoolByDomain(normalized);
     return buildTenantPayload(school);
   } catch (error) {

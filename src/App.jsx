@@ -2,12 +2,10 @@ import { useState } from 'react';
 import { supabase } from './lib/supabase';
 import { useAuth } from './context/AuthContext';
 import { useTenant } from './context/TenantContext';
-import {
-  INVALID_SCHOOL_CODE_MESSAGE,
-  resolveSchoolIdByCode,
-} from './lib/schoolInvite';
+import { buildLoginEmail, normalizeUsername } from './lib/staffUsers';
 import AdminDashboard from './components/AdminDashboard';
 import DirectorDashboard from './screens/pages/DirectorDashboard';
+import CounselorDashboard from './screens/pages/CounselorDashboard';
 import ParentDashboard from './components/ParentDashboard';
 import {
   ErrorMessage,
@@ -19,52 +17,42 @@ import { USER_ROLES } from './lib/roles';
 
 function AuthScreen() {
   const { tenant, tenantSchoolId } = useTenant();
-  const [mode, setMode] = useState('login');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [fullName, setFullName] = useState('');
-  const [schoolCode, setSchoolCode] = useState('');
+  const [username, setUsername] = useState('');
+  const [pin, setPin] = useState('');
   const [authError, setAuthError] = useState(null);
   const [authSubmitting, setAuthSubmitting] = useState(false);
 
   async function handleAuthSubmit(event) {
     event.preventDefault();
     setAuthError(null);
+
+    if (!tenantSchoolId) {
+      setAuthError('Giriş yapmak için okulunuzun web adresini kullanın.');
+      return;
+    }
+
+    const normalizedUsername = normalizeUsername(username);
+    const normalizedPin = pin.trim();
+
+    if (!normalizedUsername) {
+      setAuthError('Kullanıcı adı zorunludur.');
+      return;
+    }
+
+    if (!/^\d{6}$/.test(normalizedPin)) {
+      setAuthError('PIN 6 haneli olmalıdır.');
+      return;
+    }
+
     setAuthSubmitting(true);
 
     try {
-      if (mode === 'login') {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-      } else {
-        let resolvedSchoolId = tenantSchoolId;
-
-        if (!resolvedSchoolId) {
-          const trimmedCode = schoolCode.trim();
-          if (!trimmedCode) {
-            setAuthError('Okul kodu zorunludur.');
-            return;
-          }
-
-          resolvedSchoolId = await resolveSchoolIdByCode(trimmedCode);
-          if (!resolvedSchoolId) {
-            setAuthError(INVALID_SCHOOL_CODE_MESSAGE);
-            return;
-          }
-        }
-
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: {
-              full_name: fullName.trim() || undefined,
-              school_id: resolvedSchoolId,
-            },
-          },
-        });
-        if (error) throw error;
-      }
+      const email = buildLoginEmail(tenantSchoolId, normalizedUsername);
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password: normalizedPin,
+      });
+      if (error) throw error;
     } catch (error) {
       setAuthError(error);
     } finally {
@@ -77,105 +65,60 @@ function AuthScreen() {
       <OfflineBanner />
       <main className="auth-page">
         <div className="auth-card">
-          <h1 className="auth-brand">
-            {tenant.resolved ? tenant.name : mode === 'login' ? 'Giriş' : 'Kayıt'}
-          </h1>
-            {tenant.resolved ? (
-            <p className="auth-tagline">{mode === 'login' ? 'Giriş yapın' : 'Kayıt olun'}</p>
+          <h1 className="auth-brand">{tenant.resolved ? tenant.name : 'OkulTakip'}</h1>
+          {tenant.resolved ? (
+            <p className="auth-tagline">Kullanıcı adı ve PIN ile giriş yapın</p>
+          ) : (
+            <p className="auth-tagline">
+              Giriş yapmak için okulunuzun web adresini kullanın.
+            </p>
+          )}
+
+          {tenantSchoolId ? (
+            <form className="auth-form" onSubmit={handleAuthSubmit}>
+              <label className="auth-label">
+                Kullanıcı adı
+                <input
+                  className="auth-input"
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  required
+                  autoComplete="username"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  placeholder="ahmet.yilmaz"
+                />
+              </label>
+
+              <label className="auth-label">
+                PIN
+                <input
+                  className="auth-input"
+                  type="password"
+                  inputMode="numeric"
+                  pattern="\d{6}"
+                  maxLength={6}
+                  value={pin}
+                  onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  required
+                  autoComplete="current-password"
+                  placeholder="••••••"
+                />
+                <span className="auth-hint">Okul yönetiminizden aldığınız 6 haneli PIN.</span>
+              </label>
+
+              {authError && (
+                <div className="auth-error-wrap">
+                  <InlineError error={authError} context="auth" />
+                </div>
+              )}
+
+              <button className="auth-submit" type="submit" disabled={authSubmitting}>
+                {authSubmitting ? 'Lütfen bekleyin…' : 'Giriş Yap'}
+              </button>
+            </form>
           ) : null}
-
-          <form className="auth-form" onSubmit={handleAuthSubmit}>
-            {mode === 'signup' && (
-              <>
-                <label className="auth-label">
-                  Ad Soyad
-                  <input
-                    className="auth-input"
-                    type="text"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    autoComplete="name"
-                    placeholder="Adınız Soyadınız"
-                  />
-                </label>
-
-                {!tenantSchoolId && (
-                  <label className="auth-label">
-                    Okul Kodu
-                    <input
-                      className="auth-input auth-input--code"
-                      type="text"
-                      value={schoolCode}
-                      onChange={(e) => setSchoolCode(e.target.value.toUpperCase())}
-                      required
-                      autoComplete="off"
-                      autoCapitalize="characters"
-                      spellCheck={false}
-                      placeholder="MEMNUN1"
-                    />
-                    <span className="auth-hint">
-                      Okul yönetiminizden aldığınız davet kodunu girin.
-                    </span>
-                  </label>
-                )}
-              </>
-            )}
-
-            <label className="auth-label">
-              E-posta
-              <input
-                className="auth-input"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                autoComplete="email"
-                placeholder="ornek@email.com"
-              />
-            </label>
-
-            <label className="auth-label">
-              Şifre
-              <input
-                className="auth-input"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={6}
-                autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-                placeholder="••••••••"
-              />
-            </label>
-
-            {authError && (
-              <div className="auth-error-wrap">
-                <InlineError error={authError} context="auth" />
-              </div>
-            )}
-
-            <button className="auth-submit" type="submit" disabled={authSubmitting}>
-              {authSubmitting
-                ? 'Lütfen bekleyin…'
-                : mode === 'login'
-                  ? 'Giriş Yap'
-                  : 'Hesap Oluştur'}
-            </button>
-
-            <button
-              className="auth-link"
-              type="button"
-              onClick={() => {
-                setMode(mode === 'login' ? 'signup' : 'login');
-                setAuthError(null);
-                setSchoolCode('');
-              }}
-            >
-              {mode === 'login'
-                ? 'Hesabınız yok mu? Kaydolun'
-                : 'Zaten hesabınız var mı? Giriş yapın'}
-            </button>
-          </form>
         </div>
       </main>
     </>
@@ -267,6 +210,9 @@ function AppRoutes() {
       {profile.role === USER_ROLES.director && (
         <DirectorDashboard profile={profile} schoolId={schoolId} onSignOut={signOut} />
       )}
+      {profile.role === USER_ROLES.counselor && (
+        <CounselorDashboard profile={profile} schoolId={schoolId} onSignOut={signOut} />
+      )}
       {profile.role === USER_ROLES.teacher && (
         <AdminDashboard profile={profile} schoolId={schoolId} onSignOut={signOut} />
       )}
@@ -275,6 +221,7 @@ function AppRoutes() {
       )}
 
       {profile.role !== USER_ROLES.director &&
+        profile.role !== USER_ROLES.counselor &&
         profile.role !== USER_ROLES.teacher &&
         profile.role !== USER_ROLES.parent && (
           <main className="app-centered app-centered--wide">

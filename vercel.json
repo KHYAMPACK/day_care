@@ -6,6 +6,14 @@
     {
       "path": "/api/cron-calendar-reminders",
       "schedule": "0 15 * * *"
+    },
+    {
+      "path": "/api/cron-weekly-report-notify",
+      "schedule": "0 17 * * 0"
+    },
+    {
+      "path": "/api/cron-tuition-notify",
+      "schedule": "0 6 * * *"
     }
   ]
 }

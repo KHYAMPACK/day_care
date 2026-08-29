@@ -118,7 +118,7 @@ function isAlreadyFriendly(raw) {
 function mapAuthMessage(raw) {
   const lower = raw.toLowerCase();
   if (lower.includes('invalid login') || lower.includes('invalid_credentials')) {
-    return 'E-posta veya şifre hatalı.';
+    return 'Kullanıcı adı veya PIN hatalı.';
   }
   if (lower.includes('email not confirmed')) {
     return 'E-posta adresinizi onaylamanız gerekiyor.';
@@ -151,9 +151,35 @@ function mapSubscribeMessage(raw) {
 
 function mapCalendarMessage(raw) {
   const lower = raw.toLowerCase();
-  if (lower.includes('calendar_events') || lower.includes('schema cache')) {
+
+  if (
+    lower.includes('exam_kind') ||
+    lower.includes('exam_subject') ||
+    lower.includes('exam_term') ||
+    lower.includes('exam_round')
+  ) {
+    return 'Deneme sınav alanları henüz eklenmedi. supabase/migrations/026_exams.sql dosyasını Supabase SQL Editor’da çalıştırın.';
+  }
+
+  if (lower.includes('exam_sessions') || lower.includes('exam_student_results')) {
+    return 'Sınav oturum tabloları henüz oluşturulmadı. supabase/migrations/032_lgs_exam_system.sql dosyasını Supabase SQL Editor’da çalıştırın.';
+  }
+
+  if (
+    /relation .+calendar_events.+ does not exist/.test(lower) ||
+    (lower.includes('could not find the table') && lower.includes('calendar_events'))
+  ) {
     return 'Takvim tablosu henüz oluşturulmadı. supabase/migrations/021_academic_calendar.sql dosyasını Supabase SQL Editor’da çalıştırın.';
   }
+
+  if (lower.includes('schema cache') && lower.includes('calendar_events')) {
+    return 'Takvim tablosu var ama API henüz görmüyor. Supabase Dashboard → Project Settings → API → Reload schema deyip sayfayı yenileyin.';
+  }
+
+  if (lower.includes('calendar_events')) {
+    return 'Takvim işlemi başarısız oldu. 021, 026 ve 036 migration dosyalarını kontrol edin veya şema önbelleğini yenileyin.';
+  }
+
   return 'Takvim yüklenemedi. Lütfen tekrar deneyin.';
 }
 
@@ -233,10 +259,14 @@ export function formatAppError(error, context = 'general') {
   }
 
   if (isPermissionError(raw)) {
+    const message =
+      context === 'calendar'
+        ? 'Takvimde işlem yetkiniz yok. Rehberlikçi iseniz supabase/migrations/036_counselor_role.sql dosyasını Supabase SQL Editor’da çalıştırın.'
+        : 'Bu işlem için yetkiniz bulunmuyor.';
     return {
       type: 'permission',
       title: CONTEXT_TITLES[context] ?? CONTEXT_TITLES.general,
-      message: 'Bu işlem için yetkiniz bulunmuyor.',
+      message,
       icon: 'flower',
     };
   }
