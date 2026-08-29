@@ -53,6 +53,33 @@ function isDeleteBlockedError(message = '') {
   );
 }
 
+async function updateTeacherSubject(adminDb, userId, slug) {
+  let { error: profileError } = await adminDb
+    .from('profiles')
+    .update({ subject_slug: slug, subject_id: null })
+    .eq('id', userId);
+
+  if (!profileError) return;
+
+  if (/subject_slug|schema cache/i.test(profileError.message ?? '')) {
+    const { data: subject, error: subjectError } = await adminDb
+      .from('curriculum_subjects')
+      .select('id')
+      .eq('slug', slug)
+      .eq('grade', 5)
+      .maybeSingle();
+
+    if (subjectError) throw subjectError;
+
+    ({ error: profileError } = await adminDb
+      .from('profiles')
+      .update({ subject_id: subject?.id ?? null })
+      .eq('id', userId));
+  }
+
+  if (profileError) throw profileError;
+}
+
 async function handleCreate(req, res) {
   const auth = await verifyDirector(req);
   if (auth.error) {
@@ -121,29 +148,7 @@ async function handleCreate(req, res) {
   }
 
   if (role === 'teacher') {
-    const slug = String(subject_slug).trim();
-    let { error: profileError } = await adminDb
-      .from('profiles')
-      .update({ subject_slug: slug, subject_id: null })
-      .eq('id', userId);
-
-    if (profileError && /subject_slug|schema cache/i.test(profileError.message ?? '')) {
-      const { data: subject, error: subjectError } = await adminDb
-        .from('curriculum_subjects')
-        .select('id')
-        .eq('slug', slug)
-        .eq('grade', 5)
-        .maybeSingle();
-
-      if (subjectError) throw subjectError;
-
-      ({ error: profileError } = await adminDb
-        .from('profiles')
-        .update({ subject_id: subject?.id ?? null })
-        .eq('id', userId));
-    }
-
-    if (profileError) throw profileError;
+    await updateTeacherSubject(adminDb, userId, String(subject_slug).trim());
   }
 
   return res.status(200).json({
@@ -270,6 +275,14 @@ async function handleResetPin(req, res) {
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  if (typeof req.body === 'string') {
+    try {
+      req.body = JSON.parse(req.body);
+    } catch {
+      return res.status(400).json({ error: 'Geçersiz istek gövdesi.' });
+    }
   }
 
   const action = String(req.body?.action ?? '').trim();

@@ -1,8 +1,48 @@
 import { createClient } from '@supabase/supabase-js';
 import { getSupabaseAdmin } from './webPush.js';
-import { buildLoginEmail, normalizeUsername, slugifyFullName } from '../../src/lib/staffUsers.js';
 
-export { buildLoginEmail, normalizeUsername, slugifyFullName };
+const TR_CHAR_MAP = {
+  ç: 'c',
+  ğ: 'g',
+  ı: 'i',
+  ö: 'o',
+  ş: 's',
+  ü: 'u',
+  Ç: 'c',
+  Ğ: 'g',
+  İ: 'i',
+  I: 'i',
+  Ö: 'o',
+  Ş: 's',
+  Ü: 'u',
+};
+
+export function normalizeUsername(value) {
+  return String(value ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '');
+}
+
+export function slugifyFullName(fullName) {
+  let slug = String(fullName ?? '')
+    .trim()
+    .split('')
+    .map((char) => TR_CHAR_MAP[char] ?? char)
+    .join('')
+    .toLowerCase();
+
+  slug = slug.replace(/[^a-z0-9]+/g, '.').replace(/^\.+|\.+$/g, '');
+  return slug || 'user';
+}
+
+export function buildLoginEmail(schoolId, username) {
+  const normalized = normalizeUsername(username);
+  if (!schoolId || !normalized) {
+    throw new Error('Okul ve kullanıcı adı gerekli.');
+  }
+  return `${normalized}@${schoolId}.login.internal`;
+}
 
 export function generatePin() {
   return String(Math.floor(100000 + Math.random() * 900000));
