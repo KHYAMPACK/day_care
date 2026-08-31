@@ -1231,6 +1231,7 @@ function StudentManagementTab({
   const [billingMonthlyAmount, setBillingMonthlyAmount] = useState('');
   const [saving, setSaving] = useState(false);
   const [updatingClassId, setUpdatingClassId] = useState(null);
+  const [pendingClassByStudent, setPendingClassByStudent] = useState({});
   const [searchQuery, setSearchQuery] = useState('');
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
@@ -1426,6 +1427,7 @@ function StudentManagementTab({
 
   async function handleClassChange(student, nextClassId) {
     setUpdatingClassId(student.id);
+    setPendingClassByStudent((prev) => ({ ...prev, [student.id]: nextClassId }));
     setError(null);
     setSuccess(null);
 
@@ -1440,6 +1442,11 @@ function StudentManagementTab({
     setUpdatingClassId(null);
 
     if (updateError) {
+      setPendingClassByStudent((prev) => {
+        const next = { ...prev };
+        delete next[student.id];
+        return next;
+      });
       setError(updateError);
       return;
     }
@@ -1456,6 +1463,12 @@ function StudentManagementTab({
     });
 
     await onRefresh();
+    setPendingClassByStudent((prev) => {
+      const next = { ...prev };
+      delete next[student.id];
+      return next;
+    });
+    setSuccess(`${student.full_name} şubesi güncellendi.`);
   }
 
   return (
@@ -1631,30 +1644,45 @@ function StudentManagementTab({
             ) : (
               <ul className="match-list student-roster-list">
                 {filteredStudents.map((student) => (
-              <li key={student.id} className="match-item student-roster-item">
+              <li
+                key={student.id}
+                className={`match-item student-roster-item${
+                  updatingClassId === student.id ? ' student-roster-item--updating' : ''
+                }`}
+              >
                 <div className="student-roster-item__meta">
                   <span className="match-item__names">{student.full_name}</span>
                   {student.class_id ? (
                     <span className="student-roster-item__grade">
-                      {classNameById[student.class_id] ?? formatStudentGrade(student.grade)}
+                      {classNameById[pendingClassByStudent[student.id] ?? student.class_id] ??
+                        classNameById[student.class_id] ??
+                        formatStudentGrade(student.grade)}
                     </span>
                   ) : (
                     <span className="dash-hint">Şube atanmadı</span>
                   )}
-                  <select
-                    className="dash-input"
-                    value={student.class_id ?? ''}
-                    onChange={(event) => handleClassChange(student, event.target.value)}
-                    disabled={updatingClassId === student.id || saving}
-                    aria-label={`${student.full_name} şubesi`}
-                  >
-                    <option value="">Şube yok</option>
-                    {classes.map((klass) => (
-                      <option key={klass.id} value={klass.id}>
-                        {formatClassLabel(klass.grade, klass.name)}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="student-roster-item__class-select">
+                    <select
+                      className="dash-input"
+                      value={pendingClassByStudent[student.id] ?? student.class_id ?? ''}
+                      onChange={(event) => handleClassChange(student, event.target.value)}
+                      disabled={updatingClassId === student.id || saving}
+                      aria-busy={updatingClassId === student.id}
+                      aria-label={`${student.full_name} şubesi`}
+                    >
+                      <option value="">Şube yok</option>
+                      {classes.map((klass) => (
+                        <option key={klass.id} value={klass.id}>
+                          {formatClassLabel(klass.grade, klass.name)}
+                        </option>
+                      ))}
+                    </select>
+                    {updatingClassId === student.id ? (
+                      <span className="student-roster-item__spinner" aria-hidden="true">
+                        <span className="dash-spinner" />
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
                 {canDeleteStaff ? (
                   <button

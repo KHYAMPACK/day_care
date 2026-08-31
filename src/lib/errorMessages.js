@@ -239,6 +239,24 @@ function mapAccountingMessage(raw) {
     return 'Kayıt tablosu henüz oluşturulmadı. supabase/migrations/043_school_activity_logs.sql dosyasını Supabase SQL Editor’da çalıştırın.';
   }
 
+  if (
+    lower.includes('row-level security') ||
+    lower.includes('permission denied') ||
+    lower.includes('violates row-level security')
+  ) {
+    return 'Bu muhasebe işlemi için müdür yetkisi gerekir. Hesabınızda müdür rolü olduğundan emin olun.';
+  }
+
+  if (
+    lower.includes('json object requested') ||
+    lower.includes('0 rows') ||
+    lower.includes('pgrst116')
+  ) {
+    return 'Kayıt güncellenemedi. Sayfayı yenileyip tekrar deneyin.';
+  }
+
+  if (raw) return raw;
+
   return 'Muhasebe işlemi tamamlanamadı. Lütfen tekrar deneyin.';
 }
 

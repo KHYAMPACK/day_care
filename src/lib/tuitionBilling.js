@@ -37,6 +37,12 @@ export function tuitionSchemaMissingError() {
 export const BILLING_SELECT =
   'id, school_id, student_id, monthly_amount, billing_start_date, is_active, created_at, updated_at, students ( id, full_name, class_id, classes ( grade, name ) )';
 
+const BILLING_WRITE_SELECT =
+  'id, school_id, student_id, monthly_amount, billing_start_date, is_active, created_at, updated_at';
+
+const CYCLE_WRITE_SELECT =
+  'id, school_id, student_id, period_start, period_end, due_date, amount, status, paid_at, recorded_by, created_at, updated_at';
+
 export const CYCLE_SELECT = `
   id, school_id, student_id, period_start, period_end, due_date, amount, status,
   paid_at, recorded_by, reminder_sent_at, overdue_notified_at, created_at, updated_at,
@@ -176,25 +182,36 @@ export async function saveStudentBilling(schoolId, payload) {
         .from('accounting_student_billing')
         .update(row)
         .eq('id', payload.id)
-        .select(BILLING_SELECT)
-        .single(),
+        .select(BILLING_WRITE_SELECT)
+        .maybeSingle(),
       schoolId
     );
     if (error) {
       if (isTuitionSchemaMissing(error)) throw tuitionSchemaMissingError();
       throw error;
     }
+    if (!data) {
+      throw new Error('Ödeme planı güncellenemedi. Oturumu yenileyip tekrar deneyin.');
+    }
     return data;
   }
 
-  const { data, error } = await supabase
-    .from('accounting_student_billing')
-    .upsert(row, { onConflict: 'student_id' })
-    .select(BILLING_SELECT)
-    .single();
+  const { data, error } = await withSchoolFilter(
+    supabase
+      .from('accounting_student_billing')
+      .upsert(row, { onConflict: 'student_id' })
+      .select(BILLING_WRITE_SELECT)
+      .maybeSingle(),
+    schoolId
+  );
   if (error) {
     if (isTuitionSchemaMissing(error)) throw tuitionSchemaMissingError();
     throw error;
+  }
+  if (!data) {
+    throw new Error(
+      'Ödeme planı kaydedilemedi. Müdür yetkinizi ve okul eşleşmesini kontrol edip tekrar deneyin.'
+    );
   }
   return data;
 }
@@ -248,14 +265,20 @@ export async function ensureCurrentCycle(schoolId, billing, referenceDate) {
   }
   if (existing) return existing;
 
-  const { data, error } = await supabase
-    .from('accounting_tuition_cycles')
-    .insert(row)
-    .select(CYCLE_SELECT)
-    .single();
+  const { data, error } = await withSchoolFilter(
+    supabase
+      .from('accounting_tuition_cycles')
+      .insert(row)
+      .select(CYCLE_WRITE_SELECT)
+      .maybeSingle(),
+    schoolId
+  );
   if (error) {
     if (isTuitionSchemaMissing(error)) throw tuitionSchemaMissingError();
     throw error;
+  }
+  if (!data) {
+    throw new Error('Ödeme dönemi oluşturulamadı. Lütfen tekrar deneyin.');
   }
   return data;
 }
@@ -272,11 +295,17 @@ export async function markCyclePaid(schoolId, cycleId, directorId) {
         recorded_by: directorId ?? null,
       })
       .eq('id', cycleId)
-      .select(CYCLE_SELECT)
-      .single(),
+      .select(CYCLE_WRITE_SELECT)
+      .maybeSingle(),
     schoolId
   );
-  if (error) throw error;
+  if (error) {
+    if (isTuitionSchemaMissing(error)) throw tuitionSchemaMissingError();
+    throw error;
+  }
+  if (!data) {
+    throw new Error('Ödeme kaydı güncellenemedi. Sayfayı yenileyip tekrar deneyin.');
+  }
   return data;
 }
 
