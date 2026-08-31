@@ -301,6 +301,25 @@ export async function loadSchoolAssignments(schoolId) {
   return hydrated.filter((row) => row.classes?.school_id === schoolId);
 }
 
+export async function loadStudentsForTeacherAssignments(teacherId, schoolId) {
+  if (!teacherId) return [];
+
+  const assignments = await loadTeacherAssignments(teacherId);
+  const classIds = [...new Set(assignments.map((row) => row.class_id).filter(Boolean))];
+  if (!classIds.length) return [];
+
+  const { data, error } = await withSchoolFilter(
+    supabase
+      .from('students')
+      .select('id, full_name, grade, class_id')
+      .in('class_id', classIds)
+      .order('full_name'),
+    schoolId
+  );
+  if (error) throw error;
+  return data ?? [];
+}
+
 export async function loadCurriculumWeekNote({ classId, subjectId, weekIndex }) {
   if (!classId || !subjectId || !weekIndex) return null;
   const { data, error } = await supabase

@@ -9,6 +9,9 @@ import {
   saveClassExamEntry,
 } from '../../lib/lgsExam';
 import { InlineError, SendButton, SuccessMessage } from '../dashboardUi';
+import { recordSchoolActivity } from '../../lib/activityLog';
+import { useAuth } from '../../context/AuthContext';
+import { supabase } from '../../lib/supabase';
 
 function initDetailedEntry(studentId, existingRows) {
   const bySubject = {};
@@ -56,6 +59,7 @@ export default function ExamManualEntry({
   embedded = false,
   hideTitle = false,
 }) {
+  const { profile } = useAuth();
   const config = resolveExamConfig(school);
   const shellClass = embedded ? 'exam-workspace-block' : 'dash-card';
   const [mode, setMode] = useState(config.detailedEntry ? 'detailed' : 'quick');
@@ -150,6 +154,14 @@ export default function ExamManualEntry({
         totalNet: mode === 'quick' ? entry.totalNet : rowTotalNet(entry),
       }));
       await saveClassExamEntry({ sessionId, entries: payload, mode });
+      recordSchoolActivity(supabase, profile, {
+        schoolId: school?.id,
+        category: 'exam',
+        action: 'saved',
+        summary: `Sınav sonuçları kaydedildi: ${sessionTitle ?? 'Deneme'} · ${payload.length} öğrenci`,
+        targetType: 'exam_session',
+        targetId: sessionId,
+      });
       setSuccess('Sonuçlar kaydedildi.');
       onSaved?.();
     } catch (saveError) {

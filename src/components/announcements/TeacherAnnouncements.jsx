@@ -15,6 +15,7 @@ import {
   normalizePhone,
   sortAnnouncements,
 } from '../../lib/announcements';
+import { recordSchoolActivity } from '../../lib/activityLog';
 
 import TeacherParentMessages from '../messages/TeacherParentMessages';
 
@@ -112,6 +113,12 @@ export default function TeacherAnnouncements({
           schoolId
         );
         if (updateError) throw updateError;
+        recordSchoolActivity(supabase, profile, {
+          schoolId,
+          category: 'announcement',
+          action: 'updated',
+          summary: `Duyuru güncellendi: ${trimmedTitle}`,
+        });
         setSuccess('Duyuru güncellendi.');
       } else {
         const { error: insertError } = await supabase.from('announcements').insert(
@@ -124,6 +131,12 @@ export default function TeacherAnnouncements({
           })
         );
         if (insertError) throw insertError;
+        recordSchoolActivity(supabase, profile, {
+          schoolId,
+          category: 'announcement',
+          action: 'created',
+          summary: `Duyuru oluşturuldu: ${trimmedTitle}`,
+        });
 
         const studentIds = students.map((student) => student.id);
         if (studentIds.length > 0) {
@@ -168,6 +181,13 @@ export default function TeacherAnnouncements({
       setError(deleteError);
       return;
     }
+
+    recordSchoolActivity(supabase, profile, {
+      schoolId,
+      category: 'announcement',
+      action: 'deleted',
+      summary: `Duyuru silindi: ${item.title}`,
+    });
 
     if (editingId === item.id) {
       resetComposer();

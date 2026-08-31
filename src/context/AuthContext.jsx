@@ -2,8 +2,9 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { supabase } from '../lib/supabase';
 import { applySchoolTheme, clearSchoolTheme } from '../lib/schoolTheme';
 
-const PROFILE_SELECT =
-  'id, role, full_name, email, username, school_id, phone, subject_id, subject_slug, curriculum_subjects ( id, name, grade, color, icon, slug )';
+const PROFILE_SELECT_BASE =
+  'id, role, primary_role, full_name, email, username, school_id, phone, subject_id, subject_slug, curriculum_subjects ( id, name, grade, color, icon, slug )';
+const PROFILE_SELECT = `${PROFILE_SELECT_BASE}, profile_roles ( role )`;
 const SCHOOL_SELECT = 'id, name, logo_url, primary_color, secondary_color, custom_domain, features';
 
 const AuthContext = createContext(null);
@@ -61,17 +62,41 @@ export function AuthProvider({ children }) {
   }, []);
 
   const fetchProfile = useCallback(async (userId, userEmail, userMetadata) => {
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('profiles')
       .select(PROFILE_SELECT)
       .eq('id', userId)
       .maybeSingle();
+
+    if (error && /profile_roles|schema cache/i.test(error.message ?? '')) {
+      ({ data, error } = await supabase
+        .from('profiles')
+        .select(PROFILE_SELECT_BASE)
+        .eq('id', userId)
+        .maybeSingle());
+    }
+
+    if (error && /primary_role|schema cache/i.test(error.message ?? '')) {
+      ({ data, error } = await supabase
+        .from('profiles')
+        .select(
+          'id, role, full_name, email, username, school_id, phone, subject_id, subject_slug, curriculum_subjects ( id, name, grade, color, icon, slug ), profile_roles ( role )'
+        )
+        .eq('id', userId)
+        .maybeSingle());
+      if (data && data.primary_role == null) {
+        data.primary_role = data.role;
+      }
+    }
 
     if (error) {
       throw error;
     }
 
     if (data) {
+      if (!data.primary_role && data.role) {
+        data.primary_role = data.role;
+      }
       return data;
     }
 

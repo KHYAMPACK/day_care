@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { supabase } from '../../lib/supabase';
+import { recordSchoolActivity } from '../../lib/activityLog';
 import { formatClassLabel, getTeacherSubjectSlug, getTeacherBransDisplay } from '../../lib/curriculum';
 import {
   academicWeekIndex,
@@ -212,6 +214,12 @@ export default function TeacherAtlasQuestions({
     setSuccess(null);
     try {
       await saveAtlasLessonActivity({ sessionId: selectedSession.id, lessonType: 'lecture' });
+      recordSchoolActivity(supabase, profile, {
+        schoolId,
+        category: 'atlas',
+        action: 'saved',
+        summary: `Atlas konu anlatımı kaydedildi: ${formatClassLabel(selectedSession.classes?.grade, selectedSession.classes?.name)}`,
+      });
       setSuccess('Konu anlatımı kaydedildi.');
       closeSessionEditor();
       await refresh();
@@ -247,6 +255,12 @@ export default function TeacherAtlasQuestions({
         assessmentTypeId,
         questionsTotal: total,
         results,
+      });
+      recordSchoolActivity(supabase, profile, {
+        schoolId,
+        category: 'atlas',
+        action: 'saved',
+        summary: `Atlas soru kaydı tamamlandı: ${formatClassLabel(selectedSession.classes?.grade, selectedSession.classes?.name)} · ${total} soru`,
       });
       setSuccess('Soru kaydı tamamlandı.');
       closeSessionEditor();

@@ -87,15 +87,58 @@ export async function verifyDirector(req) {
 
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('id, role, school_id')
+    .select('id, role, primary_role, school_id')
     .eq('id', user.id)
     .single();
 
-  if (profileError || profile?.role !== 'director' || !profile?.school_id) {
+  if (profileError || !profile?.school_id) {
     return { error: 'Only directors can manage users', status: 403 };
   }
 
-  return { profile, adminDb: getSupabaseAdmin().adminDb };
+  const adminDb = getSupabaseAdmin().adminDb;
+  const { data: roleRows, error: rolesError } = await adminDb
+    .from('profile_roles')
+    .select('role')
+    .eq('profile_id', user.id)
+    .eq('role', 'director');
+
+  const isDirector =
+    (!rolesError && (roleRows ?? []).length > 0) || profile.role === 'director';
+
+  if (!isDirector) {
+    return { error: 'Only directors can manage users', status: 403 };
+  }
+
+  return { profile, adminDb };
+}
+
+export async function verifyFullDirector(req) {
+  const auth = await verifyDirector(req);
+  if (auth.error) return auth;
+
+  const { profile, adminDb } = auth;
+
+  let isFull = profile.primary_role === 'director';
+
+  if (!isFull) {
+    const { data: row, error } = await adminDb
+      .from('profiles')
+      .select('primary_role')
+      .eq('id', profile.id)
+      .maybeSingle();
+
+    if (error && !/primary_role|schema cache/i.test(error.message ?? '')) {
+      return { error: error.message, status: 500 };
+    }
+
+    isFull = row?.primary_role === 'director';
+  }
+
+  if (!isFull) {
+    return { error: 'Bu işlem yalnızca asıl müdür tarafından yapılabilir.', status: 403 };
+  }
+
+  return { profile, adminDb };
 }
 
 export async function generateUniqueUsername(adminDb, schoolId, fullName) {
@@ -149,6 +192,7 @@ export async function createStaffAuthUser(adminDb, { schoolId, fullName, role, u
       full_name: fullName,
       school_id: schoolId,
       role,
+      primary_role: role,
       username,
       email: loginEmail,
       login_pin: pin,
@@ -156,6 +200,14 @@ export async function createStaffAuthUser(adminDb, { schoolId, fullName, role, u
     .eq('id', userId);
 
   if (profileError) throw profileError;
+
+  const { error: roleError } = await adminDb
+    .from('profile_roles')
+    .upsert({ profile_id: userId, role }, { onConflict: 'profile_id,role' });
+
+  if (roleError && !/profile_roles|schema cache/i.test(roleError.message ?? '')) {
+    throw roleError;
+  }
 
   return userId;
 }

@@ -4,6 +4,9 @@ Bu klasöre aşağıdaki dosyalar eklendiğinde CSV parser ve cevap anahtarı im
 
 | Dosya | Açıklama |
 |-------|----------|
+| `answer-key.sample.csv` | Soru no, ders, doğru şık, konu etiketi |
+| `mock-deneme-cevap-anahtari.csv` | **Test:** 30 soruluk mini deneme cevap anahtarı |
+| `mock-deneme-ogrenci-cevaplari.csv` | **Test:** 6 öğrenci (5 eşleşir, 1 bilinmeyen) · s1…s30 |
 | `answer-key.json` | 90 soru, doğru şık, konu etiketi |
 | `results-generic.csv` | student_name / okul_no + ders netleri veya D/Y/B |
 | `results-atlas.csv` | Atlas export formatı (örnek) |
@@ -20,6 +23,14 @@ Detaylı format:
 
 ```csv
 student_name,turkce_d,turkce_y,turkce_b,matematik_d,matematik_y,matematik_b
+```
+
+Cevap anahtarı CSV örneği:
+
+```csv
+question_index,subject_code,correct_choice,topic_label
+1,turkce,B,Paragrafta Anlam
+2,turkce,C,Sözcükte Anlam
 ```
 
 JSON cevap anahtarı örneği:

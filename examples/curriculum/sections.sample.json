@@ -1,0 +1,16 @@
+[
+  {
+    "grade": 5,
+    "slug": "matematik",
+    "units": [
+      {
+        "title": "Geometrik Şekiller",
+        "sections": [
+          "Temel Geometrik Kavramlar ve Çizimler",
+          "Açıların Ölçüsü",
+          "Çokgenler"
+        ]
+      }
+    ]
+  }
+]

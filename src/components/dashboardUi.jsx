@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { formatAppError, useOnlineStatus } from '../lib/errorMessages';
+import { formatRoleLabel } from '../lib/roles';
 import { Avatar } from './ui/Avatar';
 import { Icon } from './ui/Icon';
 
@@ -76,6 +77,7 @@ export function PageHeader({
   notificationCount = 0,
   notificationsOpen = false,
   notificationsLabel = 'Bildirimler',
+  roleSwitcher = null,
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const profileRef = useRef(null);
@@ -144,6 +146,27 @@ export function PageHeader({
           <div className="page-header__menu" role="menu">
             <p className="page-header__menu-name">{profileName}</p>
             {parsed.role ? <p className="page-header__menu-role">{parsed.role}</p> : null}
+            {roleSwitcher?.staffRoles?.length > 1 ? (
+              <div className="page-header__menu-roles" role="group" aria-label="Aktif rol">
+                {roleSwitcher.staffRoles.map((role) => (
+                  <button
+                    key={role}
+                    type="button"
+                    className={`page-header__menu-role-btn${
+                      role === roleSwitcher.activeRole ? ' page-header__menu-role-btn--active' : ''
+                    }`}
+                    role="menuitemradio"
+                    aria-checked={role === roleSwitcher.activeRole}
+                    onClick={() => {
+                      roleSwitcher.onSelectRole(role);
+                      setMenuOpen(false);
+                    }}
+                  >
+                    {formatRoleLabel(role)}
+                  </button>
+                ))}
+              </div>
+            ) : null}
             {onSignOut ? (
               <button
                 type="button"

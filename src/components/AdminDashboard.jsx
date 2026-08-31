@@ -2,7 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { withSchoolFilter } from '../lib/tenant';
 import { notifyParentsForMessage } from '../lib/sendPush';
+import { recordSchoolActivity } from '../lib/activityLog';
 import { useAuth } from '../context/AuthContext';
+import { useStaffHeader } from '../hooks/useStaffHeader';
 import {
   AppNavbar,
   ErrorMessage,
@@ -15,6 +17,7 @@ import {
 import { formatRelativeTimeTr } from '../utils/formatTime';
 import { getTeacherTabs, defaultTeacherTab } from '../lib/demoData';
 import { hasAtlasSchedule, hasHomeworkTracking } from '../lib/schoolFeatures';
+import { loadStudentsForTeacherAssignments } from '../lib/curriculum';
 import { DemoBottomNav, getTabFromSearch, useDemoNav } from './demo/DemoKit';
 import { Icon } from './ui/Icon';
 import { Avatar } from './ui/Avatar';
@@ -214,16 +217,15 @@ export default function AdminDashboard({ profile, schoolId, onSignOut }) {
       setDataError(null);
       setDataWarning(null);
 
-      let studentsRes = await withSchoolFilter(
-        supabase.from('students').select('id, full_name, grade').order('full_name'),
-        schoolId
-      );
-
-      if (studentsRes.error && /grade/i.test(studentsRes.error.message ?? '')) {
-        studentsRes = await withSchoolFilter(
-          supabase.from('students').select('id, full_name').order('full_name'),
-          schoolId
-        );
+      let assignedStudents = [];
+      try {
+        assignedStudents = await loadStudentsForTeacherAssignments(profile?.id, schoolId);
+      } catch (assignmentError) {
+        if (mounted) {
+          setDataError(assignmentError);
+          setDataLoading(false);
+        }
+        return;
       }
 
       const templatesRes = await withSchoolFilter(
@@ -233,7 +235,7 @@ export default function AdminDashboard({ profile, schoolId, onSignOut }) {
 
       if (!mounted) return;
 
-      const firstError = studentsRes.error ?? templatesRes.error ?? null;
+      const firstError = templatesRes.error ?? null;
 
       if (firstError) {
         setDataError(firstError);
@@ -241,12 +243,12 @@ export default function AdminDashboard({ profile, schoolId, onSignOut }) {
         return;
       }
 
-      setStudents(studentsRes.data ?? []);
+      setStudents(assignedStudents);
       setTemplates(templatesRes.data ?? []);
 
-      if ((studentsRes.data ?? []).length === 0) {
+      if (assignedStudents.length === 0) {
         setDataWarning(
-          'Size atanan öğrenci bulunmuyor. Müdürünüzden sınıf ataması yapmasını isteyin.'
+          'Size atanan şube yok. Müdür Yönetim → Şube Atama bölümünden şube ataması yapmalı.'
         );
       }
 
@@ -264,7 +266,7 @@ export default function AdminDashboard({ profile, schoolId, onSignOut }) {
     return () => {
       mounted = false;
     };
-  }, [fetchMessages, schoolId]);
+  }, [fetchMessages, schoolId, profile?.id]);
 
   function toggleStudentSelection(studentId) {
     setSelectedStudentIds((current) =>
@@ -336,6 +338,17 @@ export default function AdminDashboard({ profile, schoolId, onSignOut }) {
       const { error } = await supabase.from('messages').insert(rows);
       if (error) throw error;
 
+      const summaryLabel =
+        selectedStudents.length === 1
+          ? selectedStudents[0].full_name
+          : `${selectedStudents.length} öğrenci`;
+      recordSchoolActivity(supabase, profile, {
+        schoolId,
+        category: 'message',
+        action: 'sent',
+        summary: `Veliye mesaj gönderildi: ${summaryLabel}`,
+      });
+
       let pushNote = '';
       try {
         const pushResult = await triggerPushNotifications({
@@ -386,10 +399,13 @@ export default function AdminDashboard({ profile, schoolId, onSignOut }) {
     }
   }
 
+  const { roleLabel, roleSwitcher } = useStaffHeader();
+
   const teacherNavbarProps = useMemo(
     () => ({
       schoolName,
-      roleLabel: 'Öğretmen',
+      roleLabel,
+      roleSwitcher,
       logoUrl: navLogoUrl,
       userName: displayName,
       onSignOut,
@@ -401,7 +417,17 @@ export default function AdminDashboard({ profile, schoolId, onSignOut }) {
           }
         : {}),
     }),
-    [schoolName, navLogoUrl, displayName, onSignOut, atlasSchedule, atlasAlerts.totalCount, notificationsOpen]
+    [
+      schoolName,
+      roleLabel,
+      roleSwitcher,
+      navLogoUrl,
+      displayName,
+      onSignOut,
+      atlasSchedule,
+      atlasAlerts.totalCount,
+      notificationsOpen,
+    ]
   );
 
   useEffect(() => {
@@ -456,6 +482,8 @@ export default function AdminDashboard({ profile, schoolId, onSignOut }) {
               showEmptyState
               onCatchUp={handleAlertCatchUp}
               onRefresh={atlasAlerts.refresh}
+              profile={profile}
+              schoolId={schoolId}
             />
           </section>
         </div>
@@ -468,6 +496,8 @@ export default function AdminDashboard({ profile, schoolId, onSignOut }) {
             hideQuestionAlerts={demoNav.tab === 'questions'}
             onCatchUp={handleAlertCatchUp}
             onRefresh={atlasAlerts.refresh}
+            profile={profile}
+            schoolId={schoolId}
           />
         ) : null}
         <AnimatedView viewKey={`${demoNav.tab}-${showMessages ? 'messages' : 'main'}`}>
@@ -518,7 +548,7 @@ export default function AdminDashboard({ profile, schoolId, onSignOut }) {
               <h2 className="dash-section-title">Sınıfınız</h2>
               {students.length === 0 ? (
                 <p className="dash-hint">
-                  Size atanan öğrenci yok. Müdürünüz Öğretmen Atama sekmesinden sınıf
+                  Size atanan öğrenci yok. Müdürünüz Yönetim → Şube Atama bölümünden şube
                   ataması yaptığında burada görünecek.
                 </p>
               ) : (

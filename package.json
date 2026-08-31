@@ -11,7 +11,8 @@
     "seed-demo": "node scripts/seed-demo-school.mjs",
     "reset-demo-teacher": "node scripts/reset-demo-teacher.mjs",
     "reset-demo-parent": "node scripts/reset-demo-parent.mjs",
-    "create-director": "node scripts/create-director.mjs"
+    "create-director": "node scripts/create-director.mjs",
+    "generate-algorithm-pdf": "node scripts/generate-atlas-algorithm-pdf.mjs"
   },
   "dependencies": {
     "@expo-google-fonts/noto-sans": "^0.4.2",

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { LGS_SUBJECTS } from '../../lib/lgsExam';
+import { emptyQuestionsFromSubjects } from '../../lib/examAnswerKeyImport';
 import {
   loadAnswerKeys,
   loadQuestionsForAnswerKey,
@@ -7,30 +7,17 @@ import {
   saveAnswerKeyWithQuestions,
 } from '../../lib/examAnalysis';
 import { InlineError, SendButton, SuccessMessage } from '../dashboardUi';
+import AnswerKeyReviewGrid from './AnswerKeyReviewGrid';
 
-function emptyQuestions() {
-  const rows = [];
-  let globalIndex = 0;
-  for (const subject of LGS_SUBJECTS) {
-    for (let i = 1; i <= subject.questions; i += 1) {
-      globalIndex += 1;
-      rows.push({
-        question_index: globalIndex,
-        subject_code: subject.code,
-        booklet_a_no: i,
-        booklet_b_no: i,
-        correct_choice: '',
-        topic_label: '',
-      });
-    }
-  }
-  return rows;
-}
-
-export default function DirectorExamAnswerKey({ schoolId, sessions = [], embedded = false }) {
+export default function DirectorExamAnswerKey({
+  schoolId,
+  sessions = [],
+  embedded = false,
+  defaultSessionId = '',
+}) {
   const [keys, setKeys] = useState([]);
   const [selectedKeyId, setSelectedKeyId] = useState('');
-  const [questions, setQuestions] = useState(() => emptyQuestions());
+  const [questions, setQuestions] = useState(() => emptyQuestionsFromSubjects());
   const [title, setTitle] = useState('');
   const [sessionId, setSessionId] = useState('');
   const [jsonText, setJsonText] = useState('');
@@ -55,6 +42,14 @@ export default function DirectorExamAnswerKey({ schoolId, sessions = [], embedde
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (defaultSessionId) {
+      setSessionId(defaultSessionId);
+      const session = sessions.find((row) => row.id === defaultSessionId);
+      if (session?.title) setTitle(session.title);
+    }
+  }, [defaultSessionId, sessions]);
 
   useEffect(() => {
     if (!selectedKeyId) return;
@@ -101,7 +96,7 @@ export default function DirectorExamAnswerKey({ schoolId, sessions = [], embedde
       setSuccess('Cevap anahtarı kaydedildi.');
       setTitle('');
       setSessionId('');
-      setQuestions(emptyQuestions());
+      setQuestions(emptyQuestionsFromSubjects());
       await load();
     } catch (saveError) {
       setError(saveError);
@@ -160,45 +155,7 @@ export default function DirectorExamAnswerKey({ schoolId, sessions = [], embedde
           JSON uygula
         </button>
 
-        <div className="exam-grid-wrap exam-answer-key-grid">
-          <table className="exam-entry-grid">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Ders</th>
-                <th>A</th>
-                <th>B</th>
-                <th>CVP</th>
-                <th>Konu</th>
-              </tr>
-            </thead>
-            <tbody>
-              {questions.map((q) => (
-                <tr key={q.question_index}>
-                  <td>{q.question_index}</td>
-                  <td>{q.subject_code}</td>
-                  <td>{q.booklet_a_no}</td>
-                  <td>{q.booklet_b_no}</td>
-                  <td>
-                    <input
-                      className="exam-cell-input"
-                      maxLength={1}
-                      value={q.correct_choice ?? ''}
-                      onChange={(e) => patchQuestion(q.question_index, 'correct_choice', e.target.value)}
-                    />
-                  </td>
-                  <td>
-                    <input
-                      className="exam-cell-input exam-cell-input--wide"
-                      value={q.topic_label ?? ''}
-                      onChange={(e) => patchQuestion(q.question_index, 'topic_label', e.target.value)}
-                    />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <AnswerKeyReviewGrid questions={questions} onPatch={patchQuestion} />
 
         <SendButton sending={saving} label="Cevap anahtarını kaydet" sendingLabel="Kaydediliyor…" />
       </form>

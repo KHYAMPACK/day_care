@@ -1,19 +1,65 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { formatCalendarDateTr } from '../../lib/calendar';
 import { formatClassLabel } from '../../lib/curriculum';
 import {
   buildProgressSeries,
   buildStudentExamCard,
-  groupSubjectResultsByStudent,
   LGS_SUBJECTS,
 } from '../../lib/lgsExam';
+import {
+  loadQuestionsForAnswerKey,
+  loadSessionStudentAnswers,
+} from '../../lib/examAnalysis';
+import { buildStudentTopicAnalysis } from '../../lib/studentGaps';
+import { StudentWeakTopicsSummary } from '../gaps/StudentGapPanel';
 import ExamProgressChart, { ExamSubjectBars } from './ExamProgressChart';
+import { InlineError } from '../dashboardUi';
+
+function SessionWeakTopics({ session, studentId }) {
+  const [topics, setTopics] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (!session?.id || !session?.answer_key_id || !studentId) return;
+    let mounted = true;
+    (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const [answers, questions] = await Promise.all([
+          loadSessionStudentAnswers(session.id),
+          loadQuestionsForAnswerKey(session.answer_key_id),
+        ]);
+        if (!mounted) return;
+        setTopics(
+          buildStudentTopicAnalysis({ questions, answers, studentId }).filter(
+            (row) => row.wrong + row.blank > 0
+          )
+        );
+      } catch (loadError) {
+        if (mounted) setError(loadError);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [session?.id, session?.answer_key_id, studentId]);
+
+  if (!session?.answer_key_id) return null;
+  if (loading) return <p className="dash-hint">Konu analizi yükleniyor…</p>;
+  if (error) return <InlineError error={error} context="calendar" />;
+  if (!topics.length) return null;
+
+  return <StudentWeakTopicsSummary topics={topics} limit={5} />;
+}
 
 export default function ParentExamReport({ student, klass, subjectResults, rankings }) {
   const bySession = useMemo(() => {
     const studentSubjects = (subjectResults ?? []).filter((r) => r.student_id === student?.id);
     const studentRankings = (rankings ?? []).filter((r) => r.student_id === student?.id);
-    const subjectMap = groupSubjectResultsByStudent(studentSubjects);
     const sessionIds = new Set([
       ...studentSubjects.map((r) => r.exam_sessions?.id ?? r.session_id),
       ...studentRankings.map((r) => r.session_id),
@@ -25,7 +71,9 @@ export default function ParentExamReport({ student, klass, subjectResults, ranki
         const subjectRows = studentSubjects.filter(
           (r) => (r.exam_sessions?.id ?? r.session_id) === sessionId
         );
-        const session = subjectRows[0]?.exam_sessions ?? studentRankings.find((r) => r.session_id === sessionId)?.exam_sessions;
+        const session =
+          subjectRows[0]?.exam_sessions ??
+          studentRankings.find((r) => r.session_id === sessionId)?.exam_sessions;
         const ranking = studentRankings.find((r) => r.session_id === sessionId);
         return buildStudentExamCard({
           session,
@@ -83,6 +131,12 @@ export default function ParentExamReport({ student, klass, subjectResults, ranki
             )}
 
             <ExamSubjectBars subjects={card.subjects} />
+
+            <SessionWeakTopics
+              session={subjectResults.find((row) => row.exam_sessions?.id === card.sessionId)?.exam_sessions ??
+                rankings.find((row) => row.session_id === card.sessionId)?.exam_sessions}
+              studentId={student.id}
+            />
 
             <details className="exam-report-card__details">
               <summary>D/Y/B detayı</summary>

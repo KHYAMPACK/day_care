@@ -45,6 +45,9 @@ const supabase = createClient(supabaseUrl, serviceRoleKey, {
 const DEMO_SCHOOL = {
   name: 'Yıldızlar Demo Kreşi',
   school_code: 'DEMO123',
+  primary_color: '#7c3aed',
+  secondary_color: '#ede9fe',
+  logo_url: null,
 };
 
 const DEMO_TEACHER = {
@@ -337,14 +340,23 @@ async function resetDemoStudents(schoolId) {
 
   if (listError) throw listError;
 
+  const { data: schoolClasses, error: classesError } = await supabase
+    .from('classes')
+    .select('id')
+    .eq('school_id', schoolId);
+  if (classesError) throw classesError;
+
+  const classIds = (schoolClasses ?? []).map((row) => row.id);
+  if (classIds.length > 0) {
+    const { error: deleteAssignmentsError } = await supabase
+      .from('teacher_assignments')
+      .delete()
+      .in('class_id', classIds);
+    if (deleteAssignmentsError) throw deleteAssignmentsError;
+  }
+
   if ((existingStudents ?? []).length > 0) {
     const ids = existingStudents.map((row) => row.id);
-    const { error: deleteLinksError } = await supabase
-      .from('teacher_students')
-      .delete()
-      .in('student_id', ids);
-    if (deleteLinksError) throw deleteLinksError;
-
     const { error: deleteStudentsError } = await supabase
       .from('students')
       .delete()
@@ -368,22 +380,42 @@ async function insertStudents(schoolId) {
   return data;
 }
 
-async function assignStudentsToTeacher(teacherId, studentIds) {
+async function assignTeacherToClassAssignments(teacherId, classes, subjectSlug) {
   const { error: deleteError } = await supabase
-    .from('teacher_students')
+    .from('teacher_assignments')
     .delete()
     .eq('teacher_id', teacherId);
   if (deleteError) throw deleteError;
 
-  const links = studentIds.map((studentId) => ({
-    teacher_id: teacherId,
-    student_id: studentId,
-  }));
+  const rows = [];
+  for (const klass of classes) {
+    const { data: subject, error: subjectError } = await supabase
+      .from('curriculum_subjects')
+      .select('id')
+      .eq('grade', klass.grade)
+      .eq('slug', subjectSlug)
+      .maybeSingle();
+    if (subjectError) throw subjectError;
+    if (!subject?.id) {
+      console.warn(`No ${subjectSlug} subject for grade ${klass.grade}; skipping class ${klass.grade}.`);
+      continue;
+    }
+    rows.push({
+      teacher_id: teacherId,
+      class_id: klass.id,
+      subject_id: subject.id,
+    });
+  }
 
-  const { error } = await supabase.from('teacher_students').insert(links);
+  if (rows.length === 0) {
+    console.warn('No teacher_assignments created — check curriculum_subjects seed.');
+    return;
+  }
+
+  const { error } = await supabase.from('teacher_assignments').insert(rows);
   if (error) throw error;
 
-  console.log(`Assigned all ${studentIds.length} students to demo teacher.`);
+  console.log(`Created ${rows.length} şube assignment(s) for demo teacher.`);
 }
 
 async function resetTemplates(schoolId) {
@@ -414,10 +446,7 @@ async function main() {
   await resetDemoStudents(schoolId);
   const students = await insertStudents(schoolId);
   await distributeStudentsToClasses(schoolId, classes);
-  await assignStudentsToTeacher(
-    teacherId,
-    students.map((student) => student.id)
-  );
+  await assignTeacherToClassAssignments(teacherId, classes, DEMO_TEACHER.subject_slug);
 
   await resetTemplates(schoolId);
   await insertTemplates(schoolId);

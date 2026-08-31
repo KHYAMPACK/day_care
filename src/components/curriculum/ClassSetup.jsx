@@ -4,6 +4,7 @@ import { withSchoolFilter } from '../../lib/tenant';
 import { STUDENT_GRADES, formatStudentGrade } from '../../lib/calendar';
 import { formatClassLabel } from '../../lib/curriculum';
 import { InlineError, SendButton, SuccessMessage } from '../dashboardUi';
+import { Icon } from '../ui/Icon';
 
 export default function ClassSetup({ classes, students, schoolId, onRefresh }) {
   const [grade, setGrade] = useState('5');
@@ -139,19 +140,23 @@ export default function ClassSetup({ classes, students, schoolId, onRefresh }) {
           <p className="dash-hint">Henüz şube yok. Önce 5-A gibi bir şube ekleyin.</p>
         ) : (
           <ul className="assignment-chip-list cur-class-list">
-            {classes.map((klass) => (
-              <li key={klass.id} className="assignment-chip">
-                {formatClassLabel(klass.grade, klass.name)}
-                <button
-                  type="button"
-                  className="cur-chip-remove"
-                  onClick={() => handleDelete(klass)}
-                  disabled={deletingId === klass.id}
-                >
-                  {deletingId === klass.id ? '…' : 'Sil'}
-                </button>
-              </li>
-            ))}
+            {classes.map((klass) => {
+              const label = formatClassLabel(klass.grade, klass.name);
+              return (
+                <li key={klass.id} className="assignment-chip cur-class-chip">
+                  <span className="cur-class-chip__label">{label}</span>
+                  <button
+                    type="button"
+                    className="cur-chip-remove"
+                    onClick={() => handleDelete(klass)}
+                    disabled={deletingId === klass.id}
+                    aria-label={`${label} şubesini sil`}
+                  >
+                    <Icon name="x" size={12} />
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>

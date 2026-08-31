@@ -9,6 +9,8 @@ import {
   saveTeacherWasAbsent,
 } from '../../lib/atlasAlerts';
 import { formatClassLabel } from '../../lib/curriculum';
+import { recordSchoolActivity } from '../../lib/activityLog';
+import { supabase } from '../../lib/supabase';
 import { InlineError } from '../dashboardUi';
 import { Icon } from '../ui/Icon';
 
@@ -61,11 +63,22 @@ export function AtlasTeacherAlertsView({
   showEmptyState = false,
   onCatchUp,
   onRefresh,
+  profile,
+  schoolId,
 }) {
   async function handleWasAbsent(promptDate, promptId) {
     try {
       await saveTeacherWasAbsent(promptDate);
       await resolveMissedDayPrompt(promptId);
+      if (schoolId) {
+        recordSchoolActivity(supabase, profile, {
+          schoolId,
+          category: 'alert',
+          action: 'responded',
+          summary: 'Atlas uyarısı yanıtlandı: Okulda değildim',
+          metadata: { promptDate },
+        });
+      }
       await onRefresh?.();
     } catch (actionError) {
       // Parent hook owns error state; refresh will surface failures on next load if needed.
@@ -176,6 +189,8 @@ export default function AtlasTeacherAlerts(props) {
       showEmptyState={props.showEmptyState}
       onCatchUp={props.onCatchUp}
       onRefresh={alerts.refresh}
+      profile={props.profile}
+      schoolId={props.schoolId}
     />
   );
 }

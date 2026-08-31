@@ -13,7 +13,7 @@ import { readExamDemoConfig } from './examDemoConfig.js';
 
 export const EXAM_CALENDAR_SELECT = `${CALENDAR_SELECT}, exam_kind, exam_subject, exam_term, exam_round`;
 export const SESSION_SELECT =
-  'id, school_id, kind, calendar_event_id, title, held_on, audience_grades, results_enabled, published_at, created_at, updated_at';
+  'id, school_id, kind, calendar_event_id, title, held_on, audience_grades, publisher, results_enabled, published_at, answer_key_id, created_at, updated_at';
 export const RESULT_SELECT = 'id, session_id, student_id, subject, net, score, note, updated_at';
 
 export const EXAM_KIND = {
@@ -163,7 +163,7 @@ export async function loadExamSessions(schoolId) {
   return data ?? [];
 }
 
-export async function ensureExamSessionForEvent({ schoolId, event }) {
+export async function ensureExamSessionForEvent({ schoolId, event, publisher = null }) {
   if (!event?.id) return null;
   const existing = await withSchoolFilter(
     supabase.from('exam_sessions').select(SESSION_SELECT).eq('calendar_event_id', event.id).maybeSingle(),
@@ -182,6 +182,7 @@ export async function ensureExamSessionForEvent({ schoolId, event }) {
     title: event.title,
     held_on: event.starts_on,
     audience_grades: event.audience_grades,
+    publisher: publisher?.trim() || null,
     results_enabled: kind === EXAM_KIND.mock,
   };
 
@@ -196,7 +197,14 @@ export async function ensureExamSessionForEvent({ schoolId, event }) {
   return data;
 }
 
-export async function createMockExamEvent({ schoolId, title, heldOn, audienceGrades = [], body = '' }) {
+export async function createMockExamEvent({
+  schoolId,
+  title,
+  heldOn,
+  audienceGrades = [],
+  body = '',
+  publisher = null,
+}) {
   const basePayload = {
     school_id: schoolId,
     title: title.trim(),
@@ -226,7 +234,7 @@ export async function createMockExamEvent({ schoolId, title, heldOn, audienceGra
   }
 
   if (result.error) throw result.error;
-  const session = await ensureExamSessionForEvent({ schoolId, event: result.data });
+  const session = await ensureExamSessionForEvent({ schoolId, event: result.data, publisher });
   return { event: result.data, session };
 }
 
@@ -309,4 +317,51 @@ export function groupCommonExamsByTerm(events) {
 export function formatExamGrades(event) {
   if (!event.audience_grades?.length) return 'Tüm sınıflar';
   return formatGradeLabel(event.audience_grades);
+}
+
+export function formatExamSessionGrades(session) {
+  if (!session?.audience_grades?.length) return 'Tüm sınıflar';
+  return formatGradeLabel(session.audience_grades);
+}
+
+export function filterExamSessions(sessions, { search = '', publisher = '', grade = null, status = 'all', sort = 'date-desc' } = {}) {
+  let rows = sessions ?? [];
+  const query = search.trim().toLowerCase();
+
+  if (query) {
+    rows = rows.filter(
+      (session) =>
+        session.title?.toLowerCase().includes(query) ||
+        session.publisher?.toLowerCase().includes(query)
+    );
+  }
+  if (publisher) {
+    rows = rows.filter((session) => session.publisher === publisher);
+  }
+  if (grade != null) {
+    rows = rows.filter(
+      (session) =>
+        !session.audience_grades?.length || session.audience_grades.includes(grade)
+    );
+  }
+  if (status === 'published') {
+    rows = rows.filter((session) => session.published_at);
+  } else if (status === 'draft') {
+    rows = rows.filter((session) => !session.published_at);
+  }
+
+  const sorted = [...rows];
+  sorted.sort((left, right) => {
+    if (sort === 'date-asc') {
+      return (left.held_on ?? '').localeCompare(right.held_on ?? '');
+    }
+    if (sort === 'title-asc') {
+      return (left.title ?? '').localeCompare(right.title ?? '', 'tr');
+    }
+    if (sort === 'publisher-asc') {
+      return (left.publisher ?? '').localeCompare(right.publisher ?? '', 'tr');
+    }
+    return (right.held_on ?? '').localeCompare(left.held_on ?? '');
+  });
+  return sorted;
 }

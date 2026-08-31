@@ -1,67 +1,143 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { loadCurriculumCatalog, loadSchoolClasses, formatClassLabel } from '../../lib/curriculum';
-import { loadAttendanceFlags } from '../../lib/attendance';
+import { loadCurriculumCatalog, formatClassLabel } from '../../lib/curriculum';
+import { formatCalendarDateTr } from '../../lib/calendar';
+import {
+  attendancePeriodBounds,
+  formatLastAttendanceLine,
+  loadAttendanceFlags,
+  loadDirectorAttendanceData,
+} from '../../lib/attendance';
 import { InlineError } from '../dashboardUi';
+import { Icon } from '../ui/Icon';
 
-export default function DirectorAttendance({ schoolId }) {
-  const [classes, setClasses] = useState([]);
+const PERIOD_OPTIONS = [
+  { id: 'week', label: 'Bu hafta' },
+  { id: 'month', label: 'Bu ay' },
+  { id: 'all', label: 'Tüm dönem' },
+];
+
+function rateClass(rate) {
+  if (rate == null) return '';
+  if (rate < 80) return ' att-director-rate--low';
+  if (rate < 90) return ' att-director-rate--mid';
+  return ' att-director-rate--high';
+}
+
+function AttendanceStatCard({ icon, label, value, variant = 'lavender' }) {
+  return (
+    <article className={`stat-card stat-card--${variant}`}>
+      <span className="stat-card__icon" aria-hidden="true">
+        <Icon name={icon} size={18} />
+      </span>
+      <p className="stat-card__value">{value}</p>
+      <p className="stat-card__label">{label}</p>
+    </article>
+  );
+}
+
+export default function DirectorAttendance({ schoolId, students = [], classes = [] }) {
   const [subjects, setSubjects] = useState([]);
   const [flags, setFlags] = useState([]);
+  const [pack, setPack] = useState({
+    studentStats: [],
+    sessionSummaries: [],
+    sessions: [],
+  });
   const [classId, setClassId] = useState('');
   const [subjectId, setSubjectId] = useState('');
+  const [period, setPeriod] = useState('week');
+  const [search, setSearch] = useState('');
+  const [sortKey, setSortKey] = useState('rate');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const classFilter = classId || undefined;
-  const subjectFilter = subjectId || undefined;
+  const { startOn, endOn } = useMemo(() => attendancePeriodBounds(period), [period]);
+
   const gradeForSubject = classes.find((klass) => klass.id === classId)?.grade;
   const subjectOptions = useMemo(() => {
     if (!gradeForSubject) return subjects;
     return subjects.filter((subject) => subject.grade === gradeForSubject);
   }, [subjects, gradeForSubject]);
 
-  const loadFilters = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [classRows, catalog] = await Promise.all([
-        loadSchoolClasses(schoolId),
-        loadCurriculumCatalog(),
-      ]);
-      setClasses(classRows);
-      setSubjects(catalog.subjects);
-    } catch (loadError) {
-      setError(loadError);
-    } finally {
-      setLoading(false);
-    }
-  }, [schoolId]);
-
   useEffect(() => {
-    loadFilters();
-  }, [loadFilters]);
+    (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const catalog = await loadCurriculumCatalog();
+        setSubjects(catalog.subjects);
+      } catch (loadError) {
+        setError(loadError);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
 
-  const loadFlags = useCallback(async () => {
+  const load = useCallback(async () => {
     if (!schoolId) return;
     setError(null);
     try {
-      const rows = await loadAttendanceFlags({
-        schoolId,
-        classId: classFilter,
-        subjectId: subjectFilter,
-      });
-      setFlags(rows);
+      const [data, flagRows] = await Promise.all([
+        loadDirectorAttendanceData({
+          schoolId,
+          classId: classId || undefined,
+          subjectId: subjectId || undefined,
+          startOn,
+          endOn,
+          students,
+          classes,
+        }),
+        loadAttendanceFlags({
+          schoolId,
+          classId: classId || undefined,
+          subjectId: subjectId || undefined,
+        }),
+      ]);
+      setPack(data);
+      setFlags(flagRows);
     } catch (loadError) {
       setError(loadError);
+      setPack({ studentStats: [], sessionSummaries: [], sessions: [] });
       setFlags([]);
     }
-  }, [schoolId, classFilter, subjectFilter]);
+  }, [schoolId, classId, subjectId, startOn, endOn, students, classes]);
 
   useEffect(() => {
-    loadFlags();
-  }, [loadFlags]);
+    load();
+  }, [load]);
 
-  if (loading) {
+  const filteredStudents = useMemo(() => {
+    let rows = pack.studentStats;
+    const query = search.trim().toLowerCase();
+    if (query) {
+      rows = rows.filter((row) => row.studentName.toLowerCase().includes(query));
+    }
+    const sorted = [...rows];
+    sorted.sort((left, right) => {
+      if (sortKey === 'name') {
+        return left.studentName.localeCompare(right.studentName, 'tr');
+      }
+      if (sortKey === 'absent') {
+        return right.absent - left.absent || left.studentName.localeCompare(right.studentName, 'tr');
+      }
+      const rateLeft = left.rate ?? 101;
+      const rateRight = right.rate ?? 101;
+      return rateLeft - rateRight || left.studentName.localeCompare(right.studentName, 'tr');
+    });
+    return sorted;
+  }, [pack.studentStats, search, sortKey]);
+
+  const summary = useMemo(() => {
+    const totalSessions = pack.sessions.length;
+    const totalPresent = pack.studentStats.reduce((sum, row) => sum + row.present, 0);
+    const totalMarks = pack.studentStats.reduce((sum, row) => sum + row.total, 0);
+    const totalAbsent = pack.studentStats.reduce((sum, row) => sum + row.absent, 0);
+    const avgRate = totalMarks ? Math.round((totalPresent / totalMarks) * 100) : null;
+    return { totalSessions, avgRate, totalAbsent, flagCount: flags.length };
+  }, [pack, flags.length]);
+
+  if (loading && !subjects.length) {
     return (
       <section className="dash-card">
         <p className="dash-hint">Yoklama özeti yükleniyor…</p>
@@ -74,14 +150,26 @@ export default function DirectorAttendance({ schoolId }) {
       <header className="dash-header">
         <h1 className="dash-title">Yoklama</h1>
         <p className="dash-subtitle">
-          Aynı konudan 2 ders ve üzeri kaçıran öğrenciler. Veliler bu listeyi görmez.
+          Öğrenci devam durumunu takip edin. Yoklama girişi öğretmen panelinden yapılır.
         </p>
       </header>
 
       {error && <InlineError error={error} context="attendance" />}
 
+      <div className="stat-grid">
+        <AttendanceStatCard icon="calendar" label="Yoklama sayısı" value={summary.totalSessions} variant="sky" />
+        <AttendanceStatCard
+          icon="check"
+          label="Ort. katılım"
+          value={summary.avgRate != null ? `%${summary.avgRate}` : '—'}
+          variant="mint"
+        />
+        <AttendanceStatCard icon="users" label="Devamsız kayıt" value={summary.totalAbsent} variant="peach" />
+        <AttendanceStatCard icon="star" label="Dikkat" value={summary.flagCount} variant="lavender" />
+      </div>
+
       <section className="dash-card">
-        <div className="att-filters">
+        <div className="att-filters att-filters--director">
           <label className="dash-label">
             Şube
             <select
@@ -115,25 +203,151 @@ export default function DirectorAttendance({ schoolId }) {
               ))}
             </select>
           </label>
+          <label className="dash-label">
+            Ara
+            <input
+              className="dash-input"
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Öğrenci adı"
+            />
+          </label>
+          <label className="dash-label">
+            Sırala
+            <select className="dash-input" value={sortKey} onChange={(event) => setSortKey(event.target.value)}>
+              <option value="rate">Oran (düşük → yüksek)</option>
+              <option value="absent">Devamsız (çok → az)</option>
+              <option value="name">Ad A → Z</option>
+            </select>
+          </label>
         </div>
 
-        {flags.length === 0 ? (
-          <p className="dash-hint">Bu süzgeçte işaretlenen öğrenci yok.</p>
-        ) : (
-          <ul className="att-flag-list">
-            {flags.map((flag) => (
-              <li key={`${flag.studentId}-${flag.unitId}`} className="att-flag">
-                <strong>
-                  {flag.studentName}
-                  {flag.classLabel ? ` · ${flag.classLabel}` : ''}
-                </strong>
-                <span>
-                  {flag.subjectName} · {flag.unitTitle} · {flag.absentCount} gün
-                </span>
-              </li>
+        <div className="att-filters__period">
+          <p className="dash-label">Dönem</p>
+          <div className="cur-assign-chips" role="group" aria-label="Dönem">
+            {PERIOD_OPTIONS.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className={`cur-assign-chip${period === item.id ? ' cur-assign-chip--active' : ''}`}
+                onClick={() => setPeriod(item.id)}
+              >
+                {item.label}
+              </button>
             ))}
-          </ul>
+          </div>
+        </div>
+      </section>
+
+      <section className="dash-card">
+        <h2 className="dash-section-title">Öğrenci devam</h2>
+        {filteredStudents.length === 0 ? (
+          <p className="dash-hint">Bu süzgeçte öğrenci yok.</p>
+        ) : (
+          <div className="att-director-table-wrap">
+            <table className="att-director-table">
+              <thead>
+                <tr>
+                  <th>Öğrenci</th>
+                  <th>Şube</th>
+                  <th>Katıldı</th>
+                  <th>Devamsız</th>
+                  <th>Oran</th>
+                  <th>Son yoklama</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredStudents.map((row) => (
+                  <tr key={row.studentId}>
+                    <td>{row.studentName}</td>
+                    <td>{row.classLabel || '—'}</td>
+                    <td>{row.present}</td>
+                    <td>{row.absent}</td>
+                    <td>
+                      <span className={`att-director-rate${rateClass(row.rate)}`}>
+                        {row.rate != null ? `%${row.rate}` : '—'}
+                      </span>
+                    </td>
+                    <td>{formatLastAttendanceLine(row.lastSessionOn, row.lastStatus)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
+      </section>
+
+      <section className="dash-card">
+        <h2 className="dash-section-title">Son yoklamalar</h2>
+        {pack.sessionSummaries.length === 0 ? (
+          <p className="dash-hint">Seçilen dönemde yoklama kaydı yok.</p>
+        ) : (
+          <div className="att-session-groups">
+            {pack.sessionSummaries.map(({ session, classLabel, subjectName, present, absent, roster }) => (
+              <details key={session.id} className="att-session-group">
+                <summary className="att-session-group__summary">
+                  <span>
+                    <strong>{formatCalendarDateTr(session.taken_on)}</strong>
+                    {' · '}
+                    {classLabel} · {subjectName}
+                  </span>
+                  <span className="dash-hint">
+                    {present} var · {absent} yok
+                  </span>
+                </summary>
+                {roster.length ? (
+                  <ul className="att-roster att-roster--readonly">
+                    {roster.map((entry) => (
+                      <li key={entry.studentId}>
+                        <div
+                          className={`att-roster__btn att-roster__btn--readonly${
+                            entry.status === 'absent' ? ' att-roster__btn--absent' : ''
+                          }`}
+                        >
+                          <span>{entry.studentName}</span>
+                          <span className="att-roster__status">
+                            {entry.status === 'absent' ? 'Yok' : 'Var'}
+                          </span>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="dash-hint">Bu oturumda kayıt yok.</p>
+                )}
+              </details>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="dash-card">
+        <details className="att-flags-collapse">
+          <summary className="att-flags-collapse__summary">
+            <span className="att-flags-collapse__title">Konu tekrarı gereken</span>
+            <span className="dash-hint">Aynı konudan 2 ders ve üzeri kaçıran öğrenciler</span>
+          </summary>
+          <div className="att-flags-collapse__body">
+            {flags.length === 0 ? (
+              <p className="dash-hint">Bu süzgeçte işaretlenen öğrenci yok.</p>
+            ) : (
+              <ul className="att-flag-list">
+                {flags.map((flag) => (
+                  <li key={`${flag.studentId}-${flag.unitId}`} className="att-flag">
+                    <strong>
+                      {flag.studentName}
+                      {flag.classLabel ? ` · ${flag.classLabel}` : ''}
+                    </strong>
+                    <span>
+                      {flag.subjectName} · {flag.unitTitle} · {flag.absentCount} gün
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </details>
       </section>
     </>
   );

@@ -296,21 +296,23 @@ export default function ExamReportsPanel({
         </section>
       ) : (
         <>
-          <section className="dash-card exam-reports-guide">
-            <h2 className="dash-section-title">Nasıl kullanılır?</h2>
-            <ol className="exam-reports-guide__steps">
-              <li>
-                <strong>Tek deneme</strong> — Bir sınav seçin; sınıf sıralaması veya soru analizi alın.
-              </li>
-              <li>
-                <strong>Öğrenci</strong> — Bir öğrenci seçin; tüm denemelerdeki gelişim raporunu indirin.
-              </li>
-              <li>
-                <strong>Birden fazla deneme</strong> — Karşılaştırmak istediğiniz sınavları işaretleyin; birleşik
-                karne veya ortalama tablosu oluşturun.
-              </li>
-            </ol>
-          </section>
+          {!embedded ? (
+            <section className="dash-card exam-reports-guide">
+              <h2 className="dash-section-title">Nasıl kullanılır?</h2>
+              <ol className="exam-reports-guide__steps">
+                <li>
+                  <strong>Tek deneme</strong> — Bir sınav seçin; sınıf sıralaması veya soru analizi alın.
+                </li>
+                <li>
+                  <strong>Öğrenci</strong> — Bir öğrenci seçin; tüm denemelerdeki gelişim raporunu indirin.
+                </li>
+                <li>
+                  <strong>Birden fazla deneme</strong> — Karşılaştırmak istediğiniz sınavları işaretleyin; birleşik
+                  karne veya ortalama tablosu oluşturun.
+                </li>
+              </ol>
+            </section>
+          ) : null}
 
           <section className="dash-card exam-reports-section">
             <div className="exam-reports-section__head">

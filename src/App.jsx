@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { supabase } from './lib/supabase';
 import { useAuth } from './context/AuthContext';
+import { ActiveRoleProvider, useActiveRole } from './context/ActiveRoleContext';
 import { useTenant } from './context/TenantContext';
 import { buildLoginEmail, normalizeUsername } from './lib/staffUsers';
 import AdminDashboard from './components/AdminDashboard';
@@ -125,6 +126,37 @@ function AuthScreen() {
   );
 }
 
+function RoleBasedDashboard({ profile, schoolId, onSignOut }) {
+  const { activeRole, hasRole } = useActiveRole();
+
+  if (activeRole === USER_ROLES.director && hasRole(USER_ROLES.director)) {
+    return <DirectorDashboard profile={profile} schoolId={schoolId} onSignOut={onSignOut} />;
+  }
+
+  if (activeRole === USER_ROLES.counselor && hasRole(USER_ROLES.counselor)) {
+    return <CounselorDashboard profile={profile} schoolId={schoolId} onSignOut={onSignOut} />;
+  }
+
+  if (activeRole === USER_ROLES.teacher && hasRole(USER_ROLES.teacher)) {
+    return <AdminDashboard profile={profile} schoolId={schoolId} onSignOut={onSignOut} />;
+  }
+
+  if (activeRole === USER_ROLES.parent && hasRole(USER_ROLES.parent)) {
+    return <ParentDashboard profile={profile} schoolId={schoolId} onSignOut={onSignOut} />;
+  }
+
+  return (
+    <main className="app-centered app-centered--wide">
+      <ErrorMessage
+        error="Bu hesap türü desteklenmiyor."
+        context="general"
+        onRetry={onSignOut}
+        retryLabel="Çıkış Yap"
+      />
+    </main>
+  );
+}
+
 function AppRoutes() {
   const { session, profile, schoolId, authLoading, profileLoading, profileError, signOut } =
     useAuth();
@@ -207,32 +239,9 @@ function AppRoutes() {
   return (
     <div className="app-shell">
       <OfflineBanner />
-      {profile.role === USER_ROLES.director && (
-        <DirectorDashboard profile={profile} schoolId={schoolId} onSignOut={signOut} />
-      )}
-      {profile.role === USER_ROLES.counselor && (
-        <CounselorDashboard profile={profile} schoolId={schoolId} onSignOut={signOut} />
-      )}
-      {profile.role === USER_ROLES.teacher && (
-        <AdminDashboard profile={profile} schoolId={schoolId} onSignOut={signOut} />
-      )}
-      {profile.role === USER_ROLES.parent && (
-        <ParentDashboard profile={profile} schoolId={schoolId} onSignOut={signOut} />
-      )}
-
-      {profile.role !== USER_ROLES.director &&
-        profile.role !== USER_ROLES.counselor &&
-        profile.role !== USER_ROLES.teacher &&
-        profile.role !== USER_ROLES.parent && (
-          <main className="app-centered app-centered--wide">
-            <ErrorMessage
-              error="Bu hesap türü desteklenmiyor."
-              context="general"
-              onRetry={signOut}
-              retryLabel="Çıkış Yap"
-            />
-          </main>
-        )}
+      <ActiveRoleProvider profile={profile}>
+        <RoleBasedDashboard profile={profile} schoolId={schoolId} onSignOut={signOut} />
+      </ActiveRoleProvider>
     </div>
   );
 }

@@ -29,6 +29,7 @@ import {
   snapshotForDate,
 } from '../../lib/atlasLessons';
 import { resolveMissedDayPromptForDate } from '../../lib/atlasAlerts';
+import { recordSchoolActivity } from '../../lib/activityLog';
 import { InlineError, SendButton, SuccessMessage } from '../dashboardUi';
 import { Icon } from '../ui/Icon';
 import { AnimatedView } from '../ui/AnimatedView';
@@ -374,6 +375,12 @@ export default function TeacherAtlasLessons({
         sessionId,
       });
       setSuccess('Yoklama kaydedildi. Sorular sekmesinden ders türünü işaretleyin.');
+      recordSchoolActivity(supabase, profile, {
+        schoolId,
+        category: 'atlas',
+        action: 'saved',
+        summary: `Atlas ders yoklaması kaydedildi: ${formatClassLabel(klass?.grade, klass?.name)}`,
+      });
       await refreshClassSessions(klass.id, sessionDate);
       await resolveMissedDayPromptForDate(profile.id, sessionDate);
       onCatchUpConsumed?.();

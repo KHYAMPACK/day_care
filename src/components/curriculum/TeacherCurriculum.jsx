@@ -25,6 +25,7 @@ import {
   plannedUnitForWeek,
   weekOverlapsHoliday,
 } from '../../lib/curriculum';
+import { recordSchoolActivity } from '../../lib/activityLog';
 import { InlineError, SendButton, SuccessMessage } from '../dashboardUi';
 import { Icon } from '../ui/Icon';
 import AtlasClassPicker from '../atlas/AtlasClassPicker';
@@ -285,6 +286,12 @@ export default function TeacherCurriculum({ profile, schoolId, atlasSchedule = f
               : `${formatAssignmentLabel(selected)} kaydı ${updated} öğrenciye işlendi.`
             : 'Bu şubede henüz öğrenci yok. Müdür şubeye öğrenci yerleştirsin.'
         );
+        recordSchoolActivity(supabase, profile, {
+          schoolId,
+          category: 'curriculum',
+          action: 'saved',
+          summary: `Müfredat ilerlemesi kaydedildi: ${formatClassLabel(klass?.grade, klass?.name)} · ${subject?.name ?? 'Ders'}`,
+        });
         await loadRoster(klass.id);
       } else {
         setSuccess('Haftalık not kaydedildi.');

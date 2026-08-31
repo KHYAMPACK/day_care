@@ -1,13 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { supabase } from '../../lib/supabase';
-import { isValidCustomDomain, normalizeCustomDomain } from '../../lib/customDomain';
-import {
-  DEFAULT_THEME,
-  applySchoolTheme,
-  buildThemeFromSchool,
-  normalizeHexColor,
-} from '../../lib/schoolTheme';
-import { InlineError, SendButton, SuccessMessage } from '../dashboardUi';
+import { useMemo } from 'react';
+import { DEFAULT_THEME, buildThemeFromSchool } from '../../lib/schoolTheme';
 import { Avatar } from '../ui/Avatar';
 
 function BrandPreview({ schoolName, logoUrl, primary, secondary }) {
@@ -50,172 +42,26 @@ function BrandPreview({ schoolName, logoUrl, primary, secondary }) {
   );
 }
 
-export default function SchoolBrandingPanel({ school, schoolId, onSaved }) {
-  const [logoUrl, setLogoUrl] = useState(school?.logo_url ?? '');
-  const [primaryColor, setPrimaryColor] = useState(school?.primary_color ?? DEFAULT_THEME.primary);
-  const [secondaryColor, setSecondaryColor] = useState(school?.secondary_color ?? DEFAULT_THEME.secondary);
-  const [customDomain, setCustomDomain] = useState(school?.custom_domain ?? '');
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(null);
-
-  const domainLocked = Boolean(school?.custom_domain?.trim());
-
-  useEffect(() => {
-    setLogoUrl(school?.logo_url ?? '');
-    setPrimaryColor(school?.primary_color ?? DEFAULT_THEME.primary);
-    setSecondaryColor(school?.secondary_color ?? DEFAULT_THEME.secondary);
-    setCustomDomain(school?.custom_domain ?? '');
-  }, [school]);
-
-  useEffect(() => {
-    applySchoolTheme({
-      logo_url: logoUrl,
-      primary_color: primaryColor,
-      secondary_color: secondaryColor,
-    });
-  }, [logoUrl, primaryColor, secondaryColor]);
-
-  async function handleSave(event) {
-    event.preventDefault();
-    if (!schoolId) return;
-
-    const primary = normalizeHexColor(primaryColor);
-    const secondary = normalizeHexColor(secondaryColor);
-    if (!primary || !secondary) {
-      setError(new Error('Renkler geçerli bir hex kodu olmalıdır (ör. #7c3aed).'));
-      return;
-    }
-
-    const normalizedDomain = normalizeCustomDomain(customDomain);
-    if (!domainLocked && customDomain.trim() && !isValidCustomDomain(customDomain)) {
-      setError(new Error('Alan adı geçersiz. Örnek: veli.atlasegitimkurumu.com'));
-      return;
-    }
-
-    setSaving(true);
-    setError(null);
-    setSuccess(null);
-    try {
-      const payload = {
-        logo_url: logoUrl.trim() || null,
-        primary_color: primary,
-        secondary_color: secondary,
-      };
-
-      if (!domainLocked) {
-        payload.custom_domain = normalizedDomain || null;
-      }
-
-      const { error: updateError } = await supabase
-        .from('schools')
-        .update(payload)
-        .eq('id', schoolId);
-      if (updateError) throw updateError;
-      setSuccess('Marka ayarları kaydedildi.');
-      await onSaved?.();
-    } catch (saveError) {
-      setError(saveError);
-    } finally {
-      setSaving(false);
-    }
-  }
+export default function SchoolBrandingPanel({ school }) {
+  const logoUrl = school?.logo_url?.trim() ?? '';
+  const primary = school?.primary_color ?? DEFAULT_THEME.primary;
+  const secondary = school?.secondary_color ?? DEFAULT_THEME.secondary;
+  const customDomain = school?.custom_domain?.trim() ?? '';
 
   return (
     <section className="dash-card brand-panel">
       <h2 className="dash-section-title">Okul markası</h2>
       <p className="dash-hint">
-        Logo, renkler ve veli uygulaması alan adı tüm ekranlarda ve PWA kurulumunda
-        kullanılır. Birincil renk butonlarda, ikincil renk arka plan ve üst barda kullanılır.
+        Marka ayarları kurulum sırasında belirlenir. Değişiklik için destek ile iletişime geçin.
       </p>
 
-      {error && <InlineError error={error} context="general" />}
-      {success && <SuccessMessage message={success} />}
+      {customDomain ? (
+        <p className="dash-hint">
+          Veli uygulaması alan adı: <strong>{customDomain}</strong>
+        </p>
+      ) : null}
 
-      <form className="dash-form brand-form" onSubmit={handleSave}>
-        <label className="dash-label">
-          Logo adresi (URL)
-          <input
-            className="dash-input"
-            type="url"
-            value={logoUrl}
-            onChange={(event) => setLogoUrl(event.target.value)}
-            placeholder="https://…/logo.png"
-            disabled={saving}
-          />
-        </label>
-
-        <label className="dash-label">
-          Veli uygulaması alan adı
-          <input
-            className="dash-input"
-            type="text"
-            value={customDomain}
-            onChange={(event) => setCustomDomain(event.target.value)}
-            placeholder="veli.atlasegitimkurumu.com"
-            disabled={saving || domainLocked}
-            readOnly={domainLocked}
-            autoComplete="off"
-            spellCheck={false}
-          />
-          <span className="auth-hint">
-            {domainLocked
-              ? 'Alan adı kurulumda belirlendi ve değiştirilemez. DNS ve Vercel bu adrese göre yapılandırıldı.'
-              : 'Yalnızca alt alan adı girin (www değil). Kaydettikten sonra değiştirilemez — DNS ve Vercel ayarlarını buna göre yapın.'}
-          </span>
-        </label>
-
-        <div className="brand-form__colors">
-          <label className="dash-label">
-            Birincil renk
-            <div className="brand-color-field">
-              <input
-                className="brand-color-field__picker"
-                type="color"
-                value={normalizeHexColor(primaryColor) ?? DEFAULT_THEME.primary}
-                onChange={(event) => setPrimaryColor(event.target.value)}
-                disabled={saving}
-              />
-              <input
-                className="dash-input"
-                value={primaryColor}
-                onChange={(event) => setPrimaryColor(event.target.value)}
-                placeholder="#7c3aed"
-                disabled={saving}
-              />
-            </div>
-          </label>
-
-          <label className="dash-label">
-            İkincil renk
-            <div className="brand-color-field">
-              <input
-                className="brand-color-field__picker"
-                type="color"
-                value={normalizeHexColor(secondaryColor) ?? DEFAULT_THEME.secondary}
-                onChange={(event) => setSecondaryColor(event.target.value)}
-                disabled={saving}
-              />
-              <input
-                className="dash-input"
-                value={secondaryColor}
-                onChange={(event) => setSecondaryColor(event.target.value)}
-                placeholder="#ede9fe"
-                disabled={saving}
-              />
-            </div>
-          </label>
-        </div>
-
-        <BrandPreview
-          schoolName={school?.name}
-          logoUrl={logoUrl.trim()}
-          primary={primaryColor}
-          secondary={secondaryColor}
-        />
-
-        <SendButton sending={saving} label="Markayı kaydet" sendingLabel="Kaydediliyor…" />
-      </form>
+      <BrandPreview schoolName={school?.name} logoUrl={logoUrl} primary={primary} secondary={secondary} />
     </section>
   );
 }

@@ -1,0 +1,142 @@
+import { StyleSheet } from '@react-pdf/renderer';
+
+export const brochureColors = {
+  text: '#0f172a',
+  muted: '#475569',
+  accent: '#1d4ed8',
+  accentSoft: '#eff6ff',
+  border: '#cbd5e1',
+  headerBg: '#eef2ff',
+};
+
+export const brochureStyles = StyleSheet.create({
+  page: {
+    fontFamily: 'NotoSans',
+    fontSize: 10,
+    lineHeight: 1.45,
+    color: brochureColors.text,
+    paddingTop: 40,
+    paddingBottom: 48,
+    paddingHorizontal: 44,
+  },
+  coverTitle: {
+    fontSize: 22,
+    fontWeight: 700,
+    color: brochureColors.accent,
+    marginBottom: 8,
+    lineHeight: 1.25,
+  },
+  coverSubtitle: {
+    fontSize: 11,
+    color: brochureColors.muted,
+    marginBottom: 24,
+    lineHeight: 1.5,
+  },
+  coverTagline: {
+    fontSize: 11,
+    padding: 14,
+    backgroundColor: brochureColors.accentSoft,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+    lineHeight: 1.55,
+  },
+  sectionTitle: {
+    fontSize: 13,
+    fontWeight: 700,
+    marginTop: 18,
+    marginBottom: 8,
+    color: brochureColors.accent,
+  },
+  subsectionTitle: {
+    fontSize: 11,
+    fontWeight: 700,
+    marginTop: 12,
+    marginBottom: 6,
+  },
+  paragraph: {
+    fontSize: 10,
+    marginBottom: 8,
+    color: brochureColors.text,
+    lineHeight: 1.5,
+  },
+  bulletList: {
+    marginTop: 4,
+    marginBottom: 8,
+    paddingLeft: 4,
+  },
+  bulletItem: {
+    flexDirection: 'row',
+    marginBottom: 5,
+    paddingRight: 8,
+  },
+  bulletDot: {
+    width: 14,
+    fontSize: 10,
+    color: brochureColors.accent,
+  },
+  bulletText: {
+    flex: 1,
+    fontSize: 10,
+    lineHeight: 1.45,
+  },
+  table: {
+    marginTop: 6,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: brochureColors.border,
+  },
+  tableHeader: {
+    flexDirection: 'row',
+    backgroundColor: brochureColors.headerBg,
+    borderBottomWidth: 1,
+    borderBottomColor: brochureColors.border,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+  },
+  tableRow: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: brochureColors.border,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    alignItems: 'flex-start',
+  },
+  colSignal: {
+    width: '28%',
+    fontSize: 9,
+    fontWeight: 700,
+    paddingRight: 6,
+  },
+  colDesc: {
+    width: '72%',
+    fontSize: 9,
+    lineHeight: 1.4,
+  },
+  colRole: {
+    width: '22%',
+    fontSize: 9,
+    fontWeight: 700,
+    paddingRight: 4,
+  },
+  colBefore: {
+    width: '39%',
+    fontSize: 9,
+    paddingRight: 4,
+    color: brochureColors.muted,
+  },
+  colAfter: {
+    width: '39%',
+    fontSize: 9,
+  },
+  footer: {
+    position: 'absolute',
+    bottom: 20,
+    left: 44,
+    right: 44,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    fontSize: 8,
+    color: brochureColors.muted,
+  },
+});

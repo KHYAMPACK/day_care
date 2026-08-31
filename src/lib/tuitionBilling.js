@@ -16,6 +16,24 @@ export const TUITION_REMINDER_KIND = 'tuition_reminder';
 export const TUITION_OVERDUE_KIND = 'tuition_overdue';
 export const TUITION_REMINDER_DAYS = 3;
 
+export function isTuitionSchemaMissing(error) {
+  const message = error?.message ?? '';
+  const code = error?.code ?? '';
+  return (
+    code === 'PGRST205' ||
+    code === '42P01' ||
+    /accounting_student_billing|accounting_tuition_cycles|schema cache|does not exist|404/i.test(
+      message
+    )
+  );
+}
+
+export function tuitionSchemaMissingError() {
+  return new Error(
+    'Ödeme takibi tabloları veritabanında yok. Supabase SQL editöründe 037_accounting_tuition.sql migration dosyasını çalıştırın.'
+  );
+}
+
 export const BILLING_SELECT =
   'id, school_id, student_id, monthly_amount, billing_start_date, is_active, created_at, updated_at, students ( id, full_name, class_id, classes ( grade, name ) )';
 
@@ -128,7 +146,10 @@ export async function loadStudentBilling(schoolId) {
     supabase.from('accounting_student_billing').select(BILLING_SELECT).order('created_at'),
     schoolId
   );
-  if (error) throw error;
+  if (error) {
+    if (isTuitionSchemaMissing(error)) throw tuitionSchemaMissingError();
+    throw error;
+  }
   return data ?? [];
 }
 
@@ -159,7 +180,10 @@ export async function saveStudentBilling(schoolId, payload) {
         .single(),
       schoolId
     );
-    if (error) throw error;
+    if (error) {
+      if (isTuitionSchemaMissing(error)) throw tuitionSchemaMissingError();
+      throw error;
+    }
     return data;
   }
 
@@ -168,7 +192,10 @@ export async function saveStudentBilling(schoolId, payload) {
     .upsert(row, { onConflict: 'student_id' })
     .select(BILLING_SELECT)
     .single();
-  if (error) throw error;
+  if (error) {
+    if (isTuitionSchemaMissing(error)) throw tuitionSchemaMissingError();
+    throw error;
+  }
   return data;
 }
 
@@ -215,7 +242,10 @@ export async function ensureCurrentCycle(schoolId, billing, referenceDate) {
       .maybeSingle(),
     schoolId
   );
-  if (existingError) throw existingError;
+  if (existingError) {
+    if (isTuitionSchemaMissing(existingError)) throw tuitionSchemaMissingError();
+    throw existingError;
+  }
   if (existing) return existing;
 
   const { data, error } = await supabase
@@ -223,12 +253,16 @@ export async function ensureCurrentCycle(schoolId, billing, referenceDate) {
     .insert(row)
     .select(CYCLE_SELECT)
     .single();
-  if (error) throw error;
+  if (error) {
+    if (isTuitionSchemaMissing(error)) throw tuitionSchemaMissingError();
+    throw error;
+  }
   return data;
 }
 
 export async function markCyclePaid(schoolId, cycleId, directorId) {
   requireSchoolId(schoolId);
+  // No parent notification on mark paid — status updates on ParentTuitionStatus only.
   const { data, error } = await withSchoolFilter(
     supabase
       .from('accounting_tuition_cycles')
@@ -244,6 +278,28 @@ export async function markCyclePaid(schoolId, cycleId, directorId) {
   );
   if (error) throw error;
   return data;
+}
+
+export async function setupBillingForNewStudent(
+  schoolId,
+  { studentId, monthlyAmount, billingStartDate },
+  referenceDate
+) {
+  const amount = Number(monthlyAmount);
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+
+  const saved = await saveStudentBilling(schoolId, {
+    student_id: studentId,
+    monthly_amount: amount,
+    billing_start_date: billingStartDate,
+    is_active: true,
+  });
+
+  if (saved.is_active) {
+    await ensureCurrentCycle(schoolId, saved, referenceDate);
+  }
+
+  return saved;
 }
 
 export async function loadParentTuitionStatus(parentId) {

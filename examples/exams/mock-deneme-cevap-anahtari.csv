@@ -1,0 +1,31 @@
+﻿question_index,subject_code,correct_choice,topic_label
+1,turkce,B,Paragrafta Anlam
+2,turkce,C,Sözcükte Anlam
+3,turkce,A,Cümlede Anlam
+4,turkce,D,Yazım Kuralları
+5,turkce,E,Noktalama
+6,turkce,B,Fiilimsiler
+7,turkce,C,Sözcük Türleri
+8,turkce,A,Cümle Türleri
+9,turkce,D,Anlatım Bozuklukları
+10,turkce,E,Metin Türleri
+11,turkce,B,Görsel Okuma
+12,turkce,C,Söz Sanatları
+13,turkce,A,Yazım ve İşaret
+14,turkce,D,Ses Olayları
+15,turkce,E,Hece Bilgisi
+16,turkce,B,Cümle Ögeleri
+17,turkce,C,Anlatım Biçimleri
+18,turkce,A,Paragraf Yapısı
+19,turkce,D,Düşünceyi Geliştirme
+20,turkce,E,Metin İlişkileri
+21,matematik,B,Doğal Sayılar
+22,matematik,C,Kesirler
+23,matematik,A,Ondalık Gösterim
+24,matematik,D,Oran-Orantı
+25,matematik,E,Yüzdeler
+26,matematik,B,Cebirsel İfadeler
+27,matematik,C,Denklemler
+28,matematik,A,Veri Analizi
+29,matematik,D,Geometrik Cisimler
+30,matematik,E,Açılar

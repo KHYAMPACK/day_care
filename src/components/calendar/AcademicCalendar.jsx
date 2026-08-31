@@ -15,8 +15,11 @@ import {
   istanbulDateIso,
 } from '../../lib/calendar';
 import { readExamDemoConfig } from '../../lib/examDemoConfig';
+import { recordSchoolActivity } from '../../lib/activityLog';
+import { useAuth } from '../../context/AuthContext';
 import { InlineError, SendButton, SuccessMessage } from '../dashboardUi';
 import { Icon } from '../ui/Icon';
+import CalendarEventBrowser from './CalendarEventBrowser';
 
 async function loadCalendarRows(schoolId) {
   const { data, error } = await withSchoolFilter(
@@ -179,6 +182,7 @@ export function TomorrowEventsCard({ events, onOpenCalendar }) {
 }
 
 export default function AcademicCalendar({ schoolId, canEdit = false, viewerGrades = null }) {
+  const { profile } = useAuth();
   const today = istanbulDateIso();
   const [cursor, setCursor] = useState(() => {
     const [year, month] = today.split('-').map(Number);
@@ -275,6 +279,10 @@ export default function AcademicCalendar({ schoolId, canEdit = false, viewerGrad
     });
   }
 
+  function selectAllSchool() {
+    updateForm({ audience_grades: [] });
+  }
+
   function toggleGrade(grade) {
     setForm((current) => {
       const selected = current.audience_grades.includes(grade)
@@ -340,6 +348,15 @@ export default function AcademicCalendar({ schoolId, canEdit = false, viewerGrad
       return;
     }
 
+    recordSchoolActivity(supabase, profile, {
+      schoolId,
+      category: 'calendar',
+      action: editingId ? 'updated' : 'created',
+      summary: editingId
+        ? `Takvim etkinliği güncellendi: ${title}`
+        : `Takvim etkinliği eklendi: ${title}`,
+    });
+
     setSuccess(editingId ? 'Etkinlik güncellendi.' : 'Etkinlik eklendi.');
     resetForm();
     await loadEvents();
@@ -358,6 +375,12 @@ export default function AcademicCalendar({ schoolId, canEdit = false, viewerGrad
       setError(deleteError);
       return;
     }
+    recordSchoolActivity(supabase, profile, {
+      schoolId,
+      category: 'calendar',
+      action: 'deleted',
+      summary: `Takvim etkinliği silindi: ${event.title}`,
+    });
     if (editingId === event.id) resetForm();
     await loadEvents();
   }
@@ -491,26 +514,50 @@ export default function AcademicCalendar({ schoolId, canEdit = false, viewerGrad
               onChange={(event) => updateForm({ starts_at: event.target.value })}
             />
           </label>
-          <fieldset className="cal-grades">
-            <legend className="dash-label-inline">Sınıflar (boş = tüm okul)</legend>
-            {STUDENT_GRADES.map((grade) => (
-              <label key={grade} className="ann-check">
-                <input
-                  type="checkbox"
-                  checked={form.audience_grades.includes(grade)}
-                  onChange={() => toggleGrade(grade)}
-                />
-                {grade}. sınıf
-              </label>
-            ))}
-          </fieldset>
-          <label className="ann-check">
+          <div className="cal-form-audience">
+            <p className="dash-label">Hedef kitle</p>
+            <p className="cal-form-audience__hint">Seçim yapmazsanız etkinlik tüm okulda görünür.</p>
+            <div className="cur-assign-chips" role="group" aria-label="Hedef sınıflar">
+              <button
+                type="button"
+                className={`cur-assign-chip${
+                  form.audience_grades.length === 0 ? ' cur-assign-chip--active' : ''
+                }`}
+                onClick={selectAllSchool}
+              >
+                Tüm okul
+              </button>
+              {STUDENT_GRADES.map((grade) => (
+                <button
+                  key={grade}
+                  type="button"
+                  className={`cur-assign-chip${
+                    form.audience_grades.includes(grade) ? ' cur-assign-chip--active' : ''
+                  }`}
+                  onClick={() => toggleGrade(grade)}
+                >
+                  {formatStudentGrade(grade)}
+                </button>
+              ))}
+            </div>
+          </div>
+          <label className={`cal-form-option${form.notify ? ' cal-form-option--active' : ''}`}>
             <input
               type="checkbox"
+              className="cal-form-option__input"
               checked={form.notify}
               onChange={(event) => updateForm({ notify: event.target.checked })}
             />
-            Bir gün önce akşam bildirim gönder
+            <span className="cal-form-option__icon" aria-hidden="true">
+              <Icon name="bell" size={18} />
+            </span>
+            <span className="cal-form-option__text">
+              <strong>Hatırlatma bildirimi</strong>
+              <span>Etkinlikten bir gün önce akşam velilere bildirim gönderilir.</span>
+            </span>
+            <span className="cal-form-toggle" aria-hidden="true">
+              <span className="cal-form-toggle__knob" />
+            </span>
           </label>
           <div className="ann-actions">
             <SendButton
@@ -551,25 +598,37 @@ export default function AcademicCalendar({ schoolId, canEdit = false, viewerGrad
         )}
       </section>
 
-      <section className="dash-card">
-        <h2 className="dash-section-title">Yaklaşan</h2>
-        {upcoming.length === 0 ? (
-          <p className="dash-hint">Yaklaşan etkinlik yok.</p>
-        ) : (
-          <div className="cal-event-list">
-            {upcoming.map((event) => (
-              <EventCard
-                key={event.id}
-                event={event}
-                canEdit={canEdit}
-                onEdit={startEdit}
-                onDelete={handleDelete}
-                deleting={deletingId === event.id}
-              />
-            ))}
-          </div>
-        )}
-      </section>
+      {canEdit ? (
+        <CalendarEventBrowser
+          events={visibleEvents}
+          today={today}
+          loading={loading}
+          canEdit={canEdit}
+          onEdit={startEdit}
+          onDelete={handleDelete}
+          deletingId={deletingId}
+        />
+      ) : (
+        <section className="dash-card">
+          <h2 className="dash-section-title">Yaklaşan</h2>
+          {upcoming.length === 0 ? (
+            <p className="dash-hint">Yaklaşan etkinlik yok.</p>
+          ) : (
+            <div className="cal-event-list">
+              {upcoming.map((event) => (
+                <EventCard
+                  key={event.id}
+                  event={event}
+                  canEdit={canEdit}
+                  onEdit={startEdit}
+                  onDelete={handleDelete}
+                  deleting={deletingId === event.id}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+      )}
     </section>
   );
 }

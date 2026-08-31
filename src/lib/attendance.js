@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { withSchoolFilter } from './tenant';
+import { addDaysIso, formatCalendarDateTr, istanbulDateIso } from './calendar';
 import {
   CLASS_SELECT,
   SUBJECT_SELECT,
@@ -210,4 +211,176 @@ export async function loadAttendanceForWeek({ schoolId, classIds, startOn, endOn
   const { data: records, error: recordsError } = await recordsQuery;
   if (recordsError) throw recordsError;
   return { sessions: sessionRows, records: records ?? [] };
+}
+
+export function attendancePeriodBounds(period, today = istanbulDateIso()) {
+  if (period === 'all') {
+    return { startOn: '2020-01-01', endOn: '2099-12-31' };
+  }
+  if (period === 'month') {
+    const [year, month] = today.split('-').map(Number);
+    const startOn = `${year}-${String(month).padStart(2, '0')}-01`;
+    const lastDay = new Date(year, month, 0).getDate();
+    const endOn = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+    return { startOn, endOn };
+  }
+  const [year, month, day] = today.split('-').map(Number);
+  const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+  const mondayOffset = weekday === 0 ? -6 : 1 - weekday;
+  const startOn = addDaysIso(today, mondayOffset);
+  const endOn = addDaysIso(startOn, 6);
+  return { startOn, endOn };
+}
+
+export function aggregateStudentAttendance({ sessions, records, students, classes }) {
+  const classById = Object.fromEntries((classes ?? []).map((klass) => [klass.id, klass]));
+  const sessionById = Object.fromEntries((sessions ?? []).map((session) => [session.id, session]));
+  const stats = new Map();
+
+  for (const student of students ?? []) {
+    stats.set(student.id, {
+      studentId: student.id,
+      studentName: student.full_name ?? 'Öğrenci',
+      classId: student.class_id,
+      classLabel: student.class_id ? formatClassLabel(classById[student.class_id]?.grade, classById[student.class_id]?.name) : '',
+      present: 0,
+      absent: 0,
+      total: 0,
+      lastSessionOn: null,
+      lastStatus: null,
+    });
+  }
+
+  for (const record of records ?? []) {
+    const row = stats.get(record.student_id);
+    if (!row) continue;
+    const session = sessionById[record.session_id];
+    if (!session) continue;
+    row.total += 1;
+    if (record.status === 'absent') row.absent += 1;
+    else row.present += 1;
+    if (!row.lastSessionOn || session.taken_on >= row.lastSessionOn) {
+      row.lastSessionOn = session.taken_on;
+      row.lastStatus = record.status;
+    }
+  }
+
+  return [...stats.values()]
+    .filter((row) => row.total > 0 || students.some((student) => student.id === row.studentId))
+    .map((row) => ({
+      ...row,
+      rate: row.total ? Math.round((row.present / row.total) * 100) : null,
+    }))
+    .sort((left, right) => {
+      const rateLeft = left.rate ?? 101;
+      const rateRight = right.rate ?? 101;
+      if (rateLeft !== rateRight) return rateLeft - rateRight;
+      return left.studentName.localeCompare(right.studentName, 'tr');
+    });
+}
+
+export function summarizeAttendanceSessions({ sessions, records, students, classes, subjects }) {
+  const classById = Object.fromEntries((classes ?? []).map((klass) => [klass.id, klass]));
+  const subjectById = Object.fromEntries((subjects ?? []).map((subject) => [subject.id, subject]));
+  const studentById = Object.fromEntries((students ?? []).map((student) => [student.id, student]));
+  const recordsBySession = new Map();
+
+  for (const record of records ?? []) {
+    const list = recordsBySession.get(record.session_id) ?? [];
+    list.push(record);
+    recordsBySession.set(record.session_id, list);
+  }
+
+  return [...(sessions ?? [])]
+    .sort((left, right) => right.taken_on.localeCompare(left.taken_on))
+    .map((session) => {
+      const sessionRecords = recordsBySession.get(session.id) ?? [];
+      const present = sessionRecords.filter((row) => row.status !== 'absent').length;
+      const absent = sessionRecords.filter((row) => row.status === 'absent').length;
+      const klass = classById[session.class_id];
+      const subject = subjectById[session.subject_id];
+      return {
+        session,
+        classLabel: klass ? formatClassLabel(klass.grade, klass.name) : '',
+        subjectName: subject?.name ?? 'Ders',
+        present,
+        absent,
+        roster: sessionRecords.map((record) => ({
+          studentId: record.student_id,
+          studentName: studentById[record.student_id]?.full_name ?? 'Öğrenci',
+          status: record.status,
+        })),
+      };
+    });
+}
+
+export async function loadDirectorAttendanceData({
+  schoolId,
+  classId,
+  subjectId,
+  startOn,
+  endOn,
+  students = [],
+  classes = [],
+}) {
+  const classIds = classId ? [classId] : classes.map((klass) => klass.id);
+  const { sessions, records } = await loadAttendanceForWeek({
+    schoolId,
+    classIds,
+    startOn,
+    endOn,
+  });
+
+  let filteredSessions = sessions;
+  if (subjectId) {
+    filteredSessions = filteredSessions.filter((session) => session.subject_id === subjectId);
+  }
+
+  const sessionIds = new Set(filteredSessions.map((session) => session.id));
+  const filteredRecords = records.filter((record) => sessionIds.has(record.session_id));
+
+  const subjectIds = [...new Set(filteredSessions.map((session) => session.subject_id))];
+  let subjects = [];
+  if (subjectIds.length) {
+    const { data, error } = await supabase
+      .from('curriculum_subjects')
+      .select(SUBJECT_SELECT)
+      .in('id', subjectIds);
+    if (error) throw error;
+    subjects = data ?? [];
+  }
+
+  const scopedStudents = classId
+    ? students.filter((student) => student.class_id === classId)
+    : students;
+
+  return {
+    sessions: filteredSessions,
+    records: filteredRecords,
+    subjects,
+    studentStats: aggregateStudentAttendance({
+      sessions: filteredSessions,
+      records: filteredRecords,
+      students: scopedStudents,
+      classes,
+    }),
+    sessionSummaries: summarizeAttendanceSessions({
+      sessions: filteredSessions,
+      records: filteredRecords,
+      students: scopedStudents,
+      classes,
+      subjects,
+    }),
+  };
+}
+
+export function formatLastAttendanceStatus(status) {
+  if (status === 'absent') return 'Yok';
+  if (status === 'present') return 'Var';
+  return '—';
+}
+
+export function formatLastAttendanceLine(lastSessionOn, lastStatus) {
+  if (!lastSessionOn) return '—';
+  return `${formatCalendarDateTr(lastSessionOn)} — ${formatLastAttendanceStatus(lastStatus)}`;
 }

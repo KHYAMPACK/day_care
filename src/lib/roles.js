@@ -14,6 +14,7 @@ export function isStaffRole(role) {
 export function getStaffPanelLabel(role) {
   if (role === USER_ROLES.director) return 'Müdür Paneli';
   if (role === USER_ROLES.counselor) return 'Rehberlik Paneli';
+  if (role === USER_ROLES.teacher) return 'Öğretmen Paneli';
   return 'Yönetici Paneli';
 }
 

@@ -1,6 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../lib/supabase';
-import { formatClassLabel } from '../../lib/curriculum';
+import {
+  formatAssignmentLabel,
+  formatClassLabel,
+  getTeacherSubjectSlug,
+  resolveSubjectForClass,
+} from '../../lib/curriculum';
 import { InlineError, SendButton, SuccessMessage } from '../dashboardUi';
 
 export default function CurriculumAssignmentPanel({
@@ -8,7 +13,11 @@ export default function CurriculumAssignmentPanel({
   classes,
   subjects,
   assignments,
+  classStudentCounts = {},
+  atlasSchedule = false,
   onRefresh,
+  onAssigned,
+  onRemoved,
 }) {
   const [teacherId, setTeacherId] = useState('');
   const [classId, setClassId] = useState('');
@@ -18,11 +27,24 @@ export default function CurriculumAssignmentPanel({
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
 
-  const selectedClass = classes.find((klass) => klass.id === classId);
+  const selectedTeacher = teachers.find((teacher) => teacher.id === teacherId) ?? null;
+  const selectedClass = classes.find((klass) => klass.id === classId) ?? null;
+
   const subjectsForClass = useMemo(() => {
     if (!selectedClass) return [];
-    return subjects.filter((subject) => subject.grade === selectedClass.grade);
-  }, [subjects, selectedClass]);
+    const gradeSubjects = subjects.filter((subject) => subject.grade === selectedClass.grade);
+    if (!atlasSchedule || !selectedTeacher) return gradeSubjects;
+
+    const slug = getTeacherSubjectSlug(selectedTeacher);
+    if (!slug) return gradeSubjects;
+    const match = resolveSubjectForClass(subjects, slug, selectedClass.grade);
+    return match ? [match] : gradeSubjects;
+  }, [subjects, selectedClass, atlasSchedule, selectedTeacher]);
+
+  useEffect(() => {
+    if (!classId || subjectsForClass.length !== 1) return;
+    setSubjectId(subjectsForClass[0].id);
+  }, [classId, subjectsForClass]);
 
   async function handleAdd(event) {
     event.preventDefault();
@@ -34,12 +56,27 @@ export default function CurriculumAssignmentPanel({
       return;
     }
 
+    const duplicate = assignments.some(
+      (row) =>
+        row.teacher_id === teacherId &&
+        row.class_id === classId &&
+        row.subject_id === subjectId
+    );
+    if (duplicate) {
+      setError('Bu öğretmen için aynı şube ve ders ataması zaten var.');
+      return;
+    }
+
     setSaving(true);
-    const { error: insertError } = await supabase.from('teacher_assignments').insert({
-      teacher_id: teacherId,
-      class_id: classId,
-      subject_id: subjectId,
-    });
+    const { data, error: insertError } = await supabase
+      .from('teacher_assignments')
+      .insert({
+        teacher_id: teacherId,
+        class_id: classId,
+        subject_id: subjectId,
+      })
+      .select(ASSIGNMENT_INSERT_SELECT)
+      .single();
     setSaving(false);
 
     if (insertError) {
@@ -47,9 +84,24 @@ export default function CurriculumAssignmentPanel({
       return;
     }
 
-    setSuccess('Müfredat ataması kaydedildi.');
+    const teacher = teachers.find((row) => row.id === teacherId);
+    const klass = classes.find((row) => row.id === classId);
+    const subject = subjects.find((row) => row.id === subjectId);
+    const label = formatAssignmentLabel({
+      classes: klass,
+      curriculum_subjects: subject,
+    });
+
+    setSuccess(`${label} ataması kaydedildi.`);
     setSubjectId('');
-    await onRefresh();
+    onAssigned?.({
+      teacherName: teacher?.full_name ?? teacher?.email ?? 'Öğretmen',
+      classLabel: formatClassLabel(klass?.grade, klass?.name),
+      subjectName: subject?.name ?? 'Ders',
+      label,
+      row: data,
+    });
+    await onRefresh?.();
   }
 
   async function handleRemove(assignment) {
@@ -69,15 +121,20 @@ export default function CurriculumAssignmentPanel({
     }
 
     setSuccess('Atama kaldırıldı.');
-    await onRefresh();
+    onRemoved?.({
+      teacherName: assignment.profiles?.full_name ?? assignment.profiles?.email ?? 'Öğretmen',
+      label: formatAssignmentLabel(assignment),
+      row: assignment,
+    });
+    await onRefresh?.();
   }
 
   return (
     <div className="dash-card">
-      <h2 className="dash-section-title">Müfredat ataması (şube + ders)</h2>
+      <h2 className="dash-section-title">Şube + ders ataması</h2>
       <p className="dash-hint">
-        Öğretmeni öğrenci tek tek değil, şube ve ders ile eşleştirin. Örnek: Ayşe → 5-A
-        Matematik. Üstteki öğrenci listesi yalnızca mesajlaşma içindir.
+        Öğretmeni şube ve ders ile eşleştirin. Örnek: Ayşe → 5-A Matematik. Öğretmen yalnızca
+        atandığı şubelerdeki öğrencileri görür ve velilerine mesaj gönderebilir.
       </p>
 
       <form className="dash-form" onSubmit={handleAdd}>
@@ -86,7 +143,10 @@ export default function CurriculumAssignmentPanel({
           <select
             className="dash-input"
             value={teacherId}
-            onChange={(event) => setTeacherId(event.target.value)}
+            onChange={(event) => {
+              setTeacherId(event.target.value);
+              setSubjectId('');
+            }}
             disabled={saving}
           >
             <option value="">Seçin…</option>
@@ -113,6 +173,9 @@ export default function CurriculumAssignmentPanel({
             {classes.map((klass) => (
               <option key={klass.id} value={klass.id}>
                 {formatClassLabel(klass.grade, klass.name)}
+                {classStudentCounts[klass.id]
+                  ? ` · ${classStudentCounts[klass.id]} öğrenci`
+                  : ''}
               </option>
             ))}
           </select>
@@ -147,32 +210,37 @@ export default function CurriculumAssignmentPanel({
       </form>
 
       {assignments.length === 0 ? (
-        <p className="dash-hint">Henüz müfredat ataması yok.</p>
+        <p className="dash-hint">Henüz şube ataması yok.</p>
       ) : (
         <ul className="history-list">
-          {assignments.map((assignment) => (
-            <li key={assignment.id} className="history-item">
-              <div className="history-meta">
-                <strong>
-                  {assignment.profiles?.full_name ?? assignment.profiles?.email ?? 'Öğretmen'}
-                </strong>
-                <span>
-                  {formatClassLabel(assignment.classes?.grade, assignment.classes?.name)} ·{' '}
-                  {assignment.curriculum_subjects?.name}
-                </span>
-              </div>
-              <button
-                type="button"
-                className="match-item__remove"
-                onClick={() => handleRemove(assignment)}
-                disabled={removingId === assignment.id}
-              >
-                {removingId === assignment.id ? 'Kaldırılıyor…' : 'Kaldır'}
-              </button>
-            </li>
-          ))}
+          {assignments.map((assignment) => {
+            const studentCount = classStudentCounts[assignment.class_id] ?? 0;
+            return (
+              <li key={assignment.id} className="history-item">
+                <div className="history-meta">
+                  <strong>
+                    {assignment.profiles?.full_name ?? assignment.profiles?.email ?? 'Öğretmen'}
+                  </strong>
+                  <span>
+                    {formatAssignmentLabel(assignment)}
+                    {studentCount ? ` · ${studentCount} öğrenci` : ''}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="match-item__remove"
+                  onClick={() => handleRemove(assignment)}
+                  disabled={removingId === assignment.id}
+                >
+                  {removingId === assignment.id ? 'Kaldırılıyor…' : 'Kaldır'}
+                </button>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>
   );
 }
+
+const ASSIGNMENT_INSERT_SELECT = 'id, teacher_id, class_id, subject_id, created_at';

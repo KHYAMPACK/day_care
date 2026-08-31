@@ -27,6 +27,8 @@ import {
   totalsFromResults,
 } from '../../lib/homework';
 import { notifyHomeworkAssigned } from '../../lib/homeworkNotifications';
+import { recordSchoolActivity } from '../../lib/activityLog';
+import { supabase } from '../../lib/supabase';
 import { buildClassHomeworkReport } from '../../lib/homeworkReports';
 import AtlasClassPicker from '../atlas/AtlasClassPicker';
 import { InlineError, SendButton, SuccessMessage } from '../dashboardUi';
@@ -313,6 +315,17 @@ export default function TeacherHomework({ profile, schoolId, atlasSchedule = fal
       } catch {
         // Assignment is saved; notification is best-effort.
       }
+      const classLabel = classes.find((row) => row.id === classId);
+      recordSchoolActivity(supabase, profile, {
+        schoolId,
+        category: 'homework',
+        action: 'assigned',
+        summary: `Ödev atandı: ${
+          classLabel ? formatClassLabel(classLabel.grade, classLabel.name) : 'Şube'
+        } · ${subject?.name ?? 'Ders'}`,
+        targetType: 'homework_assignment',
+        targetId: assignment.id,
+      });
       setSuccess('Ödev atandı. Veliler bilgilendirildi.');
       setNotes('');
     } catch (saveError) {

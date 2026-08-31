@@ -14,6 +14,7 @@ import {
   saveClassAttendance,
   snapshotForDate,
 } from '../../lib/attendance';
+import { recordSchoolActivity } from '../../lib/activityLog';
 import { InlineError, SendButton, SuccessMessage } from '../dashboardUi';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 
@@ -168,6 +169,12 @@ export default function TeacherAttendance({ profile, schoolId }) {
           student_id: student.id,
           status: absentIds.has(student.id) ? 'absent' : 'present',
         })),
+      });
+      recordSchoolActivity(supabase, profile, {
+        schoolId,
+        category: 'attendance',
+        action: 'saved',
+        summary: `Yoklama kaydedildi: ${klass.label ?? klass.name ?? 'Şube'} · ${students.length} öğrenci`,
       });
       setSuccess('Yoklama kaydedildi.');
       setSessionLoaded(true);

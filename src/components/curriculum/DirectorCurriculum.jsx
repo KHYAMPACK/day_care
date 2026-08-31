@@ -13,6 +13,7 @@ import {
 } from '../../lib/curriculum';
 import { InlineError, SendButton, SuccessMessage } from '../dashboardUi';
 import { Icon } from '../ui/Icon';
+import DirectorAssessmentTypes from '../atlas/DirectorAssessmentTypes';
 
 const CURRENT_WEEK = Math.max(1, academicWeekIndex(istanbulDateIso()));
 
@@ -37,6 +38,7 @@ function SetupStep({ done, title, detail, actionLabel, onAction }) {
 
 export default function DirectorCurriculum({
   schoolId,
+  atlasSchedule = false,
   classCount = 0,
   studentsInClassCount = 0,
   studentCount = 0,
@@ -208,9 +210,9 @@ export default function DirectorCurriculum({
           />
           <SetupStep
             done={curriculumAssignmentCount > 0}
-            title="3. Öğretmene ders atayın"
-            detail="Örn. Ayşe Öğretmen → 5-A Matematik."
-            actionLabel="Öğretmen Atama sekmesine git"
+            title="3. Öğretmene şube + ders atayın"
+            detail="Örn. Ayşe Öğretmen → 5-A Matematik. Yönetim → Şube Atama."
+            actionLabel="Şube Atama sekmesine git"
             onAction={onNavigateTab ? () => goToTab('assignment') : null}
           />
         </ol>
@@ -404,6 +406,12 @@ export default function DirectorCurriculum({
           ))}
         </div>
       </div>
+
+      {atlasSchedule ? (
+        <div className="cur-director-assessment-types">
+          <DirectorAssessmentTypes schoolId={schoolId} />
+        </div>
+      ) : null}
     </section>
   );
 }

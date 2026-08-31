@@ -2,11 +2,11 @@ import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { withSchoolFilter } from '../../lib/tenant';
 import { useAuth } from '../../context/AuthContext';
+import { useActiveRole } from '../../context/ActiveRoleContext';
+import { useStaffHeader } from '../../hooks/useStaffHeader';
 import { USER_ROLES } from '../../lib/roles';
 import { COUNSELOR_TABS, defaultCounselorTab } from '../../lib/demoData';
 import { loadSchoolClasses } from '../../lib/curriculum';
-import { loadRankingsForSessions } from '../../lib/lgsExam';
-import { loadExamSessions } from '../../lib/exams';
 import {
   AppNavbar,
   ErrorMessage,
@@ -20,6 +20,7 @@ import ExamOperationsPanel from '../../components/exams/ExamOperationsPanel';
 import ExamReportsPanel from '../../components/exams/ExamReportsPanel';
 import CounselorExamOverview from '../../components/exams/CounselorExamOverview';
 import CounselorStudentsTab from '../../components/exams/CounselorStudentsTab';
+import CounselorGuidanceTab from '../../components/exams/CounselorGuidanceTab';
 
 function AccessDenied({ onSignOut }) {
   return (
@@ -36,16 +37,26 @@ function AccessDenied({ onSignOut }) {
 
 export default function CounselorDashboard({ profile, schoolId, onSignOut }) {
   const { school } = useAuth();
+  const { hasRole } = useActiveRole();
+  const { roleLabel, roleSwitcher } = useStaffHeader();
+  const isCounselor = hasRole(USER_ROLES.counselor);
   const demoNav = useDemoNav(defaultCounselorTab());
   const [students, setStudents] = useState([]);
   const [classes, setClasses] = useState([]);
-  const [rankings, setRankings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
 
   const displayName = profile?.full_name ?? profile?.email ?? 'Rehberlikçi';
   const schoolName = school?.name ?? 'OkulTakip';
   const navLogoUrl = school?.logo_url ?? null;
+  const navProps = {
+    schoolName,
+    roleLabel,
+    roleSwitcher,
+    logoUrl: navLogoUrl,
+    userName: displayName,
+    onSignOut,
+  };
 
   const loadData = useCallback(async () => {
     setLoadError(null);
@@ -65,17 +76,13 @@ export default function CounselorDashboard({ profile, schoolId, onSignOut }) {
     if (studentsRes.error) throw studentsRes.error;
 
     const schoolClasses = await loadSchoolClasses(schoolId).catch(() => []);
-    const sessions = await loadExamSessions(schoolId);
-    const sessionIds = sessions.map((s) => s.id);
-    const rankRows = sessionIds.length ? await loadRankingsForSessions(sessionIds) : [];
 
     setStudents(studentsRes.data ?? []);
     setClasses(schoolClasses);
-    setRankings(rankRows);
   }, [schoolId]);
 
   useEffect(() => {
-    if (profile?.role !== USER_ROLES.counselor) return;
+    if (!isCounselor) return;
     let mounted = true;
     (async () => {
       setLoading(true);
@@ -90,12 +97,12 @@ export default function CounselorDashboard({ profile, schoolId, onSignOut }) {
     return () => {
       mounted = false;
     };
-  }, [profile?.role, loadData]);
+  }, [isCounselor, loadData]);
 
-  if (profile?.role !== USER_ROLES.counselor) {
+  if (!isCounselor) {
     return (
       <>
-        <AppNavbar schoolName={schoolName} roleLabel="Rehberlik" logoUrl={navLogoUrl} userName={displayName} onSignOut={onSignOut} />
+        <AppNavbar {...navProps} />
         <AccessDenied onSignOut={onSignOut} />
       </>
     );
@@ -104,7 +111,7 @@ export default function CounselorDashboard({ profile, schoolId, onSignOut }) {
   if (loading) {
     return (
       <>
-        <AppNavbar schoolName={schoolName} roleLabel="Rehberlik" logoUrl={navLogoUrl} userName={displayName} onSignOut={onSignOut} />
+        <AppNavbar {...navProps} />
         <LoadingPanel message="Rehberlik paneli yükleniyor…" />
       </>
     );
@@ -113,7 +120,7 @@ export default function CounselorDashboard({ profile, schoolId, onSignOut }) {
   if (loadError) {
     return (
       <>
-        <AppNavbar schoolName={schoolName} roleLabel="Rehberlik" logoUrl={navLogoUrl} userName={displayName} onSignOut={onSignOut} />
+        <AppNavbar {...navProps} />
         <main className="dash-page dash-error-page">
           <ErrorMessage error={loadError} context="admin" onRetry={() => window.location.reload()} />
         </main>
@@ -126,13 +133,9 @@ export default function CounselorDashboard({ profile, schoolId, onSignOut }) {
       tabs={COUNSELOR_TABS}
       activeTab={demoNav.tab}
       onTabChange={demoNav.selectTab}
-      schoolName={schoolName}
-      logoUrl={navLogoUrl}
-      userName={displayName}
-      roleLabel="Rehberlik"
-      onSignOut={onSignOut}
+      {...navProps}
     >
-      <AppNavbar schoolName={schoolName} roleLabel="Rehberlik" logoUrl={navLogoUrl} userName={displayName} onSignOut={onSignOut} />
+      <AppNavbar {...navProps} />
 
       <main className="dash-page dash-page--flush dash-page--tabbar">
         <AnimatedView viewKey={demoNav.tab}>
@@ -168,7 +171,21 @@ export default function CounselorDashboard({ profile, schoolId, onSignOut }) {
           )}
 
           {demoNav.tab === 'students' && (
-            <CounselorStudentsTab students={students} classes={classes} rankings={rankings} />
+            <CounselorStudentsTab
+              students={students}
+              classes={classes}
+              schoolId={schoolId}
+              school={school}
+            />
+          )}
+
+          {demoNav.tab === 'guidance' && (
+            <CounselorGuidanceTab
+              students={students}
+              classes={classes}
+              schoolId={schoolId}
+              school={school}
+            />
           )}
 
           {demoNav.tab === 'calendar' && (

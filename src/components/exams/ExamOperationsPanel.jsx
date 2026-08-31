@@ -2,7 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { resolveExamConfig, saveExamFeatures } from '../../lib/examConfig';
 import { notifyExamResultsPublished } from '../../lib/examNotifications';
+import { STUDENT_GRADES, formatStudentGrade } from '../../lib/calendar';
 import {
+  filterExamSessions,
+  formatExamSessionGrades,
   formatExamWhen,
   loadExamSessions,
   publishExamSession,
@@ -13,9 +16,12 @@ import {
   loadSubjectResults,
 } from '../../lib/lgsExam';
 import { InlineError, SuccessMessage } from '../dashboardUi';
+import { recordSchoolActivity } from '../../lib/activityLog';
+import { useAuth } from '../../context/AuthContext';
 import DirectorExamAnswerKey from './DirectorExamAnswerKey';
 import DirectorExamAnalysis from './DirectorExamAnalysis';
 import DirectorExamImport from './DirectorExamImport';
+import ExamCsvImportWizard from './ExamCsvImportWizard';
 import ExamManualEntry from './ExamManualEntry';
 import CreateMockExamForm from './CreateMockExamForm';
 import ExamRankingTable from './ExamRankingTable';
@@ -32,30 +38,38 @@ function ExamSessionWorkspace({
   rankings,
   classAvgs,
   onResultsSaved,
+  onAnswerKeySaved,
 }) {
-  const tabs = useMemo(() => {
-    const items = [];
-    if (showManualEntry) items.push({ id: 'manual', label: 'Manuel giriş' });
-    items.push(
-      { id: 'csv', label: 'CSV import' },
-      { id: 'answer-key', label: 'Cevap anahtarı' },
-      { id: 'results', label: 'Sonuçlar' },
-      { id: 'analysis', label: 'Analiz' }
-    );
-    return items;
-  }, [showManualEntry]);
-
-  const [tab, setTab] = useState(() => (showManualEntry ? 'manual' : 'csv'));
+  const [tab, setTab] = useState('');
 
   useEffect(() => {
-    setTab(showManualEntry ? 'manual' : 'csv');
-  }, [session.id, showManualEntry]);
+    setTab('');
+  }, [session.id]);
+
+  const secondaryTabs = useMemo(
+    () => [
+      { id: 'results', label: 'Sonuçlar' },
+      { id: 'analysis', label: 'Analiz' },
+    ],
+    []
+  );
 
   return (
     <div className="exam-session-workspace">
-      <nav className="exam-workspace-pills" aria-label={`${session.title} işlemleri`}>
+      <ExamCsvImportWizard
+        session={session}
+        schoolId={schoolId}
+        students={students}
+        answerKeyId={session.answer_key_id}
+        onAnswerKeySaved={onAnswerKeySaved}
+        onResultsSaved={onResultsSaved}
+        onNavigateToResults={() => setTab('results')}
+        onNavigateToAnalysis={() => setTab('analysis')}
+      />
+
+      <nav className="exam-workspace-pills" aria-label={`${session.title} sonuç ve analiz`}>
         <div className="exam-workspace-pills__track">
-          {tabs.map((item) => (
+          {secondaryTabs.map((item) => (
             <button
               key={item.id}
               type="button"
@@ -70,32 +84,6 @@ function ExamSessionWorkspace({
       </nav>
 
       <div className="exam-session-workspace__panel">
-        {tab === 'manual' && showManualEntry ? (
-          <ExamManualEntry
-            embedded
-            hideTitle
-            school={school}
-            students={students}
-            sessionId={session.id}
-            sessionTitle={session.title}
-            onSaved={onResultsSaved}
-          />
-        ) : null}
-
-        {tab === 'csv' ? (
-          <DirectorExamImport
-            embedded
-            hideTitle
-            schoolId={schoolId}
-            sessionId={session.id}
-            students={students}
-          />
-        ) : null}
-
-        {tab === 'answer-key' ? (
-          <DirectorExamAnswerKey embedded schoolId={schoolId} sessions={sessions} />
-        ) : null}
-
         {tab === 'results' ? (
           <>
             <div className="exam-workspace-block">
@@ -127,6 +115,40 @@ function ExamSessionWorkspace({
           <DirectorExamAnalysis embedded session={session} classStudentIds={students.map((s) => s.id)} />
         ) : null}
       </div>
+
+      <details className="exam-workspace-section">
+        <summary className="exam-workspace-section__summary">
+          <span className="exam-workspace-section__title">Gelişmiş giriş</span>
+          <span className="exam-workspace-section__hint">Manuel giriş, net CSV ve JSON cevap anahtarı</span>
+        </summary>
+        <div className="exam-workspace-section__body">
+          {showManualEntry ? (
+            <ExamManualEntry
+              embedded
+              hideTitle
+              school={school}
+              students={students}
+              sessionId={session.id}
+              sessionTitle={session.title}
+              onSaved={onResultsSaved}
+            />
+          ) : null}
+          <DirectorExamImport
+            embedded
+            hideTitle
+            schoolId={schoolId}
+            sessionId={session.id}
+            sessionTitle={session.title}
+            students={students}
+          />
+          <DirectorExamAnswerKey
+            embedded
+            schoolId={schoolId}
+            sessions={sessions}
+            defaultSessionId={session.id}
+          />
+        </div>
+      </details>
     </div>
   );
 }
@@ -194,6 +216,7 @@ export default function ExamOperationsPanel({
   showCreateMock = true,
   showReports = true,
 }) {
+  const { profile } = useAuth();
   const [sessions, setSessions] = useState([]);
   const [selectedSessionId, setSelectedSessionId] = useState('');
   const [rankings, setRankings] = useState([]);
@@ -201,6 +224,35 @@ export default function ExamOperationsPanel({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
+  const [search, setSearch] = useState('');
+  const [publisherFilter, setPublisherFilter] = useState('');
+  const [gradeFilter, setGradeFilter] = useState(null);
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [sort, setSort] = useState('date-desc');
+
+  const publisherOptions = useMemo(
+    () =>
+      [...new Set(sessions.map((session) => session.publisher).filter(Boolean))].sort((a, b) =>
+        a.localeCompare(b, 'tr')
+      ),
+    [sessions]
+  );
+
+  const filteredSessions = useMemo(
+    () =>
+      filterExamSessions(sessions, {
+        search,
+        publisher: publisherFilter,
+        grade: gradeFilter,
+        status: statusFilter,
+        sort,
+      }),
+    [sessions, search, publisherFilter, gradeFilter, statusFilter, sort]
+  );
+
+  const hasSessionFilters = Boolean(
+    search.trim() || publisherFilter || gradeFilter != null || statusFilter !== 'all' || sort !== 'date-desc'
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -249,16 +301,29 @@ export default function ExamOperationsPanel({
     setSubjectResults(subjectRows);
   }
 
+  async function handleAnswerKeySaved() {
+    await load();
+  }
+
   async function handlePublish(sessionId, publish) {
     setError(null);
     try {
       await publishExamSession(sessionId, publish);
+      const session = sessions.find((row) => row.id === sessionId);
       if (publish) {
         try {
           await notifyExamResultsPublished({ sessionId, schoolId });
         } catch (notifyError) {
           console.warn('exam notify:', notifyError);
         }
+        recordSchoolActivity(supabase, profile, {
+          schoolId,
+          category: 'exam',
+          action: 'published',
+          summary: `Sınav sonuçları yayımlandı: ${session?.title ?? 'Deneme'}`,
+          targetType: 'exam_session',
+          targetId: sessionId,
+        });
       }
       await load();
       setSuccess(publish ? 'Sonuçlar velilere açıldı.' : 'Yayın geri alındı.');
@@ -289,6 +354,101 @@ export default function ExamOperationsPanel({
 
       <section className="dash-card">
         <h2 className="dash-section-title">Mevcut denemeler</h2>
+        <p className="dash-hint">
+          {filteredSessions.length} deneme
+          {hasSessionFilters ? (
+            <>
+              {' · '}
+              <button
+                type="button"
+                className="demo-btn demo-btn--ghost"
+                onClick={() => {
+                  setSearch('');
+                  setPublisherFilter('');
+                  setGradeFilter(null);
+                  setStatusFilter('all');
+                  setSort('date-desc');
+                }}
+              >
+                Filtreleri temizle
+              </button>
+            </>
+          ) : null}
+        </p>
+
+        {sessions.length > 0 ? (
+          <div className="exam-session-filters">
+            <label className="dash-label">
+              Ara
+              <input
+                className="dash-input"
+                type="search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Başlık veya yayın"
+              />
+            </label>
+            <label className="dash-label">
+              Yayın
+              <select
+                className="dash-input"
+                value={publisherFilter}
+                onChange={(event) => setPublisherFilter(event.target.value)}
+              >
+                <option value="">Tümü</option>
+                {publisherOptions.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="dash-label">
+              Durum
+              <select
+                className="dash-input"
+                value={statusFilter}
+                onChange={(event) => setStatusFilter(event.target.value)}
+              >
+                <option value="all">Tümü</option>
+                <option value="published">Velilere açık</option>
+                <option value="draft">Taslak</option>
+              </select>
+            </label>
+            <label className="dash-label">
+              Sırala
+              <select className="dash-input" value={sort} onChange={(event) => setSort(event.target.value)}>
+                <option value="date-desc">Tarih (yeni → eski)</option>
+                <option value="date-asc">Tarih (eski → yeni)</option>
+                <option value="title-asc">Başlık A → Z</option>
+                <option value="publisher-asc">Yayınevi A → Z</option>
+              </select>
+            </label>
+            <div className="exam-session-filters__grades">
+              <p className="dash-label">Sınıf</p>
+              <div className="cur-assign-chips" role="group" aria-label="Sınıf filtresi">
+                <button
+                  type="button"
+                  className={`cur-assign-chip${gradeFilter == null ? ' cur-assign-chip--active' : ''}`}
+                  onClick={() => setGradeFilter(null)}
+                >
+                  Tümü
+                </button>
+                {STUDENT_GRADES.map((grade) => (
+                  <button
+                    key={grade}
+                    type="button"
+                    className={`cur-assign-chip${gradeFilter === grade ? ' cur-assign-chip--active' : ''}`}
+                    onClick={() => setGradeFilter(grade)}
+                  >
+                    {formatStudentGrade(grade)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         <p className="dash-hint">Bir denemeye dokunun; sonuç girişi o satırın içinde açılır.</p>
         {loading ? (
           <p className="dash-hint">Yükleniyor…</p>
@@ -296,9 +456,11 @@ export default function ExamOperationsPanel({
           <p className="dash-hint">
             Henüz deneme yok. {showCreateMock ? 'Yukarıdan yeni deneme oluşturun.' : 'Deneme sonrası oturum açılır.'}
           </p>
+        ) : filteredSessions.length === 0 ? (
+          <p className="dash-hint">Bu süzgeçte deneme yok.</p>
         ) : (
           <ul className="exam-session-list">
-            {sessions.map((session) => {
+            {filteredSessions.map((session) => {
               const expanded = selectedSessionId === session.id;
               return (
                 <li
@@ -313,7 +475,12 @@ export default function ExamOperationsPanel({
                       aria-expanded={expanded}
                     >
                       <strong>{session.title}</strong>
-                      <span className="dash-hint">{formatExamWhen(session)}</span>
+                      {session.publisher ? (
+                        <span className="demo-pill exam-session-publisher">{session.publisher}</span>
+                      ) : null}
+                      <span className="dash-hint">
+                        {formatExamSessionGrades(session)} · {formatExamWhen(session)}
+                      </span>
                     </button>
                     <div className="exam-session-row__actions">
                       <button
@@ -346,6 +513,7 @@ export default function ExamOperationsPanel({
                         rankings={rankings}
                         classAvgs={classAvgs}
                         onResultsSaved={() => refreshSessionStats(session.id)}
+                        onAnswerKeySaved={handleAnswerKeySaved}
                       />
                     </div>
                   ) : null}
@@ -357,13 +525,23 @@ export default function ExamOperationsPanel({
       </section>
 
       {showReports ? (
-        <ExamReportsPanel
-          embedded
-          schoolId={schoolId}
-          school={school}
-          students={students}
-          classes={classes}
-        />
+        <section className="dash-card">
+          <details className="exam-reports-collapse">
+            <summary className="exam-reports-collapse__summary">
+              <span className="exam-reports-collapse__title">Raporlar</span>
+              <span className="dash-hint">PDF rapor üretin — veli, sınıf veya karşılaştırma</span>
+            </summary>
+            <div className="exam-reports-collapse__body">
+              <ExamReportsPanel
+                embedded
+                schoolId={schoolId}
+                school={school}
+                students={students}
+                classes={classes}
+              />
+            </div>
+          </details>
+        </section>
       ) : null}
 
       {school ? <ExamSettingsBar school={school} /> : null}

@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { withSchoolFilter } from '../../lib/tenant';
-import { USER_ROLES } from '../../lib/roles';
+import { USER_ROLES, formatRoleLabel } from '../../lib/roles';
 import { useAuth } from '../../context/AuthContext';
+import { useActiveRole } from '../../context/ActiveRoleContext';
+import { useStaffHeader } from '../../hooks/useStaffHeader';
 import {
   AppNavbar,
   ErrorMessage,
@@ -20,15 +22,27 @@ import { CURRICULUM_SUBJECT_DEFS } from '../../lib/dersligCatalog';
 import TeacherAnnouncements from '../../components/announcements/TeacherAnnouncements';
 import AcademicCalendar from '../../components/calendar/AcademicCalendar';
 import DirectorCurriculum from '../../components/curriculum/DirectorCurriculum';
-import DirectorAttendance from '../../components/attendance/DirectorAttendance';
+import CurriculumAssignmentPanel from '../../components/curriculum/CurriculumAssignmentPanel';
 import ExamOperationsPanel from '../../components/exams/ExamOperationsPanel';
 import SchoolBrandingPanel from '../../components/branding/SchoolBrandingPanel';
-import DirectorAssessmentTypes from '../../components/atlas/DirectorAssessmentTypes';
-import { hasAtlasSchedule, hasAccounting, hasHomeworkTracking, saveSchoolFeature } from '../../lib/schoolFeatures';
+import { hasAtlasSchedule, hasAccounting, saveSchoolFeature } from '../../lib/schoolFeatures';
 import DirectorAccounting from '../../components/accounting/DirectorAccounting';
-import DirectorHomework from '../../components/homework/DirectorHomework';
-import { getTabFromSearch } from '../../components/demo/DemoKit';
-import { STUDENT_GRADES, formatStudentGrade } from '../../lib/calendar';
+import { DemoBottomNav, getTabFromSearch } from '../../components/demo/DemoKit';
+import DirectorCommunicationsTab from '../../components/director/DirectorCommunicationsTab';
+import DirectorRecordsTab from '../../components/director/DirectorRecordsTab';
+import DirectorSubNav from '../../components/director/DirectorSubNav';
+import {
+  MANAGEMENT_TAB_IDS,
+  RECORDS_TAB_IDS,
+  buildDirectorBottomNav,
+  buildDirectorNav,
+  getDefaultTabForTopLevel,
+  getManagementSubNavItems,
+  resolveActiveLabel,
+  resolveTopLevelTab,
+} from '../../lib/directorNav';
+import { STUDENT_GRADES, formatStudentGrade, istanbulDateIso } from '../../lib/calendar';
+import { setupBillingForNewStudent } from '../../lib/tuitionBilling';
 import { Icon, TEMPLATE_ICON_NAMES, resolveIconName } from '../../components/ui/Icon';
 import { AnimatedView } from '../../components/ui/AnimatedView';
 import StaffShell from '../../components/layout/StaffShell';
@@ -38,64 +52,15 @@ import {
   loadSchoolAssignments,
   loadSchoolClasses,
 } from '../../lib/curriculum';
-import { createStaffUser, deleteStaffUser, resetStaffPin } from '../../lib/staffUsers';
-import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
-
-const TABS = [
-  { id: 'overview', label: 'Genel Bakış', icon: 'chart' },
-  { id: 'announcements', label: 'Duyurular', icon: 'megaphone' },
-  { id: 'calendar', label: 'Takvim', icon: 'calendar' },
-  { id: 'exams', label: 'Sınavlar', icon: 'file' },
-  { id: 'curriculum', label: 'Müfredat', icon: 'book' },
-  { id: 'homework', label: 'Kitaplar', icon: 'clipboard' },
-  { id: 'attendance', label: 'Yoklama', icon: 'check' },
-  { id: 'student-mgmt', label: 'Öğrenci Yönetimi', icon: 'child' },
-  { id: 'parents', label: 'Veli Yönetimi', icon: 'users' },
-  { id: 'staff', label: 'Öğretmen Yönetimi', icon: 'teacher' },
-  { id: 'audit', label: 'Mesaj Trafiği', icon: 'clipboard' },
-  { id: 'assignment', label: 'Öğretmen Atama', icon: 'school' },
-  { id: 'templates', label: 'Şablonlar', icon: 'sparkle' },
-];
+import { createStaffUser, deleteStaffUser, resetStaffPin, addStaffRole, removeStaffRole } from '../../lib/staffUsers';
+import { loadSchoolProfilesByRole } from '../../lib/staffQueries';
+import { normalizeProfileRoles, isFullDirector, isAssistantDirector, profileHasRole } from '../../lib/profileRoles';
+import { AsyncActionDialog } from '../../components/ui/AsyncActionDialog';
+import { useAsyncAction } from '../../hooks/useAsyncAction';
+import { recordSchoolActivity } from '../../lib/activityLog';
 
 const TEMPLATE_ICONS = TEMPLATE_ICON_NAMES;
 const EMPTY_TEMPLATE = { title: '', body: '', icon: 'mail' };
-
-const MESSAGE_AUDIT_SELECT = `
-  id,
-  body,
-  created_at,
-  author_id,
-  student_id,
-  group_id,
-  profiles ( full_name, email ),
-  students ( full_name ),
-  groups ( name )
-`;
-
-function getStartOfTodayIso() {
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  return start.toISOString();
-}
-
-function formatAuditTime(iso) {
-  return new Date(iso).toLocaleTimeString('tr-TR', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
-function formatRecipient(message) {
-  if (message.students?.full_name) return message.students.full_name;
-  if (message.groups?.name) return `Grup: ${message.groups.name}`;
-  if (message.student_id) return 'Öğrenci';
-  if (message.group_id) return 'Grup';
-  return '—';
-}
-
-function formatAuthor(message) {
-  return message.profiles?.full_name ?? message.profiles?.email ?? 'Bilinmiyor';
-}
 
 function AccessDenied({ onSignOut }) {
   return (
@@ -122,43 +87,10 @@ function StatCard({ icon, label, value, variant = 'lavender' }) {
   );
 }
 
-function DeleteConfirmDialog({ target, confirming, onConfirm, onCancel }) {
-  if (!target) return null;
-
-  return (
-    <ConfirmDialog
-      open
-      title={target.title}
-      confirmLabel="Sil"
-      confirming={confirming}
-      onConfirm={onConfirm}
-      onCancel={onCancel}
-    >
-      <p className="app-dialog__lead">{target.message}</p>
-    </ConfirmDialog>
-  );
-}
-
-function OverviewTab({ stats, linksCount, school, schoolId, onBrandingSaved, atlasSchedule, onFeaturesSaved }) {
-  const [homeworkSaving, setHomeworkSaving] = useState(false);
-  const [homeworkError, setHomeworkError] = useState(null);
+function OverviewTab({ stats, linksCount, school, schoolId, onFeaturesSaved }) {
   const [accountingSaving, setAccountingSaving] = useState(false);
   const [accountingError, setAccountingError] = useState(null);
-  const homeworkTracking = hasHomeworkTracking(school);
   const accountingEnabled = hasAccounting(school);
-
-  async function toggleHomework(next) {
-    setHomeworkSaving(true);
-    setHomeworkError(null);
-    try {
-      await saveSchoolFeature(supabase, schoolId, school?.features, { homework_tracking: next });
-      await onFeaturesSaved?.();
-    } catch (saveError) {
-      setHomeworkError(saveError);
-    } finally {
-      setHomeworkSaving(false);
-    }
-  }
 
   async function toggleAccounting(next) {
     setAccountingSaving(true);
@@ -181,29 +113,14 @@ function OverviewTab({ stats, linksCount, school, schoolId, onBrandingSaved, atl
         <StatCard icon="teacher" label="Kayıtlı Öğretmen" value={stats.teachers} variant="peach" />
         <StatCard icon="link" label="Veli–Öğrenci Eşleşmesi" value={linksCount} variant="lavender" />
       </div>
-      <div className="staff-overview-grid">
-        <SchoolBrandingPanel school={school} schoolId={schoolId} onSaved={onBrandingSaved} />
-        {atlasSchedule ? <DirectorAssessmentTypes schoolId={schoolId} /> : null}
-        <div className="dash-card director-overview-note">
-          <h2 className="dash-section-title">Ödev takibi</h2>
-          <p className="dash-hint">
-            Kaynak kitap kataloğu, ödev atama ve veli sonuç girişi. Açıldığında Kitaplar sekmesi ve
-            öğretmen/veli Ödev sekmeleri görünür.
-          </p>
-          {homeworkError ? <InlineError error={homeworkError} /> : null}
-          <label className="exam-demo-toggle">
-            <input
-              type="checkbox"
-              checked={homeworkTracking}
-              disabled={homeworkSaving}
-              onChange={(event) => toggleHomework(event.target.checked)}
-            />
-            <span>
-              <strong>Ödev / kaynak takibini aç</strong>
-            </span>
-          </label>
-        </div>
-        <div className="dash-card director-overview-note">
+      <SchoolBrandingPanel school={school} />
+
+      <div className="director-module-section">
+        <h2 className="dash-section-title">Modüller</h2>
+        <p className="dash-hint">Okul özelliklerini açıp kapatabilirsiniz.</p>
+      </div>
+      <div className="director-module-grid">
+        <div className="dash-card director-module-card director-overview-note">
           <h2 className="dash-section-title">Muhasebe</h2>
           <p className="dash-hint">
             Veli ödeme takibi — aylık tutar, dönem ve vade. Açıldığında{' '}
@@ -222,7 +139,7 @@ function OverviewTab({ stats, linksCount, school, schoolId, onBrandingSaved, atl
             </span>
           </label>
         </div>
-        <div className="dash-card director-overview-note">
+        <div className="dash-card director-module-card director-overview-note">
           <h2 className="dash-section-title">Okul özeti</h2>
           <p className="dash-hint">
             Öğrenci, veli ve öğretmen hesaplarını ilgili yönetim sekmelerinden
@@ -231,60 +148,6 @@ function OverviewTab({ stats, linksCount, school, schoolId, onBrandingSaved, atl
         </div>
       </div>
     </section>
-  );
-}
-
-function CredentialsModal({ credentials, onClose }) {
-  if (!credentials) return null;
-
-  async function copyValue(value) {
-    try {
-      await navigator.clipboard.writeText(value);
-    } catch {
-      // ignore
-    }
-  }
-
-  return (
-    <div className="app-dialog" role="presentation" onClick={onClose}>
-      <div
-        className="app-dialog__panel"
-        role="dialog"
-        aria-labelledby="credentials-title"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <h2 id="credentials-title" className="app-dialog__title">
-          Giriş bilgileri
-        </h2>
-        <p className="dash-hint">
-          {credentials.full_name} için giriş bilgileri kaydedildi. İlgili yönetim listesinden tekrar
-          görüntüleyebilirsiniz.
-        </p>
-        <dl className="credentials-list">
-          <div className="credentials-row">
-            <dt>Kullanıcı adı</dt>
-            <dd>
-              <code>{credentials.username}</code>
-              <button type="button" className="demo-btn demo-btn--ghost" onClick={() => copyValue(credentials.username)}>
-                Kopyala
-              </button>
-            </dd>
-          </div>
-          <div className="credentials-row">
-            <dt>PIN</dt>
-            <dd>
-              <code>{credentials.pin}</code>
-              <button type="button" className="demo-btn demo-btn--ghost" onClick={() => copyValue(credentials.pin)}>
-                Kopyala
-              </button>
-            </dd>
-          </div>
-        </dl>
-        <button type="button" className="auth-submit" onClick={onClose}>
-          Tamam
-        </button>
-      </div>
-    </div>
   );
 }
 
@@ -409,12 +272,97 @@ function AddCounselorModal({ open, onClose, onCreate, loading, error }) {
   );
 }
 
+function StaffRoleBadges({ member }) {
+  const roles = normalizeProfileRoles(member).filter((role) => role !== USER_ROLES.parent);
+  if (!roles.length) return null;
+
+  return (
+    <div className="staff-role-badges">
+      {roles.map((role) => (
+        <span key={role} className={`staff-role-badge staff-role-badge--${role}`}>
+          {formatRoleLabel(role)}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function StaffRoleControls({
+  member,
+  currentUserId,
+  loading,
+  onAddRole,
+  onRemoveRole,
+  canManageRoles = true,
+}) {
+  const roles = normalizeProfileRoles(member);
+  const isSelf = member.id === currentUserId;
+  const hasDirector = roles.includes(USER_ROLES.director);
+  const hasCounselor = roles.includes(USER_ROLES.counselor);
+
+  return (
+    <div className="staff-role-controls">
+      <StaffRoleBadges member={member} />
+      {isAssistantDirector(member) ? (
+        <p className="staff-teachers-split__subtitle">Asıl rol: Öğretmen</p>
+      ) : null}
+      {canManageRoles ? (
+        <div className="staff-role-controls__actions">
+          {!hasDirector ? (
+            <button
+              type="button"
+              className="demo-btn demo-btn--compact"
+              onClick={() => onAddRole(member, USER_ROLES.director)}
+              disabled={loading}
+            >
+              Müdür yap
+            </button>
+          ) : !isSelf ? (
+            <button
+              type="button"
+              className="demo-btn demo-btn--compact demo-btn--muted"
+              onClick={() => onRemoveRole(member, USER_ROLES.director)}
+              disabled={loading}
+            >
+              Müdür yetkisini kaldır
+            </button>
+          ) : null}
+          {!hasCounselor ? (
+            <button
+              type="button"
+              className="demo-btn demo-btn--compact"
+              onClick={() => onAddRole(member, USER_ROLES.counselor)}
+              disabled={loading}
+            >
+              Rehberlik ekle
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="demo-btn demo-btn--compact demo-btn--muted"
+              onClick={() => onRemoveRole(member, USER_ROLES.counselor)}
+              disabled={loading}
+            >
+              Rehberlik kaldır
+            </button>
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function CounselorStaffSection({
   counselors,
+  currentUserId,
   staffActionLoading,
   onCreateCounselor,
   onResetPin,
   onRequestDelete,
+  onAddRole,
+  onRemoveRole,
+  canManageRoles = true,
+  canDeleteStaff = true,
 }) {
   const [fullName, setFullName] = useState('');
 
@@ -434,7 +382,7 @@ function CounselorStaffSection({
           className="dash-form staff-counselor-card__form"
           onSubmit={async (event) => {
             event.preventDefault();
-            const ok = await onCreateCounselor({ full_name: fullName.trim() });
+            const ok = await onCreateCounselor({ full_name: fullName.trim() }, () => setFullName(''));
             if (ok) setFullName('');
           }}
         >
@@ -465,23 +413,35 @@ function CounselorStaffSection({
               <div className="manage-list__main">
                 <strong>{counselor.full_name ?? counselor.username}</strong>
                 <UserCredentialsRow username={counselor.username} loginPin={counselor.login_pin} />
+                <StaffRoleControls
+                  member={counselor}
+                  currentUserId={currentUserId}
+                  loading={staffActionLoading}
+                  onAddRole={onAddRole}
+                  onRemoveRole={onRemoveRole}
+                  canManageRoles={canManageRoles}
+                />
               </div>
-              <button
-                type="button"
-                className="demo-btn"
-                onClick={() => onResetPin(counselor)}
-                disabled={staffActionLoading}
-              >
-                PIN Sıfırla
-              </button>
-              <button
-                type="button"
-                className="match-item__remove"
-                onClick={() => onRequestDelete(counselor, 'counselor')}
-                disabled={staffActionLoading}
-              >
-                Sil
-              </button>
+              {!normalizeProfileRoles(counselor).includes(USER_ROLES.director) ? (
+                <button
+                  type="button"
+                  className="demo-btn"
+                  onClick={() => onResetPin(counselor)}
+                  disabled={staffActionLoading}
+                >
+                  PIN Sıfırla
+                </button>
+              ) : null}
+              {canDeleteStaff && !normalizeProfileRoles(counselor).includes(USER_ROLES.director) ? (
+                <button
+                  type="button"
+                  className="match-item__remove"
+                  onClick={() => onRequestDelete(counselor, 'counselor')}
+                  disabled={staffActionLoading}
+                >
+                  Sil
+                </button>
+              ) : null}
             </li>
           ))}
         </ul>
@@ -490,7 +450,126 @@ function CounselorStaffSection({
   );
 }
 
+function SelfTeacherRoleCard({ profile, loading, onAddTeacherRole }) {
+  const { hasRole } = useActiveRole();
+  const [subjectSlug, setSubjectSlug] = useState('');
+
+  if (!hasRole(USER_ROLES.director) || hasRole(USER_ROLES.teacher)) {
+    return null;
+  }
+
+  return (
+    <div className="dash-card staff-self-teacher-card">
+      <h2 className="dash-section-title">Ben de ders veriyorum</h2>
+      <p className="dash-muted">
+        Müdür hesabınıza öğretmen rolü ekleyerek öğretmen paneline geçebilirsiniz.
+      </p>
+      <form
+        className="dash-form"
+        onSubmit={async (event) => {
+          event.preventDefault();
+          if (!subjectSlug) return;
+          await onAddTeacherRole(
+            {
+              user_id: profile.id,
+              role: 'teacher',
+              subject_slug: subjectSlug,
+            },
+            () => setSubjectSlug('')
+          );
+        }}
+      >
+        <label className="dash-label">
+          Branş
+          <select
+            className="dash-input"
+            value={subjectSlug}
+            onChange={(event) => setSubjectSlug(event.target.value)}
+            required
+            disabled={loading}
+          >
+            <option value="">Seçin…</option>
+            {CURRICULUM_SUBJECT_DEFS.map((subject) => (
+              <option key={subject.slug} value={subject.slug}>
+                {subject.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <SendButton
+          sending={loading}
+          disabled={!subjectSlug}
+          label="Öğretmen rolü ekle"
+          sendingLabel="Ekleniyor…"
+        />
+      </form>
+    </div>
+  );
+}
+
+function TeacherRosterItem({
+  teacher,
+  profile,
+  staffActionLoading,
+  canManageRoles,
+  canDeleteStaff,
+  onAddRole,
+  onRemoveRole,
+  onResetPin,
+  onRequestDelete,
+  onSavePhone,
+  onSaveSubject,
+}) {
+  return (
+    <li key={teacher.id} className="manage-list__item">
+      <div className="manage-list__main">
+        <strong>{teacher.full_name ?? teacher.username}</strong>
+        <UserCredentialsRow username={teacher.username} loginPin={teacher.login_pin} />
+        <StaffRoleControls
+          member={teacher}
+          currentUserId={profile?.id}
+          loading={staffActionLoading}
+          onAddRole={onAddRole}
+          onRemoveRole={onRemoveRole}
+          canManageRoles={canManageRoles}
+        />
+      </div>
+      <StaffTeacherPhoneField
+        teacher={teacher}
+        disabled={staffActionLoading}
+        onSave={onSavePhone}
+      />
+      <StaffTeacherSubjectField
+        teacher={teacher}
+        disabled={staffActionLoading}
+        onSave={onSaveSubject}
+      />
+      {!normalizeProfileRoles(teacher).includes(USER_ROLES.director) ? (
+        <button
+          type="button"
+          className="demo-btn"
+          onClick={() => onResetPin(teacher)}
+          disabled={staffActionLoading}
+        >
+          PIN Sıfırla
+        </button>
+      ) : null}
+      {canDeleteStaff && !normalizeProfileRoles(teacher).includes(USER_ROLES.director) ? (
+        <button
+          type="button"
+          className="match-item__remove"
+          onClick={() => onRequestDelete(teacher, 'teacher')}
+          disabled={staffActionLoading}
+        >
+          Sil
+        </button>
+      ) : null}
+    </li>
+  );
+}
+
 function TeacherManagementTab({
+  profile,
   counselors,
   teachers,
   subjects,
@@ -500,8 +579,13 @@ function TeacherManagementTab({
   staffActionLoading,
   staffError,
   staffSuccess,
+  canManageRoles = true,
+  canDeleteStaff = true,
   onCreateCounselor,
   onCreateTeacher,
+  onAddTeacherRole,
+  onAddRole,
+  onRemoveRole,
   onResetPin,
   onRequestDelete,
   onSavePhone,
@@ -519,6 +603,20 @@ function TeacherManagementTab({
       matchesPersonSearch(searchQuery, teacher.full_name, teacher.username)
     );
   }, [teachers, searchQuery]);
+
+  const { pureTeachers, assistantDirectors } = useMemo(() => {
+    const pure = [];
+    const assistants = [];
+    for (const teacher of filteredTeachers) {
+      const roles = normalizeProfileRoles(teacher);
+      if (roles.includes(USER_ROLES.director)) {
+        assistants.push(teacher);
+      } else {
+        pure.push(teacher);
+      }
+    }
+    return { pureTeachers: pure, assistantDirectors: assistants };
+  }, [filteredTeachers]);
 
   useEffect(() => {
     if (counselors.length > 0) {
@@ -550,12 +648,23 @@ function TeacherManagementTab({
       {staffError && !counselorPromptOpen && <InlineError error={staffError} context="general" />}
       {staffSuccess && <SuccessMessage message={staffSuccess} />}
 
+      <SelfTeacherRoleCard
+        profile={profile}
+        loading={staffActionLoading}
+        onAddTeacherRole={onAddTeacherRole}
+      />
+
       <CounselorStaffSection
         counselors={counselors}
+        currentUserId={profile?.id}
         staffActionLoading={staffActionLoading}
         onCreateCounselor={onCreateCounselor}
         onResetPin={onResetPin}
         onRequestDelete={onRequestDelete}
+        onAddRole={onAddRole}
+        onRemoveRole={onRemoveRole}
+        canManageRoles={canManageRoles}
+        canDeleteStaff={canDeleteStaff}
       />
 
       <div className="staff-teachers-divider" aria-hidden="true">
@@ -568,14 +677,16 @@ function TeacherManagementTab({
           className="dash-form"
           onSubmit={async (event) => {
             event.preventDefault();
-            const ok = await onCreateTeacher({
-              full_name: fullName.trim(),
-              subject_slug: subjectSlug,
-            });
-            if (ok) {
-              setFullName('');
-              setSubjectSlug('');
-            }
+            await onCreateTeacher(
+              {
+                full_name: fullName.trim(),
+                subject_slug: subjectSlug,
+              },
+              () => {
+                setFullName('');
+                setSubjectSlug('');
+              }
+            );
           }}
         >
           <label className="dash-label">
@@ -616,65 +727,78 @@ function TeacherManagementTab({
         </form>
       </div>
 
-      <div className="dash-card">
-        <h2 className="dash-section-title">
-          Öğretmenler
-          {searchQuery.trim()
-            ? ` (${filteredTeachers.length}/${teachers.length})`
-            : ` (${teachers.length})`}
-        </h2>
-        {teachers.length === 0 ? (
-          <p className="dash-hint">Henüz öğretmen yok.</p>
-        ) : (
-          <>
-            <RosterSearchInput
-              value={searchQuery}
-              onChange={setSearchQuery}
-              placeholder="Öğretmen ara…"
-              disabled={staffActionLoading}
-            />
-            {filteredTeachers.length === 0 ? (
-              <p className="dash-hint">Aramanızla eşleşen öğretmen yok.</p>
-            ) : (
-          <ul className="manage-list">
-            {filteredTeachers.map((teacher) => (
-              <li key={teacher.id} className="manage-list__item">
-                <div className="manage-list__main">
-                  <strong>{teacher.full_name ?? teacher.username}</strong>
-                  <UserCredentialsRow username={teacher.username} loginPin={teacher.login_pin} />
-                </div>
-                <StaffTeacherPhoneField
+      <div className="staff-teachers-split">
+        <div className="dash-card">
+          <h2 className="dash-section-title">
+            Öğretmenler
+            {searchQuery.trim()
+              ? ` (${pureTeachers.length}/${teachers.filter((t) => !normalizeProfileRoles(t).includes(USER_ROLES.director)).length})`
+              : ` (${teachers.filter((t) => !normalizeProfileRoles(t).includes(USER_ROLES.director)).length})`}
+          </h2>
+          {teachers.length === 0 ? (
+            <p className="dash-hint">Henüz öğretmen yok.</p>
+          ) : (
+            <>
+              <RosterSearchInput
+                value={searchQuery}
+                onChange={setSearchQuery}
+                placeholder="Öğretmen ara…"
+                disabled={staffActionLoading}
+              />
+              {filteredTeachers.length === 0 ? (
+                <p className="dash-hint">Aramanızla eşleşen öğretmen yok.</p>
+              ) : pureTeachers.length === 0 ? (
+                <p className="dash-hint">Aramanızla eşleşen saf öğretmen yok.</p>
+              ) : (
+                <ul className="manage-list">
+                  {pureTeachers.map((teacher) => (
+                    <TeacherRosterItem
+                      key={teacher.id}
+                      teacher={teacher}
+                      profile={profile}
+                      staffActionLoading={staffActionLoading}
+                      canManageRoles={canManageRoles}
+                      canDeleteStaff={canDeleteStaff}
+                      onAddRole={onAddRole}
+                      onRemoveRole={onRemoveRole}
+                      onResetPin={onResetPin}
+                      onRequestDelete={onRequestDelete}
+                      onSavePhone={onSavePhone}
+                      onSaveSubject={onSaveSubject}
+                    />
+                  ))}
+                </ul>
+              )}
+            </>
+          )}
+        </div>
+
+        {assistantDirectors.length > 0 ? (
+          <div className="dash-card">
+            <h2 className="dash-section-title">Müdür yetkili öğretmenler ({assistantDirectors.length})</h2>
+            <p className="staff-teachers-split__subtitle">
+              Öğretmen olarak başlayıp müdür yetkisi verilen personel. Asıl rolleri öğretmendir.
+            </p>
+            <ul className="manage-list">
+              {assistantDirectors.map((teacher) => (
+                <TeacherRosterItem
+                  key={teacher.id}
                   teacher={teacher}
-                  disabled={staffActionLoading}
-                  onSave={onSavePhone}
+                  profile={profile}
+                  staffActionLoading={staffActionLoading}
+                  canManageRoles={canManageRoles}
+                  canDeleteStaff={canDeleteStaff}
+                  onAddRole={onAddRole}
+                  onRemoveRole={onRemoveRole}
+                  onResetPin={onResetPin}
+                  onRequestDelete={onRequestDelete}
+                  onSavePhone={onSavePhone}
+                  onSaveSubject={onSaveSubject}
                 />
-                <StaffTeacherSubjectField
-                  teacher={teacher}
-                  disabled={staffActionLoading}
-                  onSave={onSaveSubject}
-                />
-                <button
-                  type="button"
-                  className="demo-btn"
-                  onClick={() => onResetPin(teacher)}
-                  disabled={staffActionLoading}
-                >
-                  PIN Sıfırla
-                </button>
-                <button
-                  type="button"
-                  className="match-item__remove"
-                  onClick={() => onRequestDelete(teacher, 'teacher')}
-                  disabled={staffActionLoading}
-                >
-                  Sil
-                </button>
-              </li>
-            ))}
-          </ul>
-            )}
-          </>
-        )}
+              ))}
+            </ul>
+          </div>
+        ) : null}
       </div>
     </section>
   );
@@ -689,6 +813,7 @@ function ParentManagementTab({
   staffActionLoading,
   staffError,
   staffSuccess,
+  canDeleteStaff = true,
   onCreateParent,
   onResetPin,
   onRequestDelete,
@@ -738,7 +863,13 @@ function ParentManagementTab({
           className="dash-form"
           onSubmit={async (event) => {
             event.preventDefault();
-            const ok = await onCreateParent({ full_name: fullName.trim(), student_ids: studentIds });
+            const ok = await onCreateParent(
+              { full_name: fullName.trim(), student_ids: studentIds },
+              () => {
+                setFullName('');
+                setStudentIds([]);
+              }
+            );
             if (ok) {
               setFullName('');
               setStudentIds([]);
@@ -830,14 +961,16 @@ function ParentManagementTab({
                   >
                     PIN Sıfırla
                   </button>
-                  <button
-                    type="button"
-                    className="match-item__remove"
-                    onClick={() => onRequestDelete(parent, 'parent')}
-                    disabled={staffActionLoading}
-                  >
-                    Sil
-                  </button>
+                  {canDeleteStaff ? (
+                    <button
+                      type="button"
+                      className="match-item__remove"
+                      onClick={() => onRequestDelete(parent, 'parent')}
+                      disabled={staffActionLoading}
+                    >
+                      Sil
+                    </button>
+                  ) : null}
                 </li>
               );
             })}
@@ -870,61 +1003,6 @@ function TabError({ error, onRetry, retryLabel = 'Tekrar Dene' }) {
           <button type="button" className="error-card__retry" onClick={onRetry}>
             {retryLabel}
           </button>
-        )}
-      </div>
-    </section>
-  );
-}
-
-function MessageAuditTab({ messages, loading, error, onRefresh }) {
-  if (loading) {
-    return <TabLoading message="Bugünkü mesajlar yükleniyor…" />;
-  }
-
-  if (error) {
-    return <TabError error={error} onRetry={onRefresh} />;
-  }
-
-  return (
-    <section className="director-panel">
-      <div className="dash-card">
-        <div className="director-card-header">
-          <div>
-            <h2 className="dash-section-title">Tüm Mesaj Trafiği</h2>
-            <p className="dash-hint">Bugün gönderilen tüm bildirimler ({messages.length} adet).</p>
-          </div>
-          <button type="button" className="director-btn-secondary" onClick={onRefresh}>
-            Yenile
-          </button>
-        </div>
-
-        {messages.length === 0 ? (
-          <p className="dash-hint">Bugün henüz mesaj gönderilmemiş.</p>
-        ) : (
-          <div className="audit-table-wrap">
-            <table className="audit-table">
-              <thead>
-                <tr>
-                  <th scope="col">Saat</th>
-                  <th scope="col">Öğretmen</th>
-                  <th scope="col">Alıcı</th>
-                  <th scope="col">Mesaj</th>
-                </tr>
-              </thead>
-              <tbody>
-                {messages.map((message) => (
-                  <tr key={message.id}>
-                    <td className="audit-table__time">
-                      <time dateTime={message.created_at}>{formatAuditTime(message.created_at)}</time>
-                    </td>
-                    <td className="audit-table__teacher">{formatAuthor(message)}</td>
-                    <td className="audit-table__recipient">{formatRecipient(message)}</td>
-                    <td className="audit-table__body">{message.body}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
         )}
       </div>
     </section>
@@ -996,177 +1074,6 @@ function StaffTeacherSubjectField({ teacher, disabled, onSave }) {
         Kaydet
       </button>
     </form>
-  );
-}
-
-function TeacherAssignmentTab({
-  teachers,
-  students,
-  selectedTeacherId,
-  onTeacherChange,
-  selectedStudentIds,
-  onToggleStudent,
-  onToggleSelectAll,
-  assignmentSearchQuery,
-  onAssignmentSearchChange,
-  savedStudentIds,
-  onSave,
-  saving,
-  loading,
-  error,
-  success,
-}) {
-  const selectedTeacher = teachers.find((teacher) => teacher.id === selectedTeacherId);
-
-  const filteredStudents = useMemo(() => {
-    const query = assignmentSearchQuery.trim().toLocaleLowerCase('tr');
-    if (!query) return students;
-    return students.filter((student) =>
-      student.full_name.toLocaleLowerCase('tr').includes(query)
-    );
-  }, [students, assignmentSearchQuery]);
-
-  const allSelected =
-    students.length > 0 && selectedStudentIds.length === students.length;
-
-  const savedStudents = students.filter((student) => savedStudentIds.includes(student.id));
-
-  if (loading) {
-    return <TabLoading message="Öğretmen atamaları yükleniyor…" />;
-  }
-
-  return (
-    <section className="director-panel">
-      <div className="dash-card">
-        <h2 className="dash-section-title">Sınıf / Öğretmen Atama</h2>
-        <p className="dash-hint">
-          Bir öğretmen seçin ve mesaj gönderebileceği öğrencileri işaretleyin. Müfredat için
-          üstteki şube + ders atamasını kullanın.
-        </p>
-
-        <label className="dash-label">
-          Öğretmen seçin
-          <select
-            className="dash-input"
-            value={selectedTeacherId}
-            onChange={(event) => onTeacherChange(event.target.value)}
-            disabled={saving || teachers.length === 0}
-          >
-            <option value="">Öğretmen seçin…</option>
-            {teachers.map((teacher) => (
-              <option key={teacher.id} value={teacher.id}>
-                {teacher.full_name ?? teacher.email ?? teacher.id}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        {!selectedTeacherId ? (
-          <p className="dash-hint">Atama yapmak için önce bir öğretmen seçin.</p>
-        ) : (
-          <>
-            {savedStudents.length > 0 && (
-              <div className="assignment-saved">
-                <p className="dash-label-inline">
-                  {selectedTeacher?.full_name ?? selectedTeacher?.email} — mevcut atamalar
-                </p>
-                <ul className="assignment-chip-list">
-                  {savedStudents.map((student) => (
-                    <li key={student.id} className="assignment-chip">
-                      {student.full_name}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {savedStudents.length === 0 && (
-              <p className="assignment-empty-note">
-                Bu öğretmene henüz öğrenci atanmamış.
-              </p>
-            )}
-
-            <div className="student-picker">
-              <p className="dash-label-inline">Öğrenciler</p>
-              <div className="student-picker-toolbar">
-                <input
-                  className="dash-input student-picker-search"
-                  type="search"
-                  value={assignmentSearchQuery}
-                  onChange={(event) => onAssignmentSearchChange(event.target.value)}
-                  placeholder="Öğrenci ara…"
-                  disabled={saving || students.length === 0}
-                  aria-label="Öğrenci ara"
-                />
-                <button
-                  type="button"
-                  className="student-picker-select-all"
-                  onClick={onToggleSelectAll}
-                  disabled={saving || students.length === 0}
-                >
-                  {allSelected ? 'Seçimleri Kaldır' : 'Tüm Öğrencileri Seç'}
-                </button>
-              </div>
-
-              {students.length === 0 ? (
-                <p className="dash-hint">Atanabilecek öğrenci bulunmuyor.</p>
-              ) : filteredStudents.length === 0 ? (
-                <p className="dash-hint">Aramanızla eşleşen öğrenci yok.</p>
-              ) : (
-                <ul className="student-picker-list" role="list">
-                  {filteredStudents.map((student) => {
-                    const checked = selectedStudentIds.includes(student.id);
-                    const isSaved = savedStudentIds.includes(student.id);
-
-                    return (
-                      <li key={student.id} role="listitem">
-                        <label
-                          className={`student-picker-item${checked ? ' student-picker-item--checked' : ''}${isSaved ? ' student-picker-item--assigned' : ''}`}
-                        >
-                          <input
-                            type="checkbox"
-                            className="student-picker-checkbox"
-                            checked={checked}
-                            onChange={() => onToggleStudent(student.id)}
-                            disabled={saving}
-                          />
-                          <span className="student-picker-item__name">{student.full_name}</span>
-                          {isSaved && (
-                            <span className="assignment-item-badge">Atanmış</span>
-                          )}
-                        </label>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-
-              <p className="student-picker-count">
-                {selectedStudentIds.length} / {students.length} öğrenci seçildi
-              </p>
-            </div>
-
-            {error && <InlineError error={error} context="general" />}
-            {success && <SuccessMessage message={success} />}
-
-            <form
-              className="dash-form"
-              onSubmit={(event) => {
-                event.preventDefault();
-                onSave();
-              }}
-            >
-              <SendButton
-                sending={saving}
-                disabled={!selectedTeacherId}
-                label="Öğrencileri Öğretmene Ata"
-                sendingLabel="Kaydediliyor…"
-              />
-            </form>
-          </>
-        )}
-      </div>
-    </section>
   );
 }
 
@@ -1305,16 +1212,24 @@ function TemplatesTab({
   );
 }
 
-function StudentManagementTab({ students, classes, schoolId, onRefresh }) {
+function StudentManagementTab({
+  students,
+  classes,
+  schoolId,
+  profile,
+  onRefresh,
+  canDeleteStaff = true,
+  runAsyncAction,
+  accountingEnabled = false,
+}) {
+  const today = istanbulDateIso();
   const [fullName, setFullName] = useState('');
   const [classId, setClassId] = useState('');
   const [branchGrade, setBranchGrade] = useState('5');
   const [branchName, setBranchName] = useState('A');
+  const [billingStartDate, setBillingStartDate] = useState(today);
+  const [billingMonthlyAmount, setBillingMonthlyAmount] = useState('');
   const [saving, setSaving] = useState(false);
-  const [deletingId, setDeletingId] = useState(null);
-  const [deletingClassId, setDeletingClassId] = useState(null);
-  const [deleteTarget, setDeleteTarget] = useState(null);
-  const [deleteConfirming, setDeleteConfirming] = useState(false);
   const [updatingClassId, setUpdatingClassId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [error, setError] = useState(null);
@@ -1347,61 +1262,94 @@ function StudentManagementTab({ students, classes, schoolId, onRefresh }) {
       return;
     }
 
-    setSaving(true);
-    const { error: insertError } = await supabase.from('classes').insert({
-      school_id: schoolId,
-      grade: Number(branchGrade),
-      name: trimmed,
+    if (!runAsyncAction) return;
+
+    const branchLabel = `${branchGrade}-${trimmed}`;
+
+    await runAsyncAction({
+      title: 'Şube oluştur',
+      message: `${branchLabel} şubesi oluşturulsun mu?`,
+      confirmLabel: 'Oluştur',
+      loadingLabel: 'Şube oluşturuluyor…',
+      successMessage: `${branchLabel} şubesi eklendi.`,
+      runFn: async () => {
+        const { error: insertError } = await supabase.from('classes').insert({
+          school_id: schoolId,
+          grade: Number(branchGrade),
+          name: trimmed,
+        });
+        if (insertError) throw insertError;
+      },
+      onSuccess: async () => {
+        recordSchoolActivity(supabase, profile, {
+          schoolId,
+          category: 'student',
+          action: 'created',
+          summary: `Şube oluşturuldu: ${branchLabel}`,
+        });
+        setBranchName('A');
+        await onRefresh();
+      },
     });
-    setSaving(false);
-
-    if (insertError) {
-      setError(insertError);
-      return;
-    }
-
-    setSuccess(`${branchGrade}-${trimmed} şubesi eklendi.`);
-    await onRefresh();
-  }
-
-  async function handleDeleteBranch(klass) {
-    setDeletingClassId(klass.id);
-    setError(null);
-    setSuccess(null);
-
-    const { error: deleteError } = await withSchoolFilter(
-      supabase.from('classes').delete().eq('id', klass.id),
-      schoolId
-    );
-    setDeletingClassId(null);
-
-    if (deleteError) {
-      setError(deleteError);
-      return;
-    }
-
-    setSuccess(`${formatClassLabel(klass.grade, klass.name)} silindi.`);
-    await onRefresh();
   }
 
   function requestDeleteBranch(klass) {
     const label = formatClassLabel(klass.grade, klass.name);
-    setDeleteTarget({
+    if (!runAsyncAction) return;
+
+    runAsyncAction({
       title: 'Şube silinsin mi?',
       message: `${label} şubesini silmek istediğinize emin misiniz? Şubedeki öğrenciler şubesiz kalır.`,
-      onConfirm: () => handleDeleteBranch(klass),
+      confirmLabel: 'Sil',
+      loadingLabel: 'Siliniyor…',
+      successMessage: `${label} silindi.`,
+      runFn: async () => {
+        const { error: deleteError } = await withSchoolFilter(
+          supabase.from('classes').delete().eq('id', klass.id),
+          schoolId
+        );
+        if (deleteError) throw deleteError;
+      },
+      onSuccess: () => {
+        recordSchoolActivity(supabase, profile, {
+          schoolId,
+          category: 'student',
+          action: 'deleted',
+          summary: `Şube silindi: ${label}`,
+        });
+        onRefresh();
+      },
     });
   }
 
-  async function confirmDeleteTarget() {
-    if (!deleteTarget?.onConfirm) return;
-    setDeleteConfirming(true);
-    try {
-      await deleteTarget.onConfirm();
-      setDeleteTarget(null);
-    } finally {
-      setDeleteConfirming(false);
-    }
+  function requestDeleteStudent(student) {
+    if (!runAsyncAction) return;
+
+    runAsyncAction({
+      title: 'Öğrenci silinsin mi?',
+      message: `${student.full_name} kaydını silmek istediğinize emin misiniz? Yoklama, sınav ve veli bağlantıları da kaldırılır. Bu işlem geri alınamaz.`,
+      confirmLabel: 'Sil',
+      loadingLabel: 'Siliniyor…',
+      successMessage: `${student.full_name} listeden kaldırıldı.`,
+      runFn: async () => {
+        const { error: deleteError } = await withSchoolFilter(
+          supabase.from('students').delete().eq('id', student.id),
+          schoolId
+        );
+        if (deleteError) throw deleteError;
+      },
+      onSuccess: () => {
+        recordSchoolActivity(supabase, profile, {
+          schoolId,
+          category: 'student',
+          action: 'deleted',
+          summary: `Öğrenci silindi: ${student.full_name}`,
+          targetType: 'student',
+          targetId: student.id,
+        });
+        onRefresh();
+      },
+    });
   }
 
   async function handleSubmit(event) {
@@ -1420,55 +1368,61 @@ function StudentManagementTab({ students, classes, schoolId, onRefresh }) {
       return;
     }
 
-    setSaving(true);
+    if (!runAsyncAction) return;
 
-    const { error: insertError } = await supabase.from('students').insert({
-      full_name: trimmedName,
-      class_id: classId,
-      school_id: schoolId,
+    const billingAmount = billingMonthlyAmount.trim();
+    const billingStart = billingStartDate || today;
+
+    await runAsyncAction({
+      title: 'Öğrenci oluştur',
+      message: `${trimmedName} okula eklensin mi?${
+        accountingEnabled && billingAmount ? ' Ödeme planı da kaydedilecek.' : ''
+      }`,
+      confirmLabel: 'Oluştur',
+      loadingLabel: 'Öğrenci ekleniyor…',
+      successMessage: `${trimmedName} başarıyla eklendi.${
+        accountingEnabled && billingAmount ? ' Ödeme planı Muhasebe sekmesinde görünür.' : ''
+      }`,
+      runFn: async () => {
+        const { data: student, error: insertError } = await supabase
+          .from('students')
+          .insert({
+            full_name: trimmedName,
+            class_id: classId,
+            school_id: schoolId,
+          })
+          .select('id')
+          .single();
+        if (insertError) throw insertError;
+
+        if (accountingEnabled && billingAmount) {
+          await setupBillingForNewStudent(
+            schoolId,
+            {
+              studentId: student.id,
+              monthlyAmount: billingAmount,
+              billingStartDate: billingStart,
+            },
+            today
+          );
+        }
+      },
+      onSuccess: async () => {
+        recordSchoolActivity(supabase, profile, {
+          schoolId,
+          category: 'student',
+          action: 'created',
+          summary: `Öğrenci eklendi: ${trimmedName}`,
+        });
+        setFullName('');
+        setClassId('');
+        setBillingMonthlyAmount('');
+        setBillingStartDate(today);
+        await onRefresh();
+      },
     });
-
-    setSaving(false);
-
-    if (insertError) {
-      setError(insertError);
-      return;
-    }
-
-    setFullName('');
-    setClassId('');
-    setSuccess('Öğrenci başarıyla eklendi.');
-    await onRefresh();
   }
 
-  async function handleDeleteStudent(student) {
-    setDeletingId(student.id);
-    setError(null);
-    setSuccess(null);
-
-    const { error: deleteError } = await withSchoolFilter(
-      supabase.from('students').delete().eq('id', student.id),
-      schoolId
-    );
-
-    setDeletingId(null);
-
-    if (deleteError) {
-      setError(deleteError);
-      return;
-    }
-
-    setSuccess(`${student.full_name} listeden kaldırıldı.`);
-    await onRefresh();
-  }
-
-  function requestDeleteStudent(student) {
-    setDeleteTarget({
-      title: 'Öğrenci silinsin mi?',
-      message: `${student.full_name} kaydını silmek istediğinize emin misiniz? Yoklama, sınav ve veli bağlantıları da kaldırılır. Bu işlem geri alınamaz.`,
-      onConfirm: () => handleDeleteStudent(student),
-    });
-  }
 
   async function handleClassChange(student, nextClassId) {
     setUpdatingClassId(student.id);
@@ -1490,17 +1444,22 @@ function StudentManagementTab({ students, classes, schoolId, onRefresh }) {
       return;
     }
 
+    recordSchoolActivity(supabase, profile, {
+      schoolId,
+      category: 'student',
+      action: 'updated',
+      summary: `Öğrenci şubesi güncellendi: ${student.full_name} → ${
+        classNameById[nextClassId] ?? '—'
+      }`,
+      targetType: 'student',
+      targetId: student.id,
+    });
+
     await onRefresh();
   }
 
   return (
     <section className="director-panel director-panel--simple">
-      <DeleteConfirmDialog
-        target={deleteTarget}
-        confirming={deleteConfirming}
-        onConfirm={confirmDeleteTarget}
-        onCancel={() => setDeleteTarget(null)}
-      />
       <div className="dash-card">
         <h2 className="dash-section-title">Şubeler</h2>
         <p className="dash-hint">
@@ -1543,19 +1502,24 @@ function StudentManagementTab({ students, classes, schoolId, onRefresh }) {
           <p className="dash-hint">Henüz şube yok. Önce 5-A gibi bir şube ekleyin.</p>
         ) : (
           <ul className="assignment-chip-list cur-class-list">
-            {classes.map((klass) => (
-              <li key={klass.id} className="assignment-chip">
-                {formatClassLabel(klass.grade, klass.name)}
-                <button
-                  type="button"
-                  className="cur-chip-remove"
-                  onClick={() => requestDeleteBranch(klass)}
-                  disabled={deletingClassId === klass.id}
-                >
-                  {deletingClassId === klass.id ? '…' : 'Sil'}
-                </button>
-              </li>
-            ))}
+            {classes.map((klass) => {
+              const label = formatClassLabel(klass.grade, klass.name);
+              return (
+                <li key={klass.id} className="assignment-chip cur-class-chip">
+                  <span className="cur-class-chip__label">{label}</span>
+                  {canDeleteStaff ? (
+                    <button
+                      type="button"
+                      className="cur-chip-remove"
+                      onClick={() => requestDeleteBranch(klass)}
+                      aria-label={`${label} şubesini sil`}
+                    >
+                      <Icon name="x" size={12} />
+                    </button>
+                  ) : null}
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>
@@ -1600,6 +1564,41 @@ function StudentManagementTab({ students, classes, schoolId, onRefresh }) {
               ))}
             </select>
           </label>
+
+          {accountingEnabled ? (
+            <details className="student-billing-fields">
+              <summary className="student-billing-fields__summary">Ödeme planı (isteğe bağlı)</summary>
+              <div className="student-billing-fields__body">
+                <p className="dash-hint">
+                  Kayıt tarihi ve aylık tutarı şimdi girebilirsiniz; boş bırakırsanız Muhasebe sekmesinden
+                  sonra ekleyebilirsiniz.
+                </p>
+                <label className="dash-label">
+                  Kayıt tarihi
+                  <input
+                    className="dash-input"
+                    type="date"
+                    value={billingStartDate}
+                    onChange={(event) => setBillingStartDate(event.target.value)}
+                    disabled={saving}
+                  />
+                </label>
+                <label className="dash-label">
+                  Aylık tutar (₺)
+                  <input
+                    className="dash-input"
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={billingMonthlyAmount}
+                    onChange={(event) => setBillingMonthlyAmount(event.target.value)}
+                    placeholder="Boş bırakılabilir"
+                    disabled={saving}
+                  />
+                </label>
+              </div>
+            </details>
+          ) : null}
 
           <SendButton
             sending={saving}
@@ -1657,14 +1656,16 @@ function StudentManagementTab({ students, classes, schoolId, onRefresh }) {
                     ))}
                   </select>
                 </div>
-                <button
-                  type="button"
-                  className="match-item__remove"
-                  onClick={() => requestDeleteStudent(student)}
-                  disabled={deletingId === student.id || saving}
-                >
-                  {deletingId === student.id ? 'Siliniyor…' : 'Sil'}
-                </button>
+                {canDeleteStaff ? (
+                  <button
+                    type="button"
+                    className="match-item__remove"
+                    onClick={() => requestDeleteStudent(student)}
+                    disabled={saving}
+                  >
+                    Sil
+                  </button>
+                ) : null}
               </li>
             ))}
               </ul>
@@ -1677,7 +1678,12 @@ function StudentManagementTab({ students, classes, schoolId, onRefresh }) {
 }
 
 export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
-  const { school, refreshSchool } = useAuth();
+  const { school, refreshSchool, refreshProfile } = useAuth();
+  const { hasRole } = useActiveRole();
+  const { roleLabel, roleSwitcher } = useStaffHeader();
+  const isDirector = hasRole(USER_ROLES.director);
+  const fullDirector = isFullDirector(profile);
+  const { asyncAction, closeAsyncAction, runAsyncAction } = useAsyncAction();
   const [activeTab, setActiveTab] = useState(() => getTabFromSearch('overview'));
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
@@ -1698,29 +1704,25 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
   const [templateError, setTemplateError] = useState(null);
   const [templateSuccess, setTemplateSuccess] = useState(null);
 
-  const [auditMessages, setAuditMessages] = useState([]);
-  const [auditLoading, setAuditLoading] = useState(false);
-  const [auditError, setAuditError] = useState(null);
-
   const [staffActionLoading, setStaffActionLoading] = useState(false);
   const [staffError, setStaffError] = useState(null);
   const [staffSuccess, setStaffSuccess] = useState(null);
-  const [credentials, setCredentials] = useState(null);
-  const [staffDeleteTarget, setStaffDeleteTarget] = useState(null);
-  const [staffDeleteConfirming, setStaffDeleteConfirming] = useState(false);
-
-  const [assignmentTeacherId, setAssignmentTeacherId] = useState('');
-  const [assignmentSelectedStudentIds, setAssignmentSelectedStudentIds] = useState([]);
-  const [assignmentSavedStudentIds, setAssignmentSavedStudentIds] = useState([]);
-  const [assignmentSearchQuery, setAssignmentSearchQuery] = useState('');
-  const [assignmentLoading, setAssignmentLoading] = useState(false);
-  const [assignmentSaving, setAssignmentSaving] = useState(false);
-  const [assignmentError, setAssignmentError] = useState(null);
-  const [assignmentSuccess, setAssignmentSuccess] = useState(null);
 
   const displayName = profile?.full_name ?? profile?.email ?? 'Müdür';
   const navLogoUrl = school?.logo_url ?? null;
   const schoolName = school?.name ?? 'OkulTakip';
+
+  const navProps = useMemo(
+    () => ({
+      schoolName,
+      roleLabel,
+      roleSwitcher,
+      logoUrl: navLogoUrl,
+      userName: displayName,
+      onSignOut,
+    }),
+    [schoolName, roleLabel, roleSwitcher, navLogoUrl, displayName, onSignOut]
+  );
 
   const stats = useMemo(() => {
     const activeParentIds = new Set(links.map((link) => link.parent_id));
@@ -1730,6 +1732,25 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
       teachers: teachers.length,
     };
   }, [students.length, teachers.length, links]);
+
+  const classStudentCounts = useMemo(() => {
+    const counts = {};
+    for (const student of students) {
+      if (!student.class_id) continue;
+      counts[student.class_id] = (counts[student.class_id] ?? 0) + 1;
+    }
+    return counts;
+  }, [students]);
+
+  const refreshCurriculumAssignments = useCallback(async () => {
+    if (!schoolId) return;
+    try {
+      const assignments = await loadSchoolAssignments(schoolId);
+      setCurriculumAssignments(assignments);
+    } catch {
+      setCurriculumAssignments([]);
+    }
+  }, [schoolId]);
 
   const loadData = useCallback(async () => {
     setLoadError(null);
@@ -1748,22 +1769,18 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
         supabase.from('students').select('id, full_name, grade, class_id').order('full_name'),
         schoolId
       ),
-      withSchoolFilter(
-        supabase
-          .from('profiles')
-          .select('id, full_name, email, username, login_pin, phone, subject_id, subject_slug')
-          .eq('role', USER_ROLES.teacher)
-          .order('full_name'),
-        schoolId
-      ),
-      withSchoolFilter(
-        supabase
-          .from('profiles')
-          .select('id, full_name, email, username, login_pin')
-          .eq('role', USER_ROLES.counselor)
-          .order('full_name'),
-        schoolId
-      ),
+      loadSchoolProfilesByRole({
+        supabase,
+        schoolId,
+        role: USER_ROLES.teacher,
+        select: 'id, full_name, email, username, login_pin, phone, subject_id, subject_slug, primary_role',
+      }),
+      loadSchoolProfilesByRole({
+        supabase,
+        schoolId,
+        role: USER_ROLES.counselor,
+        select: 'id, full_name, email, username, login_pin, primary_role',
+      }),
       supabase.from('student_parents').select('student_id, parent_id'),
       withSchoolFilter(
         supabase
@@ -1826,138 +1843,8 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
     }
   }, [schoolId]);
 
-  const loadTodayMessages = useCallback(async () => {
-    setAuditLoading(true);
-    setAuditError(null);
-
-    try {
-      const { data, error } = await withSchoolFilter(
-        supabase
-          .from('messages')
-          .select(MESSAGE_AUDIT_SELECT)
-          .gte('created_at', getStartOfTodayIso())
-          .order('created_at', { ascending: false }),
-        schoolId
-      );
-
-      if (error) throw error;
-      setAuditMessages(data ?? []);
-    } catch (error) {
-      setAuditError(error);
-    } finally {
-      setAuditLoading(false);
-    }
-  }, [schoolId]);
-
-  const loadTeacherAssignments = useCallback(async (teacherId) => {
-    if (!teacherId) {
-      setAssignmentSavedStudentIds([]);
-      setAssignmentSelectedStudentIds([]);
-      return;
-    }
-
-    setAssignmentLoading(true);
-    setAssignmentError(null);
-
-    try {
-      const { data, error } = await supabase
-        .from('teacher_students')
-        .select('student_id, students!inner ( school_id )')
-        .eq('teacher_id', teacherId)
-        .eq('students.school_id', schoolId);
-
-      if (error) throw error;
-
-      const ids = (data ?? []).map((row) => row.student_id);
-      setAssignmentSavedStudentIds(ids);
-      setAssignmentSelectedStudentIds(ids);
-    } catch (error) {
-      setAssignmentError(error);
-      setAssignmentSavedStudentIds([]);
-      setAssignmentSelectedStudentIds([]);
-    } finally {
-      setAssignmentLoading(false);
-    }
-  }, [schoolId]);
-
   useEffect(() => {
-    if (activeTab === 'assignment' && assignmentTeacherId) {
-      loadTeacherAssignments(assignmentTeacherId);
-    }
-  }, [activeTab, assignmentTeacherId, loadTeacherAssignments]);
-
-  function handleAssignmentTeacherChange(teacherId) {
-    setAssignmentTeacherId(teacherId);
-    setAssignmentSuccess(null);
-    setAssignmentError(null);
-    setAssignmentSearchQuery('');
-    if (!teacherId) {
-      setAssignmentSavedStudentIds([]);
-      setAssignmentSelectedStudentIds([]);
-    }
-  }
-
-  function toggleAssignmentStudent(studentId) {
-    setAssignmentSelectedStudentIds((current) =>
-      current.includes(studentId)
-        ? current.filter((id) => id !== studentId)
-        : [...current, studentId]
-    );
-  }
-
-  function toggleAssignmentSelectAll() {
-    setAssignmentSelectedStudentIds((current) =>
-      current.length === students.length ? [] : students.map((student) => student.id)
-    );
-  }
-
-  async function handleSaveTeacherAssignment() {
-    if (!assignmentTeacherId) {
-      setAssignmentError('Lütfen bir öğretmen seçin.');
-      return;
-    }
-
-    setAssignmentSaving(true);
-    setAssignmentError(null);
-    setAssignmentSuccess(null);
-
-    const { error: deleteError } = await supabase
-      .from('teacher_students')
-      .delete()
-      .eq('teacher_id', assignmentTeacherId);
-
-    if (deleteError) {
-      setAssignmentSaving(false);
-      setAssignmentError(deleteError);
-      return;
-    }
-
-    if (assignmentSelectedStudentIds.length > 0) {
-      const rows = assignmentSelectedStudentIds.map((studentId) => ({
-        teacher_id: assignmentTeacherId,
-        student_id: studentId,
-      }));
-
-      const { error: insertError } = await supabase.from('teacher_students').insert(rows);
-
-      if (insertError) {
-        setAssignmentSaving(false);
-        setAssignmentError(insertError);
-        return;
-      }
-    }
-
-    setAssignmentSaving(false);
-    setAssignmentSavedStudentIds([...assignmentSelectedStudentIds]);
-    setAssignmentSuccess(
-      assignmentSelectedStudentIds.length > 0
-        ? `${assignmentSelectedStudentIds.length} öğrenci öğretmene atandı.`
-        : 'Öğretmenin tüm öğrenci atamaları kaldırıldı.'
-    );
-  }
-
-  useEffect(() => {
-    if (profile?.role !== USER_ROLES.director) return;
+    if (!isDirector) return;
 
     let mounted = true;
 
@@ -1977,63 +1864,140 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
     return () => {
       mounted = false;
     };
-  }, [profile?.role, loadData]);
+  }, [isDirector, loadData]);
 
-  useEffect(() => {
-    if (activeTab === 'audit' && profile?.role === USER_ROLES.director && !loading) {
-      loadTodayMessages();
-    }
-  }, [activeTab, profile?.role, loading, loadTodayMessages]);
+  async function handleCreateTeacher(payload, onFormReset) {
+    const name = payload.full_name?.trim();
+    if (!name || !payload.subject_slug) return false;
 
-  async function handleCreateStaffUser(payload) {
-    setStaffActionLoading(true);
-    setStaffError(null);
-    setStaffSuccess(null);
-
-    try {
-      const result = await createStaffUser(payload);
-      setCredentials(result);
-      setStaffSuccess(`${result.full_name} için hesap oluşturuldu.`);
-      await loadData();
-      return true;
-    } catch (error) {
-      setStaffError(error);
-      return false;
-    } finally {
-      setStaffActionLoading(false);
-    }
+    await runAsyncAction({
+      title: 'Öğretmen oluştur',
+      message: `${name} için öğretmen hesabı oluşturulsun mu?`,
+      confirmLabel: 'Oluştur',
+      loadingLabel: 'Öğretmen oluşturuluyor…',
+      successMessage: (result) => `${result.full_name} başarıyla oluşturuldu.`,
+      getCredentials: (result) => ({ username: result.username, pin: result.pin }),
+      runFn: () => createStaffUser({ ...payload, role: 'teacher' }),
+      onSuccess: async () => {
+        await loadData();
+        onFormReset?.();
+      },
+    });
+    return true;
   }
 
-  async function handleCreateParent(payload) {
-    return handleCreateStaffUser({ ...payload, role: 'parent' });
+  async function handleCreateCounselor(payload, onFormReset) {
+    const name = payload.full_name?.trim();
+    if (!name) return false;
+
+    await runAsyncAction({
+      title: 'Rehberlikçi oluştur',
+      message: `${name} için rehberlikçi hesabı oluşturulsun mu?`,
+      confirmLabel: 'Oluştur',
+      loadingLabel: 'Rehberlikçi oluşturuluyor…',
+      successMessage: (result) => `${result.full_name} başarıyla oluşturuldu.`,
+      getCredentials: (result) => ({ username: result.username, pin: result.pin }),
+      runFn: () => createStaffUser({ ...payload, role: 'counselor' }),
+      onSuccess: async () => {
+        await loadData();
+        onFormReset?.();
+      },
+    });
+    return true;
   }
 
-  async function handleCreateTeacher(payload) {
-    return handleCreateStaffUser({ ...payload, role: 'teacher' });
+  async function handleCreateParent(payload, onFormReset) {
+    const name = payload.full_name?.trim();
+    if (!name) return false;
+
+    await runAsyncAction({
+      title: 'Veli oluştur',
+      message: `${name} için veli hesabı oluşturulsun mu?`,
+      confirmLabel: 'Oluştur',
+      loadingLabel: 'Veli oluşturuluyor…',
+      successMessage: (result) => `${result.full_name} başarıyla oluşturuldu.`,
+      getCredentials: (result) => ({ username: result.username, pin: result.pin }),
+      runFn: () => createStaffUser({ ...payload, role: 'parent' }),
+      onSuccess: async () => {
+        await loadData();
+        onFormReset?.();
+      },
+    });
+    return true;
   }
 
-  async function handleCreateCounselor(payload) {
-    return handleCreateStaffUser({ ...payload, role: 'counselor' });
+  async function handleAddStaffRole(member, role, extra = {}) {
+    const label = member.full_name ?? member.username ?? 'Kullanıcı';
+    const roleName = formatRoleLabel(role);
+
+    await runAsyncAction({
+      title: `${roleName} rolü ver`,
+      message: `${label} kullanıcısına ${roleName} rolü verilsin mi?`,
+      confirmLabel: role === USER_ROLES.director ? 'Müdür yap' : 'Onayla',
+      loadingLabel:
+        role === USER_ROLES.director ? 'Müdür yapılıyor…' : `${roleName} ekleniyor…`,
+      successMessage: `${label} artık ${roleName} rolüne sahip.`,
+      runFn: () => addStaffRole({ user_id: member.id, role, ...extra }),
+      onSuccess: async () => {
+        if (member.id === profile.id) {
+          await refreshProfile();
+        }
+        await loadData();
+      },
+    });
+  }
+
+  async function handleRemoveStaffRole(member, role) {
+    const label = member.full_name ?? member.username ?? 'Kullanıcı';
+    const roleName = formatRoleLabel(role);
+
+    await runAsyncAction({
+      title: `${roleName} rolünü kaldır`,
+      message: `${label} kullanıcısından ${roleName} rolü kaldırılsın mı?`,
+      confirmLabel: 'Kaldır',
+      loadingLabel: `${roleName} kaldırılıyor…`,
+      successMessage: `${label} kullanıcısından ${roleName} rolü kaldırıldı.`,
+      runFn: () => removeStaffRole({ user_id: member.id, role }),
+      onSuccess: async () => {
+        if (member.id === profile.id) {
+          await refreshProfile();
+        }
+        await loadData();
+      },
+    });
+  }
+
+  async function handleAddTeacherRole(payload, onFormReset) {
+    await runAsyncAction({
+      title: 'Öğretmen rolü ekle',
+      message: 'Hesabınıza öğretmen rolü eklensin mi? Branş atamanız korunur.',
+      confirmLabel: 'Ekle',
+      loadingLabel: 'Öğretmen rolü ekleniyor…',
+      successMessage:
+        'Öğretmen rolü eklendi. Profil menüsünden öğretmen paneline geçebilirsiniz.',
+      runFn: () => addStaffRole(payload),
+      onSuccess: async () => {
+        await refreshProfile();
+        await loadData();
+        onFormReset?.();
+      },
+    });
+    return true;
   }
 
   async function handleResetPin(user) {
     const label = user.full_name ?? user.username ?? 'Kullanıcı';
-    if (!window.confirm(`${label} için yeni PIN oluşturulsun mu?`)) return;
 
-    setStaffActionLoading(true);
-    setStaffError(null);
-    setStaffSuccess(null);
-
-    try {
-      const result = await resetStaffPin(user.id);
-      setCredentials(result);
-      setStaffSuccess(`${label} için yeni PIN oluşturuldu.`);
-      await loadData();
-    } catch (error) {
-      setStaffError(error);
-    } finally {
-      setStaffActionLoading(false);
-    }
+    await runAsyncAction({
+      title: 'PIN sıfırla',
+      message: `${label} için yeni PIN oluşturulsun mu?`,
+      confirmLabel: 'PIN Sıfırla',
+      loadingLabel: 'PIN oluşturuluyor…',
+      successMessage: () => `${label} için yeni PIN oluşturuldu.`,
+      getCredentials: (result) => ({ username: result.username, pin: result.pin }),
+      runFn: () => resetStaffPin(user.id),
+      onSuccess: () => loadData(),
+    });
   }
 
   function requestStaffDelete(user, role) {
@@ -2052,30 +2016,15 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
       counselor: 'Rehberlikçi silinsin mi?',
     };
 
-    setStaffDeleteTarget({
-      user,
+    runAsyncAction({
       title: titles[role] ?? 'Hesap silinsin mi?',
       message: roleMessages[role] ?? `${label} hesabını silmek istediğinize emin misiniz?`,
+      confirmLabel: 'Sil',
+      loadingLabel: 'Siliniyor…',
+      successMessage: (result) => `${result.full_name ?? result.username ?? label} silindi.`,
+      runFn: () => deleteStaffUser(user.id),
+      onSuccess: () => loadData(),
     });
-  }
-
-  async function confirmStaffDelete() {
-    if (!staffDeleteTarget?.user) return;
-
-    setStaffDeleteConfirming(true);
-    setStaffError(null);
-    setStaffSuccess(null);
-
-    try {
-      const result = await deleteStaffUser(staffDeleteTarget.user.id);
-      setStaffSuccess(`${result.full_name ?? result.username} silindi.`);
-      setStaffDeleteTarget(null);
-      await loadData();
-    } catch (error) {
-      setStaffError(error);
-    } finally {
-      setStaffDeleteConfirming(false);
-    }
   }
 
   function handleTemplateFormChange(partial) {
@@ -2102,9 +2051,6 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
 
   async function handleTemplateSubmit(event) {
     event.preventDefault();
-    setSavingTemplate(true);
-    setTemplateError(null);
-    setTemplateSuccess(null);
 
     const payload = {
       title: templateForm.title.trim(),
@@ -2113,51 +2059,72 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
       school_id: schoolId,
     };
 
-    const { error } = editingTemplateId
-      ? await withSchoolFilter(
-          supabase.from('message_templates').update(payload).eq('id', editingTemplateId),
-          schoolId
-        )
-      : await supabase.from('message_templates').insert(payload);
+    const isEdit = Boolean(editingTemplateId);
 
-    setSavingTemplate(false);
-
-    if (error) {
-      setTemplateError(error);
-      return;
-    }
-
-    setTemplateSuccess(editingTemplateId ? 'Şablon güncellendi.' : 'Yeni şablon oluşturuldu.');
-    setEditingTemplateId(null);
-    setTemplateForm(EMPTY_TEMPLATE);
-    await loadData();
+    await runAsyncAction({
+      title: isEdit ? 'Şablonu kaydet' : 'Şablon oluştur',
+      message: isEdit
+        ? 'Şablon değişiklikleri kaydedilsin mi?'
+        : 'Yeni mesaj şablonu oluşturulsun mu?',
+      confirmLabel: isEdit ? 'Kaydet' : 'Oluştur',
+      loadingLabel: isEdit ? 'Kaydediliyor…' : 'Şablon oluşturuluyor…',
+      successMessage: isEdit ? 'Şablon güncellendi.' : 'Yeni şablon oluşturuldu.',
+      runFn: async () => {
+        const { error } = isEdit
+          ? await withSchoolFilter(
+              supabase.from('message_templates').update(payload).eq('id', editingTemplateId),
+              schoolId
+            )
+          : await supabase.from('message_templates').insert(payload);
+        if (error) throw error;
+      },
+      onSuccess: async () => {
+        recordSchoolActivity(supabase, profile, {
+          schoolId,
+          category: 'staff',
+          action: isEdit ? 'updated' : 'created',
+          summary: isEdit
+            ? `Mesaj şablonu güncellendi: ${payload.title}`
+            : `Mesaj şablonu oluşturuldu: ${payload.title}`,
+        });
+        setEditingTemplateId(null);
+        setTemplateForm(EMPTY_TEMPLATE);
+        setTemplateError(null);
+        await loadData();
+      },
+    });
   }
 
   async function handleDeleteTemplate(templateId) {
-    if (!window.confirm('Bu şablonu silmek istediğinize emin misiniz?')) return;
+    const template = templates.find((entry) => entry.id === templateId);
+    const label = template?.title ?? 'Şablon';
 
-    setSavingTemplate(true);
-    setTemplateError(null);
-    setTemplateSuccess(null);
-
-    const { error } = await withSchoolFilter(
-      supabase.from('message_templates').delete().eq('id', templateId),
-      schoolId
-    );
-
-    setSavingTemplate(false);
-
-    if (error) {
-      setTemplateError(error);
-      return;
-    }
-
-    if (editingTemplateId === templateId) {
-      handleCancelTemplateEdit();
-    }
-
-    setTemplateSuccess('Şablon silindi.');
-    await loadData();
+    await runAsyncAction({
+      title: 'Şablon silinsin mi?',
+      message: `"${label}" şablonunu silmek istediğinize emin misiniz? Bu işlem geri alınamaz.`,
+      confirmLabel: 'Sil',
+      loadingLabel: 'Siliniyor…',
+      successMessage: 'Şablon silindi.',
+      runFn: async () => {
+        const { error } = await withSchoolFilter(
+          supabase.from('message_templates').delete().eq('id', templateId),
+          schoolId
+        );
+        if (error) throw error;
+      },
+      onSuccess: async () => {
+        recordSchoolActivity(supabase, profile, {
+          schoolId,
+          category: 'staff',
+          action: 'deleted',
+          summary: `Mesaj şablonu silindi: ${label}`,
+        });
+        if (editingTemplateId === templateId) {
+          handleCancelTemplateEdit();
+        }
+        await loadData();
+      },
+    });
   }
 
   async function handleSaveTeacherPhone(teacher, rawPhone) {
@@ -2246,24 +2213,33 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
     await loadData();
   }
 
-  const directorTabs = useMemo(() => {
-    let tabs = TABS;
-    if (hasAtlasSchedule(school)) {
-      tabs = tabs.filter((tab) => tab.id !== 'assignment');
-    }
-    if (!hasHomeworkTracking(school)) {
-      tabs = tabs.filter((tab) => tab.id !== 'homework');
-    }
-    if (hasAccounting(school)) {
-      tabs = [...tabs, { id: 'accounting', label: 'Muhasebe', icon: 'chart' }];
-    }
-    return tabs;
-  }, [school]);
+  const directorNav = useMemo(() => buildDirectorNav(school), [school]);
+  const directorBottomNav = useMemo(() => buildDirectorBottomNav(school), [school]);
+  const activeNavLabel = useMemo(
+    () => resolveActiveLabel(directorNav, activeTab),
+    [directorNav, activeTab]
+  );
+  const managementSubNavItems = useMemo(() => getManagementSubNavItems(school), [school]);
 
-  if (profile?.role !== USER_ROLES.director) {
+  function handleTabChange(nextTab) {
+    setActiveTab(nextTab);
+  }
+
+  function handleBottomNavChange(topTab) {
+    const currentTop = resolveTopLevelTab(activeTab);
+    if (
+      topTab === currentTop &&
+      (topTab === 'management' || topTab === 'records' || topTab === 'communications')
+    ) {
+      return;
+    }
+    setActiveTab(getDefaultTabForTopLevel(topTab, school));
+  }
+
+  if (!isDirector) {
     return (
       <>
-        <AppNavbar schoolName={schoolName} roleLabel="Müdür" logoUrl={navLogoUrl} userName={displayName} onSignOut={onSignOut} />
+        <AppNavbar {...navProps} />
         <AccessDenied onSignOut={onSignOut} />
       </>
     );
@@ -2272,7 +2248,7 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
   if (loading) {
     return (
       <>
-        <AppNavbar schoolName={schoolName} roleLabel="Müdür" logoUrl={navLogoUrl} userName={displayName} onSignOut={onSignOut} />
+        <AppNavbar {...navProps} />
         <LoadingPanel message="Müdür paneli yükleniyor…" />
       </>
     );
@@ -2281,7 +2257,7 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
   if (loadError) {
     return (
       <>
-        <AppNavbar schoolName={schoolName} roleLabel="Müdür" logoUrl={navLogoUrl} userName={displayName} onSignOut={onSignOut} />
+        <AppNavbar {...navProps} />
         <main className="dash-page dash-page--director dash-error-page">
           <ErrorMessage
             error={loadError}
@@ -2295,42 +2271,29 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
 
   return (
     <StaffShell
-      tabs={directorTabs}
+      tabs={directorNav}
       activeTab={activeTab}
-      onTabChange={setActiveTab}
-      schoolName={schoolName}
-      logoUrl={navLogoUrl}
-      userName={displayName}
-      roleLabel="Müdür"
-      onSignOut={onSignOut}
+      activeLabel={activeNavLabel}
+      onTabChange={handleTabChange}
+      {...navProps}
     >
-      <AppNavbar schoolName={schoolName} roleLabel="Müdür" logoUrl={navLogoUrl} userName={displayName} onSignOut={onSignOut} />
+      <AppNavbar {...navProps} />
 
-      <main className="dash-page dash-page--director">
+      <main className="dash-page dash-page--director dash-page--flush dash-page--tabbar">
         <div className="director-layout">
           <header className="dash-header staff-role-hero">
             <h1 className="dash-title">Müdür</h1>
             <p className="dash-subtitle">Hoş geldiniz, {displayName}.</p>
           </header>
 
-          <nav className="director-tabs" aria-label="Müdür paneli sekmeleri">
-            <div className="director-tabs__track">
-              {directorTabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  className={`director-tab${activeTab === tab.id ? ' director-tab--active' : ''}`}
-                  onClick={() => setActiveTab(tab.id)}
-                  aria-current={activeTab === tab.id ? 'page' : undefined}
-                >
-                  <span className="director-tab__icon" aria-hidden="true">
-                    <Icon name={tab.icon} size={15} />
-                  </span>
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-          </nav>
+          {MANAGEMENT_TAB_IDS.has(activeTab) ? (
+            <DirectorSubNav
+              className="director-subnav--mobile-only"
+              items={managementSubNavItems}
+              active={activeTab}
+              onChange={handleTabChange}
+            />
+          ) : null}
 
           <AnimatedView viewKey={activeTab}>
           {activeTab === 'overview' && (
@@ -2339,16 +2302,36 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
               linksCount={links.length}
               school={school}
               schoolId={schoolId}
-              onBrandingSaved={refreshSchool}
               onFeaturesSaved={refreshSchool}
-              atlasSchedule={hasAtlasSchedule(school)}
             />
           )}
 
-        {activeTab === 'announcements' && (
-          <section className="director-panel">
-            <TeacherAnnouncements profile={profile} schoolId={schoolId} students={students} />
-          </section>
+        {(activeTab === 'announcements' || activeTab === 'templates') && (
+          <DirectorCommunicationsTab
+            activeTab={activeTab}
+            onTabChange={handleTabChange}
+            announcements={
+              <section className="director-panel">
+                <TeacherAnnouncements profile={profile} schoolId={schoolId} students={students} />
+              </section>
+            }
+            templates={
+              <TemplatesTab
+                templates={templates}
+                form={templateForm}
+                editingId={editingTemplateId}
+                onFormChange={handleTemplateFormChange}
+                onIconPick={(icon) => handleTemplateFormChange({ icon })}
+                onSubmit={handleTemplateSubmit}
+                onEdit={handleEditTemplate}
+                onCancelEdit={handleCancelTemplateEdit}
+                onDelete={handleDeleteTemplate}
+                saving={savingTemplate}
+                templateError={templateError}
+                templateSuccess={templateSuccess}
+              />
+            }
+          />
         )}
 
         {activeTab === 'calendar' && (
@@ -2373,28 +2356,36 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
         {activeTab === 'curriculum' && (
           <DirectorCurriculum
             schoolId={schoolId}
+            atlasSchedule={hasAtlasSchedule(school)}
             classCount={classes.length}
             studentCount={students.length}
             studentsInClassCount={students.filter((student) => student.class_id).length}
             curriculumAssignmentCount={curriculumAssignments.length}
-            onNavigateTab={setActiveTab}
+            onNavigateTab={handleTabChange}
           />
         )}
 
-        {activeTab === 'homework' && hasHomeworkTracking(school) && (
-          <section className="director-panel">
-            <DirectorHomework schoolId={schoolId} classes={classes} students={students} />
-          </section>
+        {RECORDS_TAB_IDS.has(activeTab) && (
+          <DirectorRecordsTab
+            activeTab={activeTab}
+            onTabChange={handleTabChange}
+            schoolId={schoolId}
+            school={school}
+            students={students}
+            classes={classes}
+          />
         )}
-
-        {activeTab === 'attendance' && <DirectorAttendance schoolId={schoolId} />}
 
         {activeTab === 'student-mgmt' && (
           <StudentManagementTab
             students={students}
             classes={classes}
             schoolId={schoolId}
+            profile={profile}
             onRefresh={loadData}
+            canDeleteStaff={fullDirector}
+            runAsyncAction={runAsyncAction}
+            accountingEnabled={hasAccounting(school)}
           />
         )}
 
@@ -2408,6 +2399,7 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
             staffActionLoading={staffActionLoading}
             staffError={staffError}
             staffSuccess={staffSuccess}
+            canDeleteStaff={fullDirector}
             onCreateParent={handleCreateParent}
             onResetPin={handleResetPin}
             onRequestDelete={requestStaffDelete}
@@ -2415,39 +2407,39 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
           />
         )}
 
-        {activeTab === 'audit' && (
-          <MessageAuditTab
-            messages={auditMessages}
-            loading={auditLoading}
-            error={auditError}
-            onRefresh={loadTodayMessages}
-          />
-        )}
-
         {activeTab === 'assignment' && (
           <section className="director-panel">
-            <TeacherAssignmentTab
+            <CurriculumAssignmentPanel
               teachers={teachers}
-              students={students}
-              selectedTeacherId={assignmentTeacherId}
-              onTeacherChange={handleAssignmentTeacherChange}
-              selectedStudentIds={assignmentSelectedStudentIds}
-              onToggleStudent={toggleAssignmentStudent}
-              onToggleSelectAll={toggleAssignmentSelectAll}
-              assignmentSearchQuery={assignmentSearchQuery}
-              onAssignmentSearchChange={setAssignmentSearchQuery}
-              savedStudentIds={assignmentSavedStudentIds}
-              onSave={handleSaveTeacherAssignment}
-              saving={assignmentSaving}
-              loading={assignmentLoading && Boolean(assignmentTeacherId)}
-              error={assignmentError}
-              success={assignmentSuccess}
+              classes={classes}
+              subjects={curriculumSubjects}
+              assignments={curriculumAssignments}
+              classStudentCounts={classStudentCounts}
+              atlasSchedule={hasAtlasSchedule(school)}
+              onRefresh={refreshCurriculumAssignments}
+              onAssigned={({ teacherName, label }) => {
+                recordSchoolActivity(supabase, profile, {
+                  schoolId,
+                  category: 'staff',
+                  action: 'assigned',
+                  summary: `Öğretmen ataması: ${teacherName} · ${label}`,
+                });
+              }}
+              onRemoved={({ teacherName, label }) => {
+                recordSchoolActivity(supabase, profile, {
+                  schoolId,
+                  category: 'staff',
+                  action: 'removed',
+                  summary: `Öğretmen ataması kaldırıldı: ${teacherName} · ${label}`,
+                });
+              }}
             />
           </section>
         )}
 
         {activeTab === 'staff' && (
           <TeacherManagementTab
+            profile={profile}
             counselors={counselors}
             teachers={teachers}
             subjects={curriculumSubjects}
@@ -2457,30 +2449,18 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
             staffActionLoading={staffActionLoading}
             staffError={staffError}
             staffSuccess={staffSuccess}
+            canManageRoles={fullDirector}
+            canDeleteStaff={fullDirector}
             onCreateCounselor={handleCreateCounselor}
             onCreateTeacher={handleCreateTeacher}
+            onAddTeacherRole={handleAddTeacherRole}
+            onAddRole={handleAddStaffRole}
+            onRemoveRole={handleRemoveStaffRole}
             onResetPin={handleResetPin}
             onRequestDelete={requestStaffDelete}
             onSavePhone={handleSaveTeacherPhone}
             onSaveSubject={handleSaveTeacherSubject}
             onRefresh={loadData}
-          />
-        )}
-
-        {activeTab === 'templates' && (
-          <TemplatesTab
-            templates={templates}
-            form={templateForm}
-            editingId={editingTemplateId}
-            onFormChange={handleTemplateFormChange}
-            onIconPick={(icon) => handleTemplateFormChange({ icon })}
-            onSubmit={handleTemplateSubmit}
-            onEdit={handleEditTemplate}
-            onCancelEdit={handleCancelTemplateEdit}
-            onDelete={handleDeleteTemplate}
-            saving={savingTemplate}
-            templateError={templateError}
-            templateSuccess={templateSuccess}
           />
         )}
 
@@ -2490,12 +2470,25 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
           </AnimatedView>
         </div>
       </main>
-      <CredentialsModal credentials={credentials} onClose={() => setCredentials(null)} />
-      <DeleteConfirmDialog
-        target={staffDeleteTarget}
-        confirming={staffDeleteConfirming}
-        onConfirm={confirmStaffDelete}
-        onCancel={() => setStaffDeleteTarget(null)}
+
+      <DemoBottomNav
+        tabs={directorBottomNav}
+        active={resolveTopLevelTab(activeTab)}
+        onChange={handleBottomNavChange}
+      />
+
+      <AsyncActionDialog
+        open={Boolean(asyncAction)}
+        phase={asyncAction?.phase ?? 'confirm'}
+        title={asyncAction?.title}
+        message={asyncAction?.message}
+        confirmLabel={asyncAction?.confirmLabel}
+        loadingLabel={asyncAction?.loadingLabel}
+        successTitle={asyncAction?.successTitle}
+        credentials={asyncAction?.credentials}
+        error={asyncAction?.error}
+        onConfirm={asyncAction?.onConfirm}
+        onClose={closeAsyncAction}
       />
     </StaffShell>
   );

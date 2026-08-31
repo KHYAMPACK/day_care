@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { withSchoolFilter } from '../../lib/tenant';
 import { notifyParentsForMessage } from '../../lib/sendPush';
+import { recordSchoolActivity } from '../../lib/activityLog';
 import {
   InlineError,
   SendButton,
@@ -209,6 +210,17 @@ export default function TeacherParentMessages({ profile, schoolId, students, tem
 
       const { error } = await supabase.from('messages').insert(rows);
       if (error) throw error;
+
+      const summaryLabel =
+        selectedStudents.length === 1
+          ? selectedStudents[0].full_name
+          : `${selectedStudents.length} öğrenci`;
+      recordSchoolActivity(supabase, profile, {
+        schoolId,
+        category: 'message',
+        action: 'sent',
+        summary: `Veliye mesaj gönderildi: ${summaryLabel}`,
+      });
 
       let pushNote = '';
       try {

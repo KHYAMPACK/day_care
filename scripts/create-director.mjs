@@ -166,6 +166,7 @@ async function main() {
       full_name: fullName,
       school_id: schoolId,
       role: 'director',
+      primary_role: 'director',
       username,
       email: loginEmail,
       login_pin: pin,
@@ -173,6 +174,14 @@ async function main() {
     .eq('id', data.user.id);
 
   if (profileError) throw profileError;
+
+  const { error: roleError } = await supabase
+    .from('profile_roles')
+    .upsert({ profile_id: data.user.id, role: 'director' }, { onConflict: 'profile_id,role' });
+
+  if (roleError && !/profile_roles|schema cache/i.test(roleError.message ?? '')) {
+    throw roleError;
+  }
 
   console.log('\nDirector account created:\n');
   console.log(`  Name:     ${fullName}`);

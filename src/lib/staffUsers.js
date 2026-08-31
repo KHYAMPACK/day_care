@@ -72,6 +72,14 @@ async function staffApiRequest(path, body) {
   return payload;
 }
 
+export function addStaffRole(payload) {
+  return staffApiRequest('/api/staff', { action: 'add-role', ...payload });
+}
+
+export function removeStaffRole(payload) {
+  return staffApiRequest('/api/staff', { action: 'remove-role', ...payload });
+}
+
 export function createStaffUser(payload) {
   return staffApiRequest('/api/staff', { action: 'create', ...payload });
 }

@@ -1,4 +1,7 @@
 import { useState } from 'react';
+import { useAuth } from '../../context/AuthContext';
+import { supabase } from '../../lib/supabase';
+import { recordSchoolActivity } from '../../lib/activityLog';
 import {
   entriesToSavePayload,
   mapCsvRowToEntry,
@@ -8,7 +11,15 @@ import {
 import { saveClassExamEntry } from '../../lib/lgsExam';
 import { InlineError, SuccessMessage } from '../dashboardUi';
 
-export default function DirectorExamImport({ schoolId, sessionId, students = [], embedded = false, hideTitle = false }) {
+export default function DirectorExamImport({
+  schoolId,
+  sessionId,
+  sessionTitle = '',
+  students = [],
+  embedded = false,
+  hideTitle = false,
+}) {
+  const { profile } = useAuth();
   const [template, setTemplate] = useState('generic');
   const [preview, setPreview] = useState([]);
   const [error, setError] = useState(null);
@@ -43,6 +54,14 @@ export default function DirectorExamImport({ schoolId, sessionId, students = [],
         totalNet: entry.totalNet,
       }));
       await saveClassExamEntry({ sessionId, entries: payload, mode: 'detailed' });
+      recordSchoolActivity(supabase, profile, {
+        schoolId,
+        category: 'exam',
+        action: 'saved',
+        summary: sessionTitle
+          ? `Sınav sonuçları içe aktarıldı: ${sessionTitle} · ${payload.length} öğrenci`
+          : `Sınav sonuçları içe aktarıldı: ${payload.length} öğrenci`,
+      });
       setSuccess(`${payload.length} öğrenci sonucu içe aktarıldı.`);
       setPreview([]);
     } catch (importError) {
