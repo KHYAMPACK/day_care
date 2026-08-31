@@ -18,6 +18,24 @@ export const CALENDAR_EVENT_TYPES = [
 
 export const STUDENT_GRADES = [5, 6, 7, 8];
 
+export function isAllGradesSelected(selected = []) {
+  return STUDENT_GRADES.length > 0 && STUDENT_GRADES.every((grade) => selected.includes(grade));
+}
+
+/** Empty or all grades → null (tüm okul). Partial list → sorted array. */
+export function normalizeAudienceGradesForSave(selected = []) {
+  if (!selected.length || isAllGradesSelected(selected)) return null;
+  return [...selected].sort((a, b) => a - b);
+}
+
+export function audienceGradesToSelection(eventGrades) {
+  return eventGrades?.length ? [...eventGrades] : [];
+}
+
+export function filterActiveCalendarEvents(events, today) {
+  return (events ?? []).filter((event) => event.ends_on >= today);
+}
+
 const TYPE_META = Object.fromEntries(CALENDAR_EVENT_TYPES.map((item) => [item.id, item]));
 
 export function getCalendarTypeMeta(eventType) {

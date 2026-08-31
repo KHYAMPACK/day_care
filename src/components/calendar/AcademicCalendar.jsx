@@ -4,21 +4,26 @@ import { withSchoolFilter } from '../../lib/tenant';
 import {
   CALENDAR_EVENT_TYPES,
   CALENDAR_SELECT,
-  STUDENT_GRADES,
   addDaysIso,
+  audienceGradesToSelection,
   buildReminderBody,
   eventVisibleForGrades,
+  filterActiveCalendarEvents,
   formatCalendarRangeTr,
   formatStartsAtTr,
   formatStudentGrade,
   getCalendarTypeMeta,
   istanbulDateIso,
+  normalizeAudienceGradesForSave,
 } from '../../lib/calendar';
 import { readExamDemoConfig } from '../../lib/examDemoConfig';
 import { recordSchoolActivity } from '../../lib/activityLog';
 import { useAuth } from '../../context/AuthContext';
-import { InlineError, SendButton, SuccessMessage } from '../dashboardUi';
+import { InlineError, SuccessMessage } from '../dashboardUi';
 import { Icon } from '../ui/Icon';
+import { AsyncActionDialog } from '../ui/AsyncActionDialog';
+import AudienceGradeCheckboxes from '../ui/AudienceGradeCheckboxes';
+import { useAsyncAction } from '../../hooks/useAsyncAction';
 import CalendarEventBrowser from './CalendarEventBrowser';
 
 async function loadCalendarRows(schoolId) {
@@ -103,7 +108,7 @@ function eventToForm(event) {
     starts_on: event.starts_on,
     ends_on: event.ends_on,
     starts_at: formatStartsAtTr(event.starts_at) ?? '',
-    audience_grades: event.audience_grades ?? [],
+    audience_grades: audienceGradesToSelection(event.audience_grades),
     notify: event.notify !== false,
   };
 }
@@ -183,6 +188,7 @@ export function TomorrowEventsCard({ events, onOpenCalendar }) {
 
 export default function AcademicCalendar({ schoolId, canEdit = false, viewerGrades = null }) {
   const { profile } = useAuth();
+  const { asyncAction, closeAsyncAction, runAsyncAction } = useAsyncAction();
   const today = istanbulDateIso();
   const [cursor, setCursor] = useState(() => {
     const [year, month] = today.split('-').map(Number);
@@ -195,7 +201,7 @@ export default function AcademicCalendar({ schoolId, canEdit = false, viewerGrad
   const [success, setSuccess] = useState(null);
   const [form, setForm] = useState({ ...EMPTY_FORM, starts_on: today, ends_on: today });
   const [editingId, setEditingId] = useState(null);
-  const [saving, setSaving] = useState(false);
+  const [eventFormOpen, setEventFormOpen] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
 
   const visibleEvents = useMemo(() => {
@@ -212,10 +218,23 @@ export default function AcademicCalendar({ schoolId, canEdit = false, viewerGrad
     return rows.filter((event) => eventVisibleForGrades(event, viewerGrades));
   }, [canEdit, events, viewerGrades]);
 
+  const calendarEvents = useMemo(
+    () => filterActiveCalendarEvents(visibleEvents, today),
+    [visibleEvents, today]
+  );
+
   const loadEvents = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
+      if (canEdit) {
+        const { error: pruneError } = await withSchoolFilter(
+          supabase.from('calendar_events').delete().lt('ends_on', today),
+          schoolId
+        );
+        if (pruneError) throw pruneError;
+      }
+
       const rows = await loadCalendarRows(schoolId);
       setEvents(rows);
     } catch (loadError) {
@@ -224,7 +243,7 @@ export default function AcademicCalendar({ schoolId, canEdit = false, viewerGrad
     } finally {
       setLoading(false);
     }
-  }, [schoolId]);
+  }, [canEdit, schoolId, today]);
 
   useEffect(() => {
     loadEvents();
@@ -237,7 +256,7 @@ export default function AcademicCalendar({ schoolId, canEdit = false, viewerGrad
 
   const eventsByDay = useMemo(() => {
     const map = new Map();
-    visibleEvents.forEach((event) => {
+    calendarEvents.forEach((event) => {
       let cursorDay = event.starts_on;
       while (cursorDay <= event.ends_on) {
         const list = map.get(cursorDay) ?? [];
@@ -247,16 +266,17 @@ export default function AcademicCalendar({ schoolId, canEdit = false, viewerGrad
       }
     });
     return map;
-  }, [visibleEvents]);
+  }, [calendarEvents]);
 
   const selectedEvents = eventsByDay.get(selectedDay) ?? [];
 
   const upcoming = useMemo(
     () =>
-      visibleEvents
-        .filter((event) => event.ends_on >= today)
+      calendarEvents
+        .slice()
+        .sort((a, b) => a.starts_on.localeCompare(b.starts_on))
         .slice(0, 8),
-    [today, visibleEvents]
+    [calendarEvents]
   );
 
   function shiftMonth(delta) {
@@ -279,22 +299,10 @@ export default function AcademicCalendar({ schoolId, canEdit = false, viewerGrad
     });
   }
 
-  function selectAllSchool() {
-    updateForm({ audience_grades: [] });
-  }
-
-  function toggleGrade(grade) {
-    setForm((current) => {
-      const selected = current.audience_grades.includes(grade)
-        ? current.audience_grades.filter((item) => item !== grade)
-        : [...current.audience_grades, grade].sort((a, b) => a - b);
-      return { ...current, audience_grades: selected };
-    });
-  }
-
   function startEdit(event) {
     setEditingId(event.id);
     setForm(eventToForm(event));
+    setEventFormOpen(true);
     setSuccess(null);
     setError(null);
   }
@@ -304,7 +312,7 @@ export default function AcademicCalendar({ schoolId, canEdit = false, viewerGrad
     setForm({ ...EMPTY_FORM, starts_on: selectedDay, ends_on: selectedDay });
   }
 
-  async function handleSave(submitEvent) {
+  function handleSave(submitEvent) {
     submitEvent.preventDefault();
     setError(null);
     setSuccess(null);
@@ -329,37 +337,39 @@ export default function AcademicCalendar({ schoolId, canEdit = false, viewerGrad
       starts_on: form.starts_on,
       ends_on: endsOn,
       starts_at: form.starts_at || null,
-      audience_grades: form.audience_grades.length ? form.audience_grades : null,
+      audience_grades: normalizeAudienceGradesForSave(form.audience_grades),
       notify: form.notify,
     };
     if (!editingId) {
       payload.source = 'director';
     }
 
-    setSaving(true);
-    const query = editingId
-      ? supabase.from('calendar_events').update(payload).eq('id', editingId)
-      : supabase.from('calendar_events').insert(payload);
-    const { error: saveError } = await query;
-    setSaving(false);
-
-    if (saveError) {
-      setError(saveError);
-      return;
-    }
-
-    recordSchoolActivity(supabase, profile, {
-      schoolId,
-      category: 'calendar',
-      action: editingId ? 'updated' : 'created',
-      summary: editingId
-        ? `Takvim etkinliği güncellendi: ${title}`
-        : `Takvim etkinliği eklendi: ${title}`,
+    runAsyncAction({
+      title: editingId ? 'Etkinliği kaydet' : 'Etkinlik ekle',
+      loadingLabel: 'Kaydediliyor…',
+      successMessage: editingId ? 'Etkinlik güncellendi.' : 'Etkinlik eklendi.',
+      skipConfirm: true,
+      runFn: async () => {
+        const query = editingId
+          ? supabase.from('calendar_events').update(payload).eq('id', editingId)
+          : supabase.from('calendar_events').insert(payload);
+        const { error: saveError } = await query;
+        if (saveError) throw saveError;
+      },
+      onSuccess: async () => {
+        recordSchoolActivity(supabase, profile, {
+          schoolId,
+          category: 'calendar',
+          action: editingId ? 'updated' : 'created',
+          summary: editingId
+            ? `Takvim etkinliği güncellendi: ${title}`
+            : `Takvim etkinliği eklendi: ${title}`,
+        });
+        resetForm();
+        setEventFormOpen(false);
+        await loadEvents();
+      },
     });
-
-    setSuccess(editingId ? 'Etkinlik güncellendi.' : 'Etkinlik eklendi.');
-    resetForm();
-    await loadEvents();
   }
 
   async function handleDelete(event) {
@@ -431,7 +441,16 @@ export default function AcademicCalendar({ schoolId, canEdit = false, viewerGrad
                   isToday ? ' cal-grid__cell--today' : ''
                 }${isSelected ? ' cal-grid__cell--selected' : ''}`}
                 title={dayEvents.map((event) => event.title).join(' · ') || undefined}
-                onClick={() => setSelectedDay(iso)}
+                onClick={() => {
+                  setSelectedDay(iso);
+                  if (!editingId) {
+                    setForm((current) => ({
+                      ...current,
+                      starts_on: iso,
+                      ends_on: iso,
+                    }));
+                  }
+                }}
               >
                 <span className="cal-grid__num">{Number(iso.slice(-2))}</span>
               </button>
@@ -449,9 +468,43 @@ export default function AcademicCalendar({ schoolId, canEdit = false, viewerGrad
         </ul>
       </div>
 
+      <section className="dash-card cal-day-panel">
+        <h2 className="dash-section-title">
+          {selectedDay === today ? 'Bugün' : formatCalendarRangeTr(selectedDay, selectedDay)}
+        </h2>
+        {loading ? (
+          <p className="dash-hint">Takvim yükleniyor…</p>
+        ) : selectedEvents.length === 0 ? (
+          <p className="dash-hint">Bu günde kayıtlı etkinlik yok.</p>
+        ) : (
+          <div className="cal-event-list">
+            {selectedEvents.map((event) => (
+              <EventCard
+                key={event.id}
+                event={event}
+                canEdit={canEdit}
+                onEdit={startEdit}
+                onDelete={handleDelete}
+                deleting={deletingId === event.id}
+              />
+            ))}
+          </div>
+        )}
+      </section>
+
       {canEdit ? (
-        <form className="dash-card dash-form" onSubmit={handleSave}>
-          <h2 className="dash-section-title">{editingId ? 'Etkinliği düzenle' : 'Yeni etkinlik'}</h2>
+        <details
+          className="cal-collapsible-form dash-card"
+          open={eventFormOpen}
+          onToggle={(event) => setEventFormOpen(event.currentTarget.open)}
+        >
+          <summary className="cal-collapsible-form__summary">
+            <span className="cal-collapsible-form__chevron" aria-hidden="true" />
+            <span className="dash-section-title">
+              {editingId ? 'Etkinliği düzenle' : 'Yeni etkinlik'}
+            </span>
+          </summary>
+          <form className="dash-form cal-collapsible-form__body" onSubmit={handleSave}>
           <label className="dash-label">
             Başlık
             <input
@@ -514,33 +567,11 @@ export default function AcademicCalendar({ schoolId, canEdit = false, viewerGrad
               onChange={(event) => updateForm({ starts_at: event.target.value })}
             />
           </label>
-          <div className="cal-form-audience">
-            <p className="dash-label">Hedef kitle</p>
-            <p className="cal-form-audience__hint">Seçim yapmazsanız etkinlik tüm okulda görünür.</p>
-            <div className="cur-assign-chips" role="group" aria-label="Hedef sınıflar">
-              <button
-                type="button"
-                className={`cur-assign-chip${
-                  form.audience_grades.length === 0 ? ' cur-assign-chip--active' : ''
-                }`}
-                onClick={selectAllSchool}
-              >
-                Tüm okul
-              </button>
-              {STUDENT_GRADES.map((grade) => (
-                <button
-                  key={grade}
-                  type="button"
-                  className={`cur-assign-chip${
-                    form.audience_grades.includes(grade) ? ' cur-assign-chip--active' : ''
-                  }`}
-                  onClick={() => toggleGrade(grade)}
-                >
-                  {formatStudentGrade(grade)}
-                </button>
-              ))}
-            </div>
-          </div>
+          <AudienceGradeCheckboxes
+            value={form.audience_grades}
+            onChange={(grades) => updateForm({ audience_grades: grades })}
+            hint="Seçim yapmazsanız etkinlik tüm okulda görünür."
+          />
           <label className={`cal-form-option${form.notify ? ' cal-form-option--active' : ''}`}>
             <input
               type="checkbox"
@@ -560,47 +591,22 @@ export default function AcademicCalendar({ schoolId, canEdit = false, viewerGrad
             </span>
           </label>
           <div className="ann-actions">
-            <SendButton
-              sending={saving}
-              label={editingId ? 'Kaydet' : 'Etkinlik ekle'}
-              sendingLabel="Kaydediliyor…"
-            />
+            <button type="submit" className="demo-btn demo-btn--primary">
+              {editingId ? 'Kaydet' : 'Etkinlik ekle'}
+            </button>
             {editingId ? (
               <button type="button" className="demo-btn" onClick={resetForm}>
                 Vazgeç
               </button>
             ) : null}
           </div>
-        </form>
+          </form>
+        </details>
       ) : null}
-
-      <section className="dash-card">
-        <h2 className="dash-section-title">
-          {selectedDay === today ? 'Bugün' : formatCalendarRangeTr(selectedDay, selectedDay)}
-        </h2>
-        {loading ? (
-          <p className="dash-hint">Takvim yükleniyor…</p>
-        ) : selectedEvents.length === 0 ? (
-          <p className="dash-hint">Bu günde kayıtlı etkinlik yok.</p>
-        ) : (
-          <div className="cal-event-list">
-            {selectedEvents.map((event) => (
-              <EventCard
-                key={event.id}
-                event={event}
-                canEdit={canEdit}
-                onEdit={startEdit}
-                onDelete={handleDelete}
-                deleting={deletingId === event.id}
-              />
-            ))}
-          </div>
-        )}
-      </section>
 
       {canEdit ? (
         <CalendarEventBrowser
-          events={visibleEvents}
+          events={calendarEvents}
           today={today}
           loading={loading}
           canEdit={canEdit}
@@ -629,6 +635,21 @@ export default function AcademicCalendar({ schoolId, canEdit = false, viewerGrad
           )}
         </section>
       )}
+
+      <AsyncActionDialog
+        open={Boolean(asyncAction)}
+        phase={asyncAction?.phase ?? 'confirm'}
+        title={asyncAction?.title}
+        message={asyncAction?.message}
+        confirmLabel={asyncAction?.confirmLabel}
+        loadingLabel={asyncAction?.loadingLabel}
+        successTitle={asyncAction?.successTitle}
+        credentials={asyncAction?.credentials}
+        error={asyncAction?.error}
+        errorContext="calendar"
+        onConfirm={asyncAction?.onConfirm}
+        onClose={closeAsyncAction}
+      />
     </section>
   );
 }

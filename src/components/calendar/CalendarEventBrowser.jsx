@@ -108,13 +108,13 @@ export default function CalendarEventBrowser({
   deletingId,
 }) {
   const [search, setSearch] = useState('');
-  const [period, setPeriod] = useState('all');
+  const [period, setPeriod] = useState('upcoming');
   const [types, setTypes] = useState([]);
   const [grade, setGrade] = useState(null);
 
   const currentMonthKey = today.slice(0, 7);
   const hasActiveFilters = Boolean(
-    search.trim() || period !== 'all' || types.length || grade != null
+    search.trim() || period !== 'upcoming' || types.length || grade != null
   );
 
   const filtered = useMemo(
@@ -132,7 +132,7 @@ export default function CalendarEventBrowser({
 
   function clearFilters() {
     setSearch('');
-    setPeriod('all');
+    setPeriod('upcoming');
     setTypes([]);
     setGrade(null);
   }
