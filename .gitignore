@@ -1,5 +1,5 @@
-# Logs
-logs
+# Logs (repo root only — do not use bare `logs` or src/components/logs is ignored)
+/logs/
 *.log
 npm-debug.log*
 
