@@ -148,8 +148,16 @@ export async function logSchoolActivity(
   return data;
 }
 
+let activityLogTableMissing = false;
+
 export function recordSchoolActivity(supabase, profile, payload) {
-  void logSchoolActivity(supabase, profile, payload).catch(() => {});
+  if (activityLogTableMissing) return;
+
+  void logSchoolActivity(supabase, profile, payload).catch((error) => {
+    if (isActivityLogSchemaMissing(error)) {
+      activityLogTableMissing = true;
+    }
+  });
 }
 
 export async function loadSchoolActivityLogs(supabase, schoolId, filters = {}) {

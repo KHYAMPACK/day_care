@@ -11,6 +11,7 @@ const CONTEXT_TITLES = {
   calendar: 'Takvim yüklenemedi',
   curriculum: 'Müfredat yüklenemedi',
   attendance: 'Yoklama yüklenemedi',
+  accounting: 'Muhasebe işlemi başarısız',
   general: 'Bir sorun oluştu',
 };
 
@@ -57,6 +58,12 @@ const FRIENDLY_PREFIXES = [
   'Geçersiz',
   'No push',
   'Mesaj kaydedildi',
+  'Ödeme',
+  'Kayıt tablosu',
+  'Ödeme takibi',
+  'Geçerli bir',
+  'Başlangıç tarihi',
+  'Öğrenci seçin',
 ];
 
 function getRawMessage(error) {
@@ -217,6 +224,24 @@ function mapCurriculumMessage(raw) {
   return 'Müfredat yüklenemedi. Lütfen tekrar deneyin.';
 }
 
+function mapAccountingMessage(raw) {
+  const lower = raw.toLowerCase();
+
+  if (
+    lower.includes('accounting_student_billing') ||
+    lower.includes('accounting_tuition_cycles') ||
+    lower.includes('accounting_tuition_status')
+  ) {
+    return 'Ödeme takibi tabloları henüz oluşturulmadı. supabase/migrations/037_accounting_tuition.sql dosyasını Supabase SQL Editor’da çalıştırın.';
+  }
+
+  if (lower.includes('school_activity_logs')) {
+    return 'Kayıt tablosu henüz oluşturulmadı. supabase/migrations/043_school_activity_logs.sql dosyasını Supabase SQL Editor’da çalıştırın.';
+  }
+
+  return 'Muhasebe işlemi tamamlanamadı. Lütfen tekrar deneyin.';
+}
+
 function mapPushMessage(raw) {
   const lower = raw.toLowerCase();
   if (lower.includes('oturum')) {
@@ -313,6 +338,28 @@ export function formatAppError(error, context = 'general') {
       title: CONTEXT_TITLES.push,
       message: isOffline(error, raw) ? 'Bağlantınızı kontrol edin ve tekrar deneyin.' : mapPushMessage(raw),
       icon: 'phone',
+    };
+  }
+
+  if (context === 'accounting') {
+    return {
+      type: 'general',
+      title: CONTEXT_TITLES.accounting,
+      message: mapAccountingMessage(raw),
+      icon: 'clipboard',
+    };
+  }
+
+  if (
+    /accounting_student_billing|accounting_tuition_cycles|school_activity_logs|ödeme takibi tabloları|kayıt tablosu/i.test(
+      raw
+    )
+  ) {
+    return {
+      type: 'general',
+      title: CONTEXT_TITLES.accounting,
+      message: mapAccountingMessage(raw),
+      icon: 'clipboard',
     };
   }
 

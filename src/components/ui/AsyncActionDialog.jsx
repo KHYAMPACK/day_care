@@ -14,6 +14,7 @@ export function AsyncActionDialog({
   errorTitle = 'İşlem başarısız',
   credentials = null,
   error = null,
+  errorContext = 'general',
   onConfirm,
   onClose,
 }) {
@@ -121,7 +122,7 @@ export function AsyncActionDialog({
 
           {phase === 'error' ? (
             <p className="async-action-dialog__error">
-              {formatAppError(error, 'general')}
+              {formatAppError(error, errorContext).message}
             </p>
           ) : null}
         </div>

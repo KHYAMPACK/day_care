@@ -725,11 +725,12 @@ export default function PaymentTracking({ schoolId, profile, isDemo: parentDemo,
         errorTitle={asyncAction?.errorTitle}
         credentials={asyncAction?.credentials}
         error={asyncAction?.error}
+        errorContext="accounting"
         onConfirm={asyncAction?.onConfirm}
         onClose={closeAsyncAction}
       />
 
-      {error && <InlineError error={error} />}
+      {error && <InlineError error={error} context="accounting" />}
     </div>
   );
 }
