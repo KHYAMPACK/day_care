@@ -1,12 +1,7 @@
 import { useMemo, useState } from 'react';
-import {
-  CALENDAR_EVENT_TYPES,
-  formatCalendarRangeTr,
-  formatStartsAtTr,
-  formatStudentGrade,
-  getCalendarTypeMeta,
-} from '../../lib/calendar';
-import { Icon } from '../ui/Icon';
+import { CALENDAR_EVENT_TYPES, formatStudentGrade } from '../../lib/calendar';
+import CalendarEventCard from './CalendarEventCard';
+import SearchFilterToolbar from '../ui/SearchFilterToolbar';
 
 function monthKeyFromIso(iso) {
   return iso.slice(0, 7);
@@ -58,44 +53,8 @@ function groupEventsByMonth(events) {
   return [...map.entries()].sort(([left], [right]) => left.localeCompare(right));
 }
 
-function EventRow({ event, canEdit, onEdit, onDelete, deleting }) {
-  const meta = getCalendarTypeMeta(event.event_type);
-  const time = formatStartsAtTr(event.starts_at);
-  const grades = event.audience_grades?.length
-    ? event.audience_grades.map((g) => formatStudentGrade(g)).join(', ')
-    : 'Tüm okul';
-
-  return (
-    <article className={`cal-event cal-event--${event.event_type}`}>
-      <div className="demo-row-between">
-        <h3 className="cal-event__title">{event.title}</h3>
-        <span className={`demo-pill cal-pill cal-pill--${event.event_type}`}>
-          <Icon name={meta.icon} size={14} /> {meta.label}
-        </span>
-      </div>
-      <p className="demo-meta">
-        {formatCalendarRangeTr(event.starts_on, event.ends_on)}
-        {time ? ` · ${time}` : ''}
-        {` · ${grades}`}
-      </p>
-      {event.body ? <p className="dash-hint">{event.body}</p> : null}
-      {canEdit ? (
-        <div className="ann-actions">
-          <button type="button" className="demo-btn" onClick={() => onEdit(event)}>
-            Düzenle
-          </button>
-          <button
-            type="button"
-            className="match-item__remove"
-            onClick={() => onDelete(event)}
-            disabled={deleting}
-          >
-            {deleting ? 'Siliniyor…' : 'Sil'}
-          </button>
-        </div>
-      ) : null}
-    </article>
-  );
+function EventRow(props) {
+  return <CalendarEventCard {...props} />;
 }
 
 export default function CalendarEventBrowser({
@@ -113,9 +72,9 @@ export default function CalendarEventBrowser({
   const [grade, setGrade] = useState(null);
 
   const currentMonthKey = today.slice(0, 7);
-  const hasActiveFilters = Boolean(
-    search.trim() || period !== 'upcoming' || types.length || grade != null
-  );
+  const activeFilterCount =
+    (period !== 'upcoming' ? 1 : 0) + (grade != null ? 1 : 0) + types.length;
+  const hasActiveFilters = activeFilterCount > 0;
 
   const filtered = useMemo(
     () => applyEventFilters(events, { search, period, types, grade, today }),
@@ -131,39 +90,34 @@ export default function CalendarEventBrowser({
   }
 
   function clearFilters() {
-    setSearch('');
     setPeriod('upcoming');
     setTypes([]);
     setGrade(null);
   }
 
   return (
-    <section className="dash-card cal-browser">
-      <h2 className="dash-section-title">Tüm etkinlikler</h2>
-      <p className="dash-hint">
-        {filtered.length} etkinlik
-        {hasActiveFilters ? (
-          <>
-            {' · '}
-            <button type="button" className="demo-btn demo-btn--ghost cal-browser__clear" onClick={clearFilters}>
-              Filtreleri temizle
-            </button>
-          </>
-        ) : null}
-      </p>
+    <details className="cal-collapsible-form cal-browser dash-card">
+      <summary className="cal-collapsible-form__summary cal-browser__summary">
+        <span className="cal-collapsible-form__chevron" aria-hidden="true" />
+        <span className="cal-browser__summary-text">
+          <span className="dash-section-title">Tüm etkinlikler</span>
+          <span className="dash-hint">{filtered.length} etkinlik</span>
+        </span>
+      </summary>
 
-      <div className="cal-browser__filters">
-        <label className="dash-label cal-browser__search">
-          Ara
-          <input
-            className="dash-input"
-            type="search"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Başlık veya açıklama"
-          />
-        </label>
-
+      <div className="cal-collapsible-form__body cal-browser__body">
+      <SearchFilterToolbar
+        searchValue={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Başlık veya açıklama ara…"
+        disabled={loading}
+        activeFilterCount={activeFilterCount}
+        hasActiveFilters={hasActiveFilters}
+        onClearFilters={clearFilters}
+        resultHint={
+          search.trim() ? `${filtered.length}/${events.length} etkinlik` : null
+        }
+      >
         <div className="cal-browser__filter-group">
           <p className="dash-label">Dönem</p>
           <div className="cur-assign-chips" role="group" aria-label="Dönem">
@@ -222,7 +176,7 @@ export default function CalendarEventBrowser({
             ))}
           </div>
         </div>
-      </div>
+      </SearchFilterToolbar>
 
       {loading ? (
         <p className="dash-hint">Takvim yükleniyor…</p>
@@ -259,6 +213,7 @@ export default function CalendarEventBrowser({
           })}
         </div>
       )}
-    </section>
+      </div>
+    </details>
   );
 }

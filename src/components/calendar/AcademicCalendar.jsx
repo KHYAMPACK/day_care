@@ -11,7 +11,6 @@ import {
   filterActiveCalendarEvents,
   formatCalendarRangeTr,
   formatStartsAtTr,
-  formatStudentGrade,
   getCalendarTypeMeta,
   istanbulDateIso,
   normalizeAudienceGradesForSave,
@@ -25,6 +24,7 @@ import { AsyncActionDialog } from '../ui/AsyncActionDialog';
 import AudienceGradeCheckboxes from '../ui/AudienceGradeCheckboxes';
 import { useAsyncAction } from '../../hooks/useAsyncAction';
 import CalendarEventBrowser from './CalendarEventBrowser';
+import CalendarEventCard from './CalendarEventCard';
 
 async function loadCalendarRows(schoolId) {
   const { data, error } = await withSchoolFilter(
@@ -113,45 +113,11 @@ function eventToForm(event) {
   };
 }
 
-function EventCard({ event, canEdit, onEdit, onDelete, deleting }) {
-  const meta = getCalendarTypeMeta(event.event_type);
-  const time = formatStartsAtTr(event.starts_at);
-  const grades = event.audience_grades?.length
-    ? event.audience_grades.map((grade) => formatStudentGrade(grade)).join(', ')
-    : 'Tüm okul';
-
-  return (
-    <article className={`cal-event cal-event--${event.event_type}`}>
-      <div className="demo-row-between">
-        <h3 className="cal-event__title">{event.title}</h3>
-        <span className={`demo-pill cal-pill cal-pill--${event.event_type}`}>
-          <Icon name={meta.icon} size={14} /> {meta.label}
-        </span>
-      </div>
-      <p className="demo-meta">
-        {formatCalendarRangeTr(event.starts_on, event.ends_on)}
-        {time ? ` · ${time}` : ''}
-        {` · ${grades}`}
-      </p>
-      {event.body ? <p className="dash-hint">{event.body}</p> : null}
-      {canEdit ? (
-        <div className="ann-actions">
-          <button type="button" className="demo-btn" onClick={() => onEdit(event)}>
-            Düzenle
-          </button>
-          <button
-            type="button"
-            className="match-item__remove"
-            onClick={() => onDelete(event)}
-            disabled={deleting}
-          >
-            {deleting ? 'Siliniyor…' : 'Sil'}
-          </button>
-        </div>
-      ) : null}
-    </article>
-  );
+function EventCard(props) {
+  return <CalendarEventCard {...props} />;
 }
+
+export { CalendarEventCard };
 
 export function TomorrowEventsCard({ events, onOpenCalendar }) {
   if (!events.length) return null;

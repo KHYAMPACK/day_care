@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import {
   formatAssignmentLabel,
   formatClassLabel,
+  getTeacherBransDisplay,
   getTeacherSubjectSlug,
   resolveSubjectForClass,
 } from '../../lib/curriculum';
@@ -14,14 +15,12 @@ export default function CurriculumAssignmentPanel({
   subjects,
   assignments,
   classStudentCounts = {},
-  atlasSchedule = false,
   onRefresh,
   onAssigned,
   onRemoved,
 }) {
   const [teacherId, setTeacherId] = useState('');
   const [classId, setClassId] = useState('');
-  const [subjectId, setSubjectId] = useState('');
   const [saving, setSaving] = useState(false);
   const [removingId, setRemovingId] = useState(null);
   const [error, setError] = useState(null);
@@ -29,30 +28,32 @@ export default function CurriculumAssignmentPanel({
 
   const selectedTeacher = teachers.find((teacher) => teacher.id === teacherId) ?? null;
   const selectedClass = classes.find((klass) => klass.id === classId) ?? null;
+  const teacherBrans = selectedTeacher ? getTeacherBransDisplay(selectedTeacher) : null;
 
-  const subjectsForClass = useMemo(() => {
-    if (!selectedClass) return [];
-    const gradeSubjects = subjects.filter((subject) => subject.grade === selectedClass.grade);
-    if (!atlasSchedule || !selectedTeacher) return gradeSubjects;
-
+  const resolvedSubject = useMemo(() => {
+    if (!selectedClass || !selectedTeacher) return null;
     const slug = getTeacherSubjectSlug(selectedTeacher);
-    if (!slug) return gradeSubjects;
-    const match = resolveSubjectForClass(subjects, slug, selectedClass.grade);
-    return match ? [match] : gradeSubjects;
-  }, [subjects, selectedClass, atlasSchedule, selectedTeacher]);
-
-  useEffect(() => {
-    if (!classId || subjectsForClass.length !== 1) return;
-    setSubjectId(subjectsForClass[0].id);
-  }, [classId, subjectsForClass]);
+    if (!slug) return null;
+    return resolveSubjectForClass(subjects, slug, selectedClass.grade);
+  }, [subjects, selectedClass, selectedTeacher]);
 
   async function handleAdd(event) {
     event.preventDefault();
     setError(null);
     setSuccess(null);
 
-    if (!teacherId || !classId || !subjectId) {
-      setError('Öğretmen, şube ve ders seçin.');
+    if (!teacherId || !classId) {
+      setError('Öğretmen ve şube seçin.');
+      return;
+    }
+
+    if (!resolvedSubject) {
+      const bransName = teacherBrans?.name ?? 'Branş';
+      setError(
+        selectedTeacher && !getTeacherSubjectSlug(selectedTeacher)
+          ? 'Öğretmenin branşı tanımlı değil. Öğretmen Yönetimi sekmesinden branş atayın.'
+          : `${bransName} dersi ${formatClassLabel(selectedClass?.grade, selectedClass?.name)} için müfredatta yok.`
+      );
       return;
     }
 
@@ -60,10 +61,10 @@ export default function CurriculumAssignmentPanel({
       (row) =>
         row.teacher_id === teacherId &&
         row.class_id === classId &&
-        row.subject_id === subjectId
+        row.subject_id === resolvedSubject.id
     );
     if (duplicate) {
-      setError('Bu öğretmen için aynı şube ve ders ataması zaten var.');
+      setError('Bu öğretmen için aynı şube ataması zaten var.');
       return;
     }
 
@@ -73,7 +74,7 @@ export default function CurriculumAssignmentPanel({
       .insert({
         teacher_id: teacherId,
         class_id: classId,
-        subject_id: subjectId,
+        subject_id: resolvedSubject.id,
       })
       .select(ASSIGNMENT_INSERT_SELECT)
       .single();
@@ -86,18 +87,16 @@ export default function CurriculumAssignmentPanel({
 
     const teacher = teachers.find((row) => row.id === teacherId);
     const klass = classes.find((row) => row.id === classId);
-    const subject = subjects.find((row) => row.id === subjectId);
     const label = formatAssignmentLabel({
       classes: klass,
-      curriculum_subjects: subject,
+      curriculum_subjects: resolvedSubject,
     });
 
     setSuccess(`${label} ataması kaydedildi.`);
-    setSubjectId('');
     onAssigned?.({
       teacherName: teacher?.full_name ?? teacher?.email ?? 'Öğretmen',
       classLabel: formatClassLabel(klass?.grade, klass?.name),
-      subjectName: subject?.name ?? 'Ders',
+      subjectName: resolvedSubject.name,
       label,
       row: data,
     });
@@ -131,10 +130,10 @@ export default function CurriculumAssignmentPanel({
 
   return (
     <div className="dash-card">
-      <h2 className="dash-section-title">Şube + ders ataması</h2>
+      <h2 className="dash-section-title">Şube ataması</h2>
       <p className="dash-hint">
-        Öğretmeni şube ve ders ile eşleştirin. Örnek: Ayşe → 5-A Matematik. Öğretmen yalnızca
-        atandığı şubelerdeki öğrencileri görür ve velilerine mesaj gönderebilir.
+        Öğretmeni şubeye atayın. Ders, öğretmenin branşından otomatik gelir (ör. Matematik öğretmeni
+        → 5-A Matematik). Öğretmen yalnızca atandığı şubelerdeki öğrencileri görür.
       </p>
 
       <form className="dash-form" onSubmit={handleAdd}>
@@ -143,18 +142,19 @@ export default function CurriculumAssignmentPanel({
           <select
             className="dash-input"
             value={teacherId}
-            onChange={(event) => {
-              setTeacherId(event.target.value);
-              setSubjectId('');
-            }}
+            onChange={(event) => setTeacherId(event.target.value)}
             disabled={saving}
           >
             <option value="">Seçin…</option>
-            {teachers.map((teacher) => (
-              <option key={teacher.id} value={teacher.id}>
-                {teacher.full_name ?? teacher.email}
-              </option>
-            ))}
+            {teachers.map((teacher) => {
+              const brans = getTeacherBransDisplay(teacher);
+              return (
+                <option key={teacher.id} value={teacher.id}>
+                  {teacher.full_name ?? teacher.email}
+                  {brans ? ` · ${brans.name}` : ''}
+                </option>
+              );
+            })}
           </select>
         </label>
 
@@ -163,10 +163,7 @@ export default function CurriculumAssignmentPanel({
           <select
             className="dash-input"
             value={classId}
-            onChange={(event) => {
-              setClassId(event.target.value);
-              setSubjectId('');
-            }}
+            onChange={(event) => setClassId(event.target.value)}
             disabled={saving || classes.length === 0}
           >
             <option value="">Seçin…</option>
@@ -181,29 +178,26 @@ export default function CurriculumAssignmentPanel({
           </select>
         </label>
 
-        <label className="dash-label">
-          Ders
-          <select
-            className="dash-input"
-            value={subjectId}
-            onChange={(event) => setSubjectId(event.target.value)}
-            disabled={saving || !classId}
-          >
-            <option value="">Seçin…</option>
-            {subjectsForClass.map((subject) => (
-              <option key={subject.id} value={subject.id}>
-                {subject.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        {selectedTeacher && selectedClass ? (
+          resolvedSubject ? (
+            <p className="dash-hint cur-assignment-subject">
+              Ders: <strong>{resolvedSubject.name}</strong> (öğretmen branşı)
+            </p>
+          ) : (
+            <p className="dash-hint">
+              {getTeacherSubjectSlug(selectedTeacher)
+                ? `${teacherBrans?.name ?? 'Branş'} bu sınıf seviyesinde müfredatta yok.`
+                : 'Öğretmenin branşı tanımlı değil — Öğretmen Yönetimi sekmesinden branş atayın.'}
+            </p>
+          )
+        ) : null}
 
         {error && <InlineError error={error} context="curriculum" />}
         {success && <SuccessMessage message={success} />}
 
         <SendButton
           sending={saving}
-          disabled={!teacherId || !classId || !subjectId}
+          disabled={!teacherId || !classId || !resolvedSubject}
           label="Atamayı kaydet"
           sendingLabel="Kaydediliyor…"
         />

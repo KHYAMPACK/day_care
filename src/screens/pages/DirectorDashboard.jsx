@@ -54,7 +54,7 @@ import {
 } from '../../lib/curriculum';
 import { createStaffUser, deleteStaffUser, resetStaffPin, addStaffRole, removeStaffRole } from '../../lib/staffUsers';
 import { loadSchoolProfilesByRole } from '../../lib/staffQueries';
-import { normalizeProfileRoles, isFullDirector, isAssistantDirector, profileHasRole } from '../../lib/profileRoles';
+import { normalizeProfileRoles, isFullDirector, profileHasRole } from '../../lib/profileRoles';
 import { AsyncActionDialog } from '../../components/ui/AsyncActionDialog';
 import { useAsyncAction } from '../../hooks/useAsyncAction';
 import { recordSchoolActivity } from '../../lib/activityLog';
@@ -303,9 +303,6 @@ function StaffRoleControls({
   return (
     <div className="staff-role-controls">
       <StaffRoleBadges member={member} />
-      {isAssistantDirector(member) ? (
-        <p className="staff-teachers-split__subtitle">Asıl rol: Öğretmen</p>
-      ) : null}
       {canManageRoles ? (
         <div className="staff-role-controls__actions">
           {!hasDirector ? (
@@ -367,11 +364,20 @@ function CounselorStaffSection({
   const [fullName, setFullName] = useState('');
 
   return (
-    <div className="dash-card staff-counselor-card">
-      <div className="staff-counselor-card__header">
-        <h2 className="dash-section-title">Rehberlikçi</h2>
-        <span className="staff-counselor-card__badge">Rehberlik</span>
-      </div>
+    <details className="cal-collapsible-form dash-card staff-counselor-card">
+      <summary className="cal-collapsible-form__summary cal-browser__summary">
+        <span className="cal-collapsible-form__chevron" aria-hidden="true" />
+        <span className="cal-browser__summary-text">
+          <span className="dash-section-title">Rehberlikçi</span>
+          <span className="dash-hint">
+            {counselors.length
+              ? `${counselors.length} rehberlikçi`
+              : 'Okul genelinde sınav ve öğrenci takibi'}
+          </span>
+        </span>
+      </summary>
+
+      <div className="cal-collapsible-form__body">
       <p className="dash-hint">
         Okul genelinde sınav ve öğrenci takibi için rehberlikçi hesabı. Öğretmen listesinden ayrı
         yönetilir.
@@ -446,7 +452,8 @@ function CounselorStaffSection({
           ))}
         </ul>
       )}
-    </div>
+      </div>
+    </details>
   );
 }
 
@@ -604,20 +611,6 @@ function TeacherManagementTab({
     );
   }, [teachers, searchQuery]);
 
-  const { pureTeachers, assistantDirectors } = useMemo(() => {
-    const pure = [];
-    const assistants = [];
-    for (const teacher of filteredTeachers) {
-      const roles = normalizeProfileRoles(teacher);
-      if (roles.includes(USER_ROLES.director)) {
-        assistants.push(teacher);
-      } else {
-        pure.push(teacher);
-      }
-    }
-    return { pureTeachers: pure, assistantDirectors: assistants };
-  }, [filteredTeachers]);
-
   useEffect(() => {
     if (counselors.length > 0) {
       setCounselorPromptDismissed(false);
@@ -671,10 +664,13 @@ function TeacherManagementTab({
         <span>Öğretmenler</span>
       </div>
 
-      <div className="dash-card">
-        <h2 className="dash-section-title">Yeni öğretmen</h2>
+      <details className="cal-collapsible-form dash-card">
+        <summary className="cal-collapsible-form__summary">
+          <span className="cal-collapsible-form__chevron" aria-hidden="true" />
+          <span className="dash-section-title">Yeni öğretmen</span>
+        </summary>
         <form
-          className="dash-form"
+          className="dash-form cal-collapsible-form__body"
           onSubmit={async (event) => {
             event.preventDefault();
             await onCreateTeacher(
@@ -725,80 +721,49 @@ function TeacherManagementTab({
             sendingLabel="Oluşturuluyor…"
           />
         </form>
-      </div>
+      </details>
 
-      <div className="staff-teachers-split">
-        <div className="dash-card">
-          <h2 className="dash-section-title">
-            Öğretmenler
-            {searchQuery.trim()
-              ? ` (${pureTeachers.length}/${teachers.filter((t) => !normalizeProfileRoles(t).includes(USER_ROLES.director)).length})`
-              : ` (${teachers.filter((t) => !normalizeProfileRoles(t).includes(USER_ROLES.director)).length})`}
-          </h2>
-          {teachers.length === 0 ? (
-            <p className="dash-hint">Henüz öğretmen yok.</p>
-          ) : (
-            <>
-              <RosterSearchInput
-                value={searchQuery}
-                onChange={setSearchQuery}
-                placeholder="Öğretmen ara…"
-                disabled={staffActionLoading}
-              />
-              {filteredTeachers.length === 0 ? (
-                <p className="dash-hint">Aramanızla eşleşen öğretmen yok.</p>
-              ) : pureTeachers.length === 0 ? (
-                <p className="dash-hint">Aramanızla eşleşen saf öğretmen yok.</p>
-              ) : (
-                <ul className="manage-list">
-                  {pureTeachers.map((teacher) => (
-                    <TeacherRosterItem
-                      key={teacher.id}
-                      teacher={teacher}
-                      profile={profile}
-                      staffActionLoading={staffActionLoading}
-                      canManageRoles={canManageRoles}
-                      canDeleteStaff={canDeleteStaff}
-                      onAddRole={onAddRole}
-                      onRemoveRole={onRemoveRole}
-                      onResetPin={onResetPin}
-                      onRequestDelete={onRequestDelete}
-                      onSavePhone={onSavePhone}
-                      onSaveSubject={onSaveSubject}
-                    />
-                  ))}
-                </ul>
-              )}
-            </>
-          )}
-        </div>
-
-        {assistantDirectors.length > 0 ? (
-          <div className="dash-card">
-            <h2 className="dash-section-title">Müdür yetkili öğretmenler ({assistantDirectors.length})</h2>
-            <p className="staff-teachers-split__subtitle">
-              Öğretmen olarak başlayıp müdür yetkisi verilen personel. Asıl rolleri öğretmendir.
-            </p>
-            <ul className="manage-list">
-              {assistantDirectors.map((teacher) => (
-                <TeacherRosterItem
-                  key={teacher.id}
-                  teacher={teacher}
-                  profile={profile}
-                  staffActionLoading={staffActionLoading}
-                  canManageRoles={canManageRoles}
-                  canDeleteStaff={canDeleteStaff}
-                  onAddRole={onAddRole}
-                  onRemoveRole={onRemoveRole}
-                  onResetPin={onResetPin}
-                  onRequestDelete={onRequestDelete}
-                  onSavePhone={onSavePhone}
-                  onSaveSubject={onSaveSubject}
-                />
-              ))}
-            </ul>
-          </div>
-        ) : null}
+      <div className="dash-card">
+        <h2 className="dash-section-title">
+          Öğretmenler
+          {searchQuery.trim()
+            ? ` (${filteredTeachers.length}/${teachers.length})`
+            : ` (${teachers.length})`}
+        </h2>
+        {teachers.length === 0 ? (
+          <p className="dash-hint">Henüz öğretmen yok.</p>
+        ) : (
+          <>
+            <RosterSearchInput
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder="Öğretmen ara…"
+              disabled={staffActionLoading}
+            />
+            {filteredTeachers.length === 0 ? (
+              <p className="dash-hint">Aramanızla eşleşen öğretmen yok.</p>
+            ) : (
+              <ul className="manage-list">
+                {filteredTeachers.map((teacher) => (
+                  <TeacherRosterItem
+                    key={teacher.id}
+                    teacher={teacher}
+                    profile={profile}
+                    staffActionLoading={staffActionLoading}
+                    canManageRoles={canManageRoles}
+                    canDeleteStaff={canDeleteStaff}
+                    onAddRole={onAddRole}
+                    onRemoveRole={onRemoveRole}
+                    onResetPin={onResetPin}
+                    onRequestDelete={onRequestDelete}
+                    onSavePhone={onSavePhone}
+                    onSaveSubject={onSaveSubject}
+                  />
+                ))}
+              </ul>
+            )}
+          </>
+        )}
       </div>
     </section>
   );
@@ -857,10 +822,13 @@ function ParentManagementTab({
       {staffError && <InlineError error={staffError} context="general" />}
       {staffSuccess && <SuccessMessage message={staffSuccess} />}
 
-      <div className="dash-card">
-        <h2 className="dash-section-title">Yeni veli</h2>
+      <details className="cal-collapsible-form dash-card">
+        <summary className="cal-collapsible-form__summary">
+          <span className="cal-collapsible-form__chevron" aria-hidden="true" />
+          <span className="dash-section-title">Yeni veli</span>
+        </summary>
         <form
-          className="dash-form"
+          className="dash-form cal-collapsible-form__body"
           onSubmit={async (event) => {
             event.preventDefault();
             const ok = await onCreateParent(
@@ -918,7 +886,7 @@ function ParentManagementTab({
             sendingLabel="Oluşturuluyor…"
           />
         </form>
-      </div>
+      </details>
 
       <div className="dash-card">
         <h2 className="dash-section-title">
@@ -1473,8 +1441,18 @@ function StudentManagementTab({
 
   return (
     <section className="director-panel director-panel--simple">
-      <div className="dash-card">
-        <h2 className="dash-section-title">Şubeler</h2>
+      <details className="cal-collapsible-form dash-card">
+        <summary className="cal-collapsible-form__summary cal-browser__summary">
+          <span className="cal-collapsible-form__chevron" aria-hidden="true" />
+          <span className="cal-browser__summary-text">
+            <span className="dash-section-title">Şubeler</span>
+            <span className="dash-hint">
+              {classes.length ? `${classes.length} şube` : '5-A, 6-B gibi şubeler'}
+            </span>
+          </span>
+        </summary>
+
+        <div className="cal-collapsible-form__body">
         <p className="dash-hint">
           Öğrencileri 5-A, 6-B gibi şubelere yerleştirin. Yoklama, ödev ve müfredat şube
           atamasına göre çalışır.
@@ -1535,15 +1513,19 @@ function StudentManagementTab({
             })}
           </ul>
         )}
-      </div>
+        </div>
+      </details>
 
       {error && <InlineError error={error} context="general" />}
       {success && <SuccessMessage message={success} />}
 
-      <div className="dash-card">
-        <h2 className="dash-section-title">Yeni öğrenci</h2>
+      <details className="cal-collapsible-form dash-card">
+        <summary className="cal-collapsible-form__summary">
+          <span className="cal-collapsible-form__chevron" aria-hidden="true" />
+          <span className="dash-section-title">Yeni öğrenci</span>
+        </summary>
 
-        <form className="dash-form" onSubmit={handleSubmit}>
+        <form className="dash-form cal-collapsible-form__body" onSubmit={handleSubmit}>
           <label className="dash-label">
             Öğrenci Adı Soyadı
             <input
@@ -1620,7 +1602,7 @@ function StudentManagementTab({
             disabled={!classId}
           />
         </form>
-      </div>
+      </details>
 
       <div className="dash-card">
         <h2 className="dash-section-title">
@@ -2385,11 +2367,6 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
           <DirectorCurriculum
             schoolId={schoolId}
             atlasSchedule={hasAtlasSchedule(school)}
-            classCount={classes.length}
-            studentCount={students.length}
-            studentsInClassCount={students.filter((student) => student.class_id).length}
-            curriculumAssignmentCount={curriculumAssignments.length}
-            onNavigateTab={handleTabChange}
           />
         )}
 
@@ -2443,7 +2420,6 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
               subjects={curriculumSubjects}
               assignments={curriculumAssignments}
               classStudentCounts={classStudentCounts}
-              atlasSchedule={hasAtlasSchedule(school)}
               onRefresh={refreshCurriculumAssignments}
               onAssigned={({ teacherName, label }) => {
                 recordSchoolActivity(supabase, profile, {

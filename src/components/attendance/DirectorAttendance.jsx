@@ -9,6 +9,7 @@ import {
 } from '../../lib/attendance';
 import { InlineError } from '../dashboardUi';
 import { Icon } from '../ui/Icon';
+import SearchFilterToolbar from '../ui/SearchFilterToolbar';
 
 const PERIOD_OPTIONS = [
   { id: 'week', label: 'Bu hafta' },
@@ -137,6 +138,20 @@ export default function DirectorAttendance({ schoolId, students = [], classes = 
     return { totalSessions, avgRate, totalAbsent, flagCount: flags.length };
   }, [pack, flags.length]);
 
+  const activeFilterCount =
+    (classId ? 1 : 0) +
+    (subjectId ? 1 : 0) +
+    (period !== 'week' ? 1 : 0) +
+    (sortKey !== 'rate' ? 1 : 0);
+  const hasActiveFilters = activeFilterCount > 0;
+
+  function clearAttendanceFilters() {
+    setClassId('');
+    setSubjectId('');
+    setPeriod('week');
+    setSortKey('rate');
+  }
+
   if (loading && !subjects.length) {
     return (
       <section className="dash-card">
@@ -169,78 +184,79 @@ export default function DirectorAttendance({ schoolId, students = [], classes = 
       </div>
 
       <section className="dash-card">
-        <div className="att-filters att-filters--director">
-          <label className="dash-label">
-            Şube
-            <select
-              className="dash-input"
-              value={classId}
-              onChange={(event) => {
-                setClassId(event.target.value);
-                setSubjectId('');
-              }}
-            >
-              <option value="">Tümü</option>
-              {classes.map((klass) => (
-                <option key={klass.id} value={klass.id}>
-                  {formatClassLabel(klass.grade, klass.name)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="dash-label">
-            Ders
-            <select
-              className="dash-input"
-              value={subjectId}
-              onChange={(event) => setSubjectId(event.target.value)}
-            >
-              <option value="">Tümü</option>
-              {subjectOptions.map((subject) => (
-                <option key={subject.id} value={subject.id}>
-                  {subject.grade}. sınıf {subject.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="dash-label">
-            Ara
-            <input
-              className="dash-input"
-              type="search"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Öğrenci adı"
-            />
-          </label>
-          <label className="dash-label">
-            Sırala
-            <select className="dash-input" value={sortKey} onChange={(event) => setSortKey(event.target.value)}>
-              <option value="rate">Oran (düşük → yüksek)</option>
-              <option value="absent">Devamsız (çok → az)</option>
-              <option value="name">Ad A → Z</option>
-            </select>
-          </label>
-        </div>
-
-        <div className="att-filters__period">
-          <p className="dash-label">Dönem</p>
-          <div className="cur-assign-chips" role="group" aria-label="Dönem">
-            {PERIOD_OPTIONS.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                className={`cur-assign-chip${period === item.id ? ' cur-assign-chip--active' : ''}`}
-                onClick={() => setPeriod(item.id)}
+        <SearchFilterToolbar
+          searchValue={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Öğrenci adı ara…"
+          activeFilterCount={activeFilterCount}
+          hasActiveFilters={hasActiveFilters}
+          onClearFilters={clearAttendanceFilters}
+          resultHint={
+            search.trim()
+              ? `${filteredStudents.length}/${pack.studentStats.length} öğrenci`
+              : null
+          }
+        >
+          <div className="search-filter-toolbar__fields">
+            <label className="dash-label">
+              Şube
+              <select
+                className="dash-input"
+                value={classId}
+                onChange={(event) => {
+                  setClassId(event.target.value);
+                  setSubjectId('');
+                }}
               >
-                {item.label}
-              </button>
-            ))}
+                <option value="">Tümü</option>
+                {classes.map((klass) => (
+                  <option key={klass.id} value={klass.id}>
+                    {formatClassLabel(klass.grade, klass.name)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="dash-label">
+              Ders
+              <select
+                className="dash-input"
+                value={subjectId}
+                onChange={(event) => setSubjectId(event.target.value)}
+              >
+                <option value="">Tümü</option>
+                {subjectOptions.map((subject) => (
+                  <option key={subject.id} value={subject.id}>
+                    {subject.grade}. sınıf {subject.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="dash-label">
+              Sırala
+              <select className="dash-input" value={sortKey} onChange={(event) => setSortKey(event.target.value)}>
+                <option value="rate">Oran (düşük → yüksek)</option>
+                <option value="absent">Devamsız (çok → az)</option>
+                <option value="name">Ad A → Z</option>
+              </select>
+            </label>
           </div>
-        </div>
-      </section>
+          <div className="cal-browser__filter-group">
+            <p className="dash-label">Dönem</p>
+            <div className="cur-assign-chips" role="group" aria-label="Dönem">
+              {PERIOD_OPTIONS.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`cur-assign-chip${period === item.id ? ' cur-assign-chip--active' : ''}`}
+                  onClick={() => setPeriod(item.id)}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </SearchFilterToolbar>
 
-      <section className="dash-card">
         <h2 className="dash-section-title">Öğrenci devam</h2>
         {filteredStudents.length === 0 ? (
           <p className="dash-hint">Bu süzgeçte öğrenci yok.</p>

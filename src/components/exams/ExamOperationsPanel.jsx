@@ -26,6 +26,7 @@ import ExamManualEntry from './ExamManualEntry';
 import CreateMockExamForm from './CreateMockExamForm';
 import ExamRankingTable from './ExamRankingTable';
 import ExamReportsPanel from './ExamReportsPanel';
+import SearchFilterToolbar from '../ui/SearchFilterToolbar';
 
 function ExamSessionWorkspace({
   session,
@@ -251,8 +252,21 @@ export default function ExamOperationsPanel({
   );
 
   const hasSessionFilters = Boolean(
-    search.trim() || publisherFilter || gradeFilter != null || statusFilter !== 'all' || sort !== 'date-desc'
+    publisherFilter || gradeFilter != null || statusFilter !== 'all' || sort !== 'date-desc'
   );
+
+  const activeSessionFilterCount =
+    (publisherFilter ? 1 : 0) +
+    (gradeFilter != null ? 1 : 0) +
+    (statusFilter !== 'all' ? 1 : 0) +
+    (sort !== 'date-desc' ? 1 : 0);
+
+  function clearSessionFilters() {
+    setPublisherFilter('');
+    setGradeFilter(null);
+    setStatusFilter('all');
+    setSort('date-desc');
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -352,78 +366,68 @@ export default function ExamOperationsPanel({
         />
       ) : null}
 
-      <section className="dash-card">
-        <h2 className="dash-section-title">Mevcut denemeler</h2>
-        <p className="dash-hint">
-          {filteredSessions.length} deneme
-          {hasSessionFilters ? (
-            <>
-              {' · '}
-              <button
-                type="button"
-                className="demo-btn demo-btn--ghost"
-                onClick={() => {
-                  setSearch('');
-                  setPublisherFilter('');
-                  setGradeFilter(null);
-                  setStatusFilter('all');
-                  setSort('date-desc');
-                }}
-              >
-                Filtreleri temizle
-              </button>
-            </>
-          ) : null}
-        </p>
+      <details className="cal-collapsible-form exam-sessions-browser dash-card">
+        <summary className="cal-collapsible-form__summary cal-browser__summary">
+          <span className="cal-collapsible-form__chevron" aria-hidden="true" />
+          <span className="cal-browser__summary-text">
+            <span className="dash-section-title">Mevcut denemeler</span>
+            <span className="dash-hint">{filteredSessions.length} deneme</span>
+          </span>
+        </summary>
 
+        <div className="cal-collapsible-form__body">
         {sessions.length > 0 ? (
-          <div className="exam-session-filters">
-            <label className="dash-label">
-              Ara
-              <input
-                className="dash-input"
-                type="search"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Başlık veya yayın"
-              />
-            </label>
-            <label className="dash-label">
-              Yayın
-              <select
-                className="dash-input"
-                value={publisherFilter}
-                onChange={(event) => setPublisherFilter(event.target.value)}
-              >
-                <option value="">Tümü</option>
-                {publisherOptions.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="dash-label">
-              Durum
-              <select
-                className="dash-input"
-                value={statusFilter}
-                onChange={(event) => setStatusFilter(event.target.value)}
-              >
-                <option value="all">Tümü</option>
-                <option value="published">Velilere açık</option>
-                <option value="draft">Taslak</option>
-              </select>
-            </label>
-            <label className="dash-label">
-              Sırala
-              <select className="dash-input" value={sort} onChange={(event) => setSort(event.target.value)}>
-                <option value="date-desc">Tarih (yeni → eski)</option>
-                <option value="date-asc">Tarih (eski → yeni)</option>
-                <option value="title-asc">Başlık A → Z</option>
-                <option value="publisher-asc">Yayınevi A → Z</option>
-              </select>
-            </label>
+          <SearchFilterToolbar
+            searchValue={search}
+            onSearchChange={setSearch}
+            searchPlaceholder="Başlık veya yayın ara…"
+            activeFilterCount={activeSessionFilterCount}
+            hasActiveFilters={hasSessionFilters}
+            onClearFilters={clearSessionFilters}
+            resultHint={
+              search.trim()
+                ? `${filteredSessions.length}/${sessions.length} deneme`
+                : null
+            }
+          >
+            <div className="search-filter-toolbar__fields">
+              <label className="dash-label">
+                Yayın
+                <select
+                  className="dash-input"
+                  value={publisherFilter}
+                  onChange={(event) => setPublisherFilter(event.target.value)}
+                >
+                  <option value="">Tümü</option>
+                  {publisherOptions.map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="dash-label">
+                Durum
+                <select
+                  className="dash-input"
+                  value={statusFilter}
+                  onChange={(event) => setStatusFilter(event.target.value)}
+                >
+                  <option value="all">Tümü</option>
+                  <option value="published">Velilere açık</option>
+                  <option value="draft">Taslak</option>
+                </select>
+              </label>
+              <label className="dash-label">
+                Sırala
+                <select className="dash-input" value={sort} onChange={(event) => setSort(event.target.value)}>
+                  <option value="date-desc">Tarih (yeni → eski)</option>
+                  <option value="date-asc">Tarih (eski → yeni)</option>
+                  <option value="title-asc">Başlık A → Z</option>
+                  <option value="publisher-asc">Yayınevi A → Z</option>
+                </select>
+              </label>
+            </div>
             <div className="exam-session-filters__grades">
               <p className="dash-label">Sınıf</p>
               <div className="cur-assign-chips" role="group" aria-label="Sınıf filtresi">
@@ -446,7 +450,7 @@ export default function ExamOperationsPanel({
                 ))}
               </div>
             </div>
-          </div>
+          </SearchFilterToolbar>
         ) : null}
 
         <p className="dash-hint">Bir denemeye dokunun; sonuç girişi o satırın içinde açılır.</p>
@@ -522,7 +526,8 @@ export default function ExamOperationsPanel({
             })}
           </ul>
         )}
-      </section>
+        </div>
+      </details>
 
       {showReports ? (
         <section className="dash-card">
