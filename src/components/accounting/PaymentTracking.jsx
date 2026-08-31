@@ -22,6 +22,7 @@ import { AnimatedCard } from '../ui/AnimatedCard';
 import { AsyncActionDialog } from '../ui/AsyncActionDialog';
 import { useAsyncAction } from '../../hooks/useAsyncAction';
 import { recordSchoolActivity } from '../../lib/activityLog';
+import { supabase } from '../../lib/supabase';
 
 function statusChipClass(status) {
   if (status === 'paid') return 'tuition-chip--mint';
