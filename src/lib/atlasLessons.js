@@ -43,7 +43,7 @@ export function isSchoolDay(isoDate, events = []) {
 
 export async function loadClassSessionsForDate(classId, sessionDate) {
   const { data, error } = await supabase
-    .from('atlas_lesson_sessions')
+    .from('lesson_sessions')
     .select(
       `${SESSION_SELECT}, profiles:taken_by ( full_name ), curriculum_subjects ( name )`
     )
@@ -56,7 +56,7 @@ export async function loadClassSessionsForDate(classId, sessionDate) {
 
 export async function loadTeacherSessionsForDate(teacherId, sessionDate) {
   const { data, error } = await supabase
-    .from('atlas_lesson_sessions')
+    .from('lesson_sessions')
     .select(SESSION_SELECT)
     .eq('taken_by', teacherId)
     .eq('session_date', sessionDate)
@@ -67,7 +67,7 @@ export async function loadTeacherSessionsForDate(teacherId, sessionDate) {
 
 export async function loadTeacherSessionsForWeek(teacherId, weekIndex) {
   const { data, error } = await supabase
-    .from('atlas_lesson_sessions')
+    .from('lesson_sessions')
     .select(SESSION_SELECT)
     .eq('taken_by', teacherId)
     .eq('week_index', weekIndex)
@@ -79,7 +79,7 @@ export async function loadTeacherSessionsForWeek(teacherId, weekIndex) {
 
 export async function loadSessionDetails(sessionId) {
   const { data: session, error: sessionError } = await supabase
-    .from('atlas_lesson_sessions')
+    .from('lesson_sessions')
     .select(
       `${SESSION_SELECT}, classes ( grade, name ), curriculum_subjects ( name )`
     )
@@ -89,8 +89,8 @@ export async function loadSessionDetails(sessionId) {
   if (!session) return { session: null, attendance: [], results: [] };
 
   const [attendanceRes, resultsRes] = await Promise.all([
-    supabase.from('atlas_lesson_attendance').select(ATTENDANCE_SELECT).eq('session_id', sessionId),
-    supabase.from('atlas_lesson_results').select(RESULT_SELECT).eq('session_id', sessionId),
+    supabase.from('lesson_attendance').select(ATTENDANCE_SELECT).eq('session_id', sessionId),
+    supabase.from('lesson_results').select(RESULT_SELECT).eq('session_id', sessionId),
   ]);
   if (attendanceRes.error) throw attendanceRes.error;
   if (resultsRes.error) throw resultsRes.error;
@@ -199,7 +199,7 @@ export function schoolDaysInWeek(weekIndex, calendarEvents = [], { maxDate } = {
 
 export async function loadTeacherWeekSessions(teacherId, weekIndex) {
   const { data, error } = await supabase
-    .from('atlas_lesson_sessions')
+    .from('lesson_sessions')
     .select(
       `${SESSION_SELECT}, classes ( grade, name ), curriculum_subjects ( name )`
     )
@@ -258,7 +258,7 @@ export async function loadAssessmentTypes(schoolId) {
 
 export async function loadAtlasSessionsForWeek(schoolId, weekIndex, classId) {
   let query = supabase
-    .from('atlas_lesson_sessions')
+    .from('lesson_sessions')
     .select(SESSION_SELECT)
     .eq('week_index', weekIndex);
   if (classId) query = query.eq('class_id', classId);
@@ -270,7 +270,7 @@ export async function loadAtlasSessionsForWeek(schoolId, weekIndex, classId) {
 export async function loadAtlasAttendanceForSessions(sessionIds) {
   if (!sessionIds.length) return [];
   const { data, error } = await supabase
-    .from('atlas_lesson_attendance')
+    .from('lesson_attendance')
     .select(ATTENDANCE_SELECT)
     .in('session_id', sessionIds);
   if (error) throw error;
@@ -280,7 +280,7 @@ export async function loadAtlasAttendanceForSessions(sessionIds) {
 export async function loadAtlasResultsForSessions(sessionIds) {
   if (!sessionIds.length) return [];
   const { data, error } = await supabase
-    .from('atlas_lesson_results')
+    .from('lesson_results')
     .select(`${RESULT_SELECT}, assessment:session_id`)
     .in('session_id', sessionIds);
   if (error) throw error;
@@ -293,7 +293,7 @@ export async function loadAtlasForWeek({ schoolId, classIds, weekIndex }) {
   }
   const { data: sessions, error: sessionsError } = await withSchoolFilter(
     supabase
-      .from('atlas_lesson_sessions')
+      .from('lesson_sessions')
       .select(SESSION_SELECT)
       .eq('week_index', weekIndex)
       .in('class_id', classIds),
@@ -304,7 +304,7 @@ export async function loadAtlasForWeek({ schoolId, classIds, weekIndex }) {
   const [attendance, results, assessmentTypes] = await Promise.all([
     loadAtlasAttendanceForSessions(sessionIds),
     sessionIds.length
-      ? supabase.from('atlas_lesson_results').select(RESULT_SELECT).in('session_id', sessionIds)
+      ? supabase.from('lesson_results').select(RESULT_SELECT).in('session_id', sessionIds)
       : Promise.resolve({ data: [], error: null }),
     loadAssessmentTypes(schoolId),
   ]);

@@ -507,7 +507,7 @@ async function seedAtlasPractice(schoolId, students, teacherId) {
   if (!classIds.length) return;
 
   for (const classId of classIds) {
-    await supabase.from('atlas_lesson_sessions').delete().eq('class_id', classId);
+    await supabase.from('lesson_sessions').delete().eq('class_id', classId);
   }
 
   const { data: classes, error: classError } = await supabase
@@ -548,7 +548,7 @@ async function seedAtlasPractice(schoolId, students, teacherId) {
       const sessionDate = addDaysIso(weekStart, dayOffset);
       for (const [slotIndex, subject] of gradeSubjects.entries()) {
         const { data: session, error: sessionError } = await supabase
-          .from('atlas_lesson_sessions')
+          .from('lesson_sessions')
           .insert({
             school_id: schoolId,
             class_id: klass.id,
@@ -576,7 +576,7 @@ async function seedAtlasPractice(schoolId, students, teacherId) {
           status: 'present',
         }));
         const { error: attendanceError } = await supabase
-          .from('atlas_lesson_attendance')
+          .from('lesson_attendance')
           .insert(attendanceRows);
         if (attendanceError) throw attendanceError;
 
@@ -586,7 +586,7 @@ async function seedAtlasPractice(schoolId, students, teacherId) {
           wrong_count: 2 + (index % 3),
           blank_count: index % 2,
         }));
-        const { error: resultsError } = await supabase.from('atlas_lesson_results').insert(resultRows);
+        const { error: resultsError } = await supabase.from('lesson_results').insert(resultRows);
         if (resultsError) throw resultsError;
       }
     }

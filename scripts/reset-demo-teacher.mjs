@@ -79,14 +79,14 @@ async function deleteWhere(table, column, value) {
 }
 
 async function cleanupTeacherReferences(userId) {
-  await deleteWhere('atlas_lesson_sessions', 'taken_by', userId);
+  await deleteWhere('lesson_sessions', 'taken_by', userId);
   await deleteWhere('homework_assignments', 'created_by', userId);
   await deleteWhere('surveys', 'created_by', userId);
   await deleteWhere('trips', 'created_by', userId);
   await deleteWhere('teacher_students', 'teacher_id', userId);
   await deleteWhere('teacher_assignments', 'teacher_id', userId);
-  await deleteWhere('atlas_teacher_day_responses', 'teacher_id', userId);
-  await deleteWhere('atlas_teacher_missed_day_prompts', 'teacher_id', userId);
+  await deleteWhere('teacher_day_responses', 'teacher_id', userId);
+  await deleteWhere('teacher_missed_day_prompts', 'teacher_id', userId);
   await deleteWhere('messages', 'author_id', userId);
   await deleteWhere('announcements', 'author_id', userId);
 }

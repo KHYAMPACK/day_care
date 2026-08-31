@@ -53,7 +53,7 @@ async function studentHasWeekActivity(adminDb, student, range) {
 
   try {
     const { count: atlasCount, error: atlasError } = await adminDb
-      .from('atlas_lesson_sessions')
+      .from('lesson_sessions')
       .select('id', { count: 'exact', head: true })
       .eq('class_id', student.class_id)
       .gte('session_date', range.start)

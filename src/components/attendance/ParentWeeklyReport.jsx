@@ -902,7 +902,7 @@ export default function ParentWeeklyReport({
             setRecords([]);
           } catch (atlasError) {
             const message = atlasError?.message ?? '';
-            if (/atlas_lesson|schema cache|does not exist/i.test(message)) {
+            if (/atlas_lesson|lesson_sessions|lesson_attendance|schema cache|does not exist/i.test(message)) {
               setAtlasPack({ sessions: [], attendance: [], results: [], assessmentTypes: [] });
             } else {
               throw atlasError;

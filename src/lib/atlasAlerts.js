@@ -12,7 +12,7 @@ export async function ensureMissedDayPrompts(promptDate = istanbulDateIso()) {
 
 export async function loadPendingMissedDayPrompt(teacherId, promptDate = istanbulDateIso()) {
   const { data, error } = await supabase
-    .from('atlas_teacher_missed_day_prompts')
+    .from('teacher_missed_day_prompts')
     .select('id, prompt_date, empty_slots, status')
     .eq('teacher_id', teacherId)
     .eq('prompt_date', promptDate)
@@ -24,7 +24,7 @@ export async function loadPendingMissedDayPrompt(teacherId, promptDate = istanbu
 
 export async function loadAllPendingMissedDayPrompts(teacherId) {
   const { data, error } = await supabase
-    .from('atlas_teacher_missed_day_prompts')
+    .from('teacher_missed_day_prompts')
     .select('id, prompt_date, empty_slots, status')
     .eq('teacher_id', teacherId)
     .eq('status', 'pending')
@@ -35,7 +35,7 @@ export async function loadAllPendingMissedDayPrompts(teacherId) {
 
 export async function resolveMissedDayPromptForDate(teacherId, promptDate) {
   const { error } = await supabase
-    .from('atlas_teacher_missed_day_prompts')
+    .from('teacher_missed_day_prompts')
     .update({ status: 'resolved', resolved_at: new Date().toISOString() })
     .eq('teacher_id', teacherId)
     .eq('prompt_date', promptDate)
@@ -45,7 +45,7 @@ export async function resolveMissedDayPromptForDate(teacherId, promptDate) {
 
 export async function resolveMissedDayPrompt(promptId) {
   const { error } = await supabase
-    .from('atlas_teacher_missed_day_prompts')
+    .from('teacher_missed_day_prompts')
     .update({ status: 'resolved', resolved_at: new Date().toISOString() })
     .eq('id', promptId);
   if (error) throw error;
@@ -60,7 +60,7 @@ export async function saveTeacherWasAbsent(responseDate) {
 
 export async function loadIncompleteActivities(teacherId) {
   const { data, error } = await supabase
-    .from('atlas_lesson_sessions')
+    .from('lesson_sessions')
     .select(
       'id, class_id, subject_id, slot_index, session_date, activity_completed_at, classes ( grade, name ), curriculum_subjects ( name )'
     )

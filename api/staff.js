@@ -45,14 +45,14 @@ async function cleanupStaffReferences(adminDb, userId, roles) {
   }
 
   if (roleList.includes('teacher') || roleList.includes('counselor')) {
-    await deleteWhere(adminDb, 'atlas_lesson_sessions', 'taken_by', userId);
+    await deleteWhere(adminDb, 'lesson_sessions', 'taken_by', userId);
     await deleteWhere(adminDb, 'homework_assignments', 'created_by', userId);
     await deleteWhere(adminDb, 'surveys', 'created_by', userId);
     await deleteWhere(adminDb, 'trips', 'created_by', userId);
     await deleteWhere(adminDb, 'teacher_students', 'teacher_id', userId);
     await deleteWhere(adminDb, 'teacher_assignments', 'teacher_id', userId);
-    await deleteWhere(adminDb, 'atlas_teacher_day_responses', 'teacher_id', userId);
-    await deleteWhere(adminDb, 'atlas_teacher_missed_day_prompts', 'teacher_id', userId);
+    await deleteWhere(adminDb, 'teacher_day_responses', 'teacher_id', userId);
+    await deleteWhere(adminDb, 'teacher_missed_day_prompts', 'teacher_id', userId);
   }
 
   await deleteWhere(adminDb, 'messages', 'author_id', userId);
