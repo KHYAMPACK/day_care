@@ -33,6 +33,20 @@ export function isAtlasLiveLoggingOpen(now = new Date()) {
   return istanbulHour < 20;
 }
 
+/** Live = same calendar day; after midnight prior days move to telafi. */
+export function splitQuestionSessionsByEntryWindow(sessions, today = istanbulDateIso()) {
+  const live = [];
+  const catchUp = [];
+  for (const session of sessions) {
+    if (session.session_date === today) {
+      live.push(session);
+    } else if (session.session_date < today) {
+      catchUp.push(session);
+    }
+  }
+  return { live, catchUp };
+}
+
 export function isSchoolDay(isoDate, events = []) {
   const blocking = (events ?? []).filter((event) => {
     if (!NON_SCHOOL_EVENT_TYPES.has(event.event_type)) return false;
@@ -175,7 +189,7 @@ export function canLiveLogForDate(sessionDate) {
   return isAtlasLiveLoggingOpen();
 }
 
-/** Same-week logging: live until 20:00 today, or any earlier school day in the current week. */
+/** Same-week yoklama: live until 20:00 today, or any earlier school day in the current week. */
 export function canLogAtlasSession(sessionDate, calendarEvents = []) {
   if (!sessionDate || !isSchoolDay(sessionDate, calendarEvents)) return false;
   const today = istanbulDateIso();
@@ -220,20 +234,23 @@ function sortSessionsNewestFirst(a, b) {
 
 export async function loadTeacherWeekQuestionSessions(teacherId, weekIndex) {
   const sessions = await loadTeacherWeekSessions(teacherId, weekIndex);
-  if (!sessions.length) return { pending: [], completed: [] };
+  if (!sessions.length) {
+    return { live: [], catchUp: [], pending: [], completed: [] };
+  }
 
   const attendance = await loadAtlasAttendanceForSessions(sessions.map((row) => row.id));
   const withAttendance = new Set(attendance.map((row) => row.session_id));
   const eligible = sessions.filter((row) => withAttendance.has(row.id));
 
-  return {
-    pending: eligible
-      .filter((row) => !row.activity_completed_at)
-      .sort(sortSessionsNewestFirst),
-    completed: eligible
-      .filter((row) => row.activity_completed_at)
-      .sort(sortSessionsNewestFirst),
-  };
+  const pending = eligible
+    .filter((row) => !row.activity_completed_at)
+    .sort(sortSessionsNewestFirst);
+  const completed = eligible
+    .filter((row) => row.activity_completed_at)
+    .sort(sortSessionsNewestFirst);
+  const { live, catchUp } = splitQuestionSessionsByEntryWindow(pending);
+
+  return { live, catchUp, pending, completed };
 }
 
 export async function loadTeacherSessionsNeedingQuestions(teacherId, weekIndex) {

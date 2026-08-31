@@ -111,6 +111,19 @@ export const guidanceStyles = StyleSheet.create({
     color: colors.muted,
     marginTop: 1,
   },
+  compactMeta: {
+    marginBottom: 6,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+    borderWidth: 0.5,
+    borderColor: colors.border,
+    borderRadius: 3,
+    backgroundColor: colors.rowAlt,
+  },
+  compactMetaText: {
+    fontSize: 6.5,
+    color: colors.headerText,
+  },
 });
 
 export { baseStyles, colors };

@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 import { istanbulDateIso } from './calendar';
-import { isAtlasLiveLoggingOpen } from './atlasLessons';
+import { isAtlasLiveLoggingOpen, loadTeacherWeekQuestionSessions, academicWeekIndex } from './atlasLessons';
 
 export async function ensureMissedDayPrompts(promptDate = istanbulDateIso()) {
   if (isAtlasLiveLoggingOpen()) return;
@@ -59,17 +59,9 @@ export async function saveTeacherWasAbsent(responseDate) {
 }
 
 export async function loadIncompleteActivities(teacherId) {
-  const { data, error } = await supabase
-    .from('lesson_sessions')
-    .select(
-      'id, class_id, subject_id, slot_index, session_date, activity_completed_at, classes ( grade, name ), curriculum_subjects ( name )'
-    )
-    .eq('taken_by', teacherId)
-    .is('activity_completed_at', null)
-    .order('session_date', { ascending: false })
-    .limit(20);
-  if (error) throw error;
-  return data ?? [];
+  const weekIndex = academicWeekIndex();
+  const { pending } = await loadTeacherWeekQuestionSessions(teacherId, weekIndex);
+  return pending;
 }
 
 export function formatEmptySlotsList(emptySlots) {

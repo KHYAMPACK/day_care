@@ -59,7 +59,8 @@ export default function TeacherAtlasQuestions({
   const bransDisplay = getTeacherBransDisplay(profile);
   const weekIndex = academicWeekIndex();
 
-  const [pending, setPending] = useState([]);
+  const [livePending, setLivePending] = useState([]);
+  const [catchUpPending, setCatchUpPending] = useState([]);
   const [completed, setCompleted] = useState([]);
   const [assessmentTypes, setAssessmentTypes] = useState([]);
   const [selectedSession, setSelectedSession] = useState(null);
@@ -88,7 +89,8 @@ export default function TeacherAtlasQuestions({
         loadTeacherWeekQuestionSessions(profile.id, weekIndex),
         loadAssessmentTypes(schoolId),
       ]);
-      setPending(sessions.pending);
+      setLivePending(sessions.live);
+      setCatchUpPending(sessions.catchUp);
       setCompleted(sessions.completed);
       setAssessmentTypes(types);
     } catch (loadError) {
@@ -452,14 +454,15 @@ export default function TeacherAtlasQuestions({
         <h2 className="dash-section-title">Sorular</h2>
         <p className="dash-hint">
           {bransDisplay?.name ?? 'Branş'} — yoklama girdikten sonra ders türünü ve soru sayılarını
-          buradan girin.
+          buradan girin. Aynı gün gece yarısına (00:00) kadar girilir; geç kalan dersler Telafi
+          bölümünden tamamlanır.
         </p>
       </header>
 
       {error && <InlineError error={error} context="general" />}
       {success && <SuccessMessage message={success} />}
 
-      {pending.length === 0 && completed.length === 0 ? (
+      {livePending.length === 0 && catchUpPending.length === 0 && completed.length === 0 ? (
         <div className="atlas-questions-empty">
           <Icon name="file" size={32} />
           <p className="dash-hint">Bu hafta soru girişi bekleyen ders yok.</p>
@@ -467,11 +470,11 @@ export default function TeacherAtlasQuestions({
         </div>
       ) : (
         <>
-          {pending.length > 0 ? (
+          {livePending.length > 0 ? (
             <>
-              <h3 className="dash-section-title">Bekleyen dersler</h3>
+              <h3 className="dash-section-title">Bugün</h3>
               <ul className="atlas-questions-list">
-                {pending.map((session) => (
+                {livePending.map((session) => (
                   <SessionCard
                     key={session.id}
                     session={session}
@@ -482,6 +485,37 @@ export default function TeacherAtlasQuestions({
               </ul>
             </>
           ) : null}
+
+          {catchUpPending.length > 0 ? (
+            <details className="cal-collapsible-form atlas-questions-catchup dash-card">
+              <summary className="cal-collapsible-form__summary cal-browser__summary">
+                <span className="cal-collapsible-form__chevron" aria-hidden="true" />
+                <span className="cal-browser__summary-text">
+                  <span className="dash-section-title">Telafi</span>
+                  <span className="dash-hint">
+                    {catchUpPending.length} ders · gece yarısından sonra girilmesi gereken kayıtlar
+                  </span>
+                </span>
+              </summary>
+              <div className="cal-collapsible-form__body">
+                <p className="dash-hint">
+                  Bu hafta içinde yoklama girilmiş ancak soru kaydı tamamlanmamış dersler. Aynı hafta
+                  sonuna kadar telafi edebilirsiniz.
+                </p>
+                <ul className="atlas-questions-list">
+                  {catchUpPending.map((session) => (
+                    <SessionCard
+                      key={session.id}
+                      session={session}
+                      completed={false}
+                      onSelect={handleSelectSession}
+                    />
+                  ))}
+                </ul>
+              </div>
+            </details>
+          ) : null}
+
           {completed.length > 0 ? (
             <>
               <h3 className="dash-section-title atlas-questions-completed-title">

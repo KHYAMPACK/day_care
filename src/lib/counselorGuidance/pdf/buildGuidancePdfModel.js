@@ -151,3 +151,14 @@ export function buildGuidancePdfModel(input) {
 export function buildGuidancePdfFilename(studentName, weekIndex) {
   return `rehberlik-${slugify(studentName)}-hafta-${weekIndex}.pdf`;
 }
+
+const SHEET_FILENAME_SLUG = {
+  questions: 'soru-takip',
+  matrix: 'konu-kaynak',
+  schedule: 'haftalik-program',
+};
+
+export function buildGuidanceSheetPdfFilename(studentName, weekIndex, sheet) {
+  const slug = SHEET_FILENAME_SLUG[sheet] ?? sheet;
+  return `rehberlik-${slugify(studentName)}-hafta-${weekIndex}-${slug}.pdf`;
+}

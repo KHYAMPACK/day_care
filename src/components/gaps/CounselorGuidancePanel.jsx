@@ -115,17 +115,47 @@ function nextSlotAfter(previousSlot) {
   };
 }
 
-function XlSheet({ number, title, subtitle, children, legend = null, variant = 'sky' }) {
+function XlSheet({
+  number,
+  title,
+  subtitle,
+  children,
+  legend = null,
+  variant = 'sky',
+  onExportPdf,
+  exportingPdf = false,
+}) {
+  function handlePdfClick(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    onExportPdf?.();
+  }
+
   return (
-    <section className={`xl-sheet xl-sheet--${variant}`}>
-      <div className="xl-sheet__banner">
-        <span className="xl-sheet__number">Çizelge {number}</span>
-        <h3 className="xl-sheet__title">{title}</h3>
+    <details className={`xl-sheet xl-sheet--${variant} xl-sheet--collapsible`}>
+      <summary className="xl-sheet__summary">
+        <span className="xl-sheet__chevron" aria-hidden="true" />
+        <div className="xl-sheet__banner">
+          <span className="xl-sheet__number">Çizelge {number}</span>
+          <h3 className="xl-sheet__title">{title}</h3>
+        </div>
+        {onExportPdf ? (
+          <button
+            type="button"
+            className="demo-btn demo-btn--ghost xl-sheet__pdf-btn"
+            disabled={exportingPdf}
+            onClick={handlePdfClick}
+          >
+            {exportingPdf ? 'PDF…' : 'PDF indir'}
+          </button>
+        ) : null}
+      </summary>
+      <div className="xl-sheet__inner">
+        {subtitle ? <p className="xl-sheet__subtitle">{subtitle}</p> : null}
+        {legend ? <div className="xl-sheet__legend">{legend}</div> : null}
+        <div className="xl-sheet__body">{children}</div>
       </div>
-      {subtitle ? <p className="xl-sheet__subtitle">{subtitle}</p> : null}
-      {legend ? <div className="xl-sheet__legend">{legend}</div> : null}
-      <div className="xl-sheet__body">{children}</div>
-    </section>
+    </details>
   );
 }
 
@@ -176,7 +206,7 @@ export default function CounselorGuidancePanel({ dossier, schoolId }) {
   const [matrixResources, setMatrixResources] = useState([]);
   const [newResourceName, setNewResourceName] = useState('');
   const [matrixLoading, setMatrixLoading] = useState(false);
-  const [exportingPdf, setExportingPdf] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(null);
 
   const demoStorageKey = student?.id ? `guidance-demo-${student.id}` : null;
 
@@ -623,9 +653,9 @@ export default function CounselorGuidancePanel({ dossier, schoolId }) {
     );
   }
 
-  async function handleExportPdf() {
+  async function handleExportPdf(sheet = 'all') {
     if (!student?.id) return;
-    setExportingPdf(true);
+    setExportingPdf(sheet);
     setError(null);
     try {
       if (autosaveTimerRef.current) {
@@ -636,7 +666,8 @@ export default function CounselorGuidancePanel({ dossier, schoolId }) {
         await persistWeekPack();
       }
 
-      const { buildGuidancePdfModel } = await import('../../lib/counselorGuidance/pdf/buildGuidancePdfModel.js');
+      const { buildGuidancePdfModel, buildGuidancePdfFilename, buildGuidanceSheetPdfFilename } =
+        await import('../../lib/counselorGuidance/pdf/buildGuidancePdfModel.js');
       const { downloadGuidancePdf } = await import('../../lib/counselorGuidance/pdf/downloadGuidancePdf.js');
 
       const model = buildGuidancePdfModel({
@@ -655,11 +686,16 @@ export default function CounselorGuidancePanel({ dossier, schoolId }) {
         schoolName: school?.name ?? '',
       });
 
-      await downloadGuidancePdf(model);
+      model.filename =
+        sheet === 'all'
+          ? buildGuidancePdfFilename(student.full_name, weekIndex)
+          : buildGuidanceSheetPdfFilename(student.full_name, weekIndex, sheet);
+
+      await downloadGuidancePdf(model, sheet);
     } catch (exportError) {
       setError(exportError.message ?? 'PDF oluşturulamadı.');
     } finally {
-      setExportingPdf(false);
+      setExportingPdf(null);
     }
   }
 
@@ -708,15 +744,15 @@ export default function CounselorGuidancePanel({ dossier, schoolId }) {
           <button
             type="button"
             className="demo-btn demo-btn--ghost"
-            disabled={exportingPdf || loading}
-            onClick={handleExportPdf}
+            disabled={Boolean(exportingPdf) || loading}
+            onClick={() => handleExportPdf('all')}
           >
-            {exportingPdf ? 'PDF hazırlanıyor…' : 'PDF indir'}
+            {exportingPdf === 'all' ? 'PDF hazırlanıyor…' : 'Tümünü PDF indir'}
           </button>
           <button
             type="button"
             className="demo-btn demo-btn--ghost"
-            disabled={saveStatus === 'saving' || exportingPdf}
+            disabled={saveStatus === 'saving' || Boolean(exportingPdf)}
             onClick={handleCopyPreviousWeek}
           >
             Önceki haftayı kopyala
@@ -732,6 +768,8 @@ export default function CounselorGuidancePanel({ dossier, schoolId }) {
         number={1}
         variant="sky"
         title="SORU TAKİP"
+        onExportPdf={() => handleExportPdf('questions')}
+        exportingPdf={exportingPdf === 'questions'}
         subtitle="Her satır = bir ders/konu hedefi. Rehber hedef soru sayısını yazar; öğrenci/veli çözülen ve D/Y/B girer."
         legend={
           <>
@@ -977,6 +1015,8 @@ export default function CounselorGuidancePanel({ dossier, schoolId }) {
         number={2}
         variant="lavender"
         title="KONU / KAYNAK TAKİP"
+        onExportPdf={() => handleExportPdf('matrix')}
+        exportingPdf={exportingPdf === 'matrix'}
         subtitle="Satırlar = müfredat konuları. Sütunlar = soru bankası / kaynak kitap. Hücreye tıklayarak durumu değiştirin."
         legend={
           <>
@@ -1143,6 +1183,8 @@ export default function CounselorGuidancePanel({ dossier, schoolId }) {
         number={3}
         variant="mint"
         title="HAFTALIK ÇALIŞMA PROGRAMI"
+        onExportPdf={() => handleExportPdf('schedule')}
+        exportingPdf={exportingPdf === 'schedule'}
         subtitle="Satırlar = saat aralığı (ör. 13:30–14:30). Sütunlar = günler. Her hücreye o saatte yapılacak işi yazın; kutucuk = tamamlandı."
       >
         <XlHintBox

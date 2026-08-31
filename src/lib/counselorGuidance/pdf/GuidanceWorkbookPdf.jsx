@@ -13,6 +13,21 @@ function SheetBanner({ number, title, variant }) {
   );
 }
 
+function CompactHeader({ model }) {
+  const { header } = model;
+  return (
+    <View style={guidanceStyles.compactMeta}>
+      <Text style={guidanceStyles.compactMetaText}>
+        {header.studentName}
+        {header.studentNumber ? ` · No: ${header.studentNumber}` : ''}
+        {header.grade ? ` · ${header.grade}. sınıf` : ''}
+        {' · '}
+        {header.weekIndex}. hafta ({header.weekRangeLabel})
+        {header.academicYear ? ` · ${header.academicYear}` : ''}
+      </Text>
+    </View>
+  );
+}
 function CoverBlock({ model, generatedAt }) {
   const { header } = model;
   return (
@@ -200,28 +215,40 @@ function ScheduleSheet({ schedule }) {
   );
 }
 
-/** @param {{ model: ReturnType<import('./buildGuidancePdfModel.js').buildGuidancePdfModel> }} props */
-export function GuidanceWorkbookPdf({ model }) {
+/** @param {{ model: ReturnType<import('./buildGuidancePdfModel.js').buildGuidancePdfModel>, sheet?: 'all' | 'questions' | 'matrix' | 'schedule' }} props */
+export function GuidanceWorkbookPdf({ model, sheet = 'all' }) {
   const generatedAt = formatReportDateTime(new Date());
   const schoolName = model.header.schoolName || 'Atlas';
+  const includeQuestions = sheet === 'all' || sheet === 'questions';
+  const includeMatrix = sheet === 'all' || sheet === 'matrix';
+  const includeSchedule = sheet === 'all' || sheet === 'schedule';
+  const singleSheet = sheet !== 'all';
 
   return (
     <Document title={model.filename}>
-      <Page size="A4" orientation="landscape" style={baseStyles.pageLandscape}>
-        <CoverBlock model={model} generatedAt={generatedAt} />
-        <QuestionSheet model={model} />
-        <PdfFooter schoolName={schoolName} generatedAt={generatedAt} />
-      </Page>
+      {includeQuestions ? (
+        <Page size="A4" orientation="landscape" style={baseStyles.pageLandscape}>
+          {singleSheet ? <CompactHeader model={model} /> : <CoverBlock model={model} generatedAt={generatedAt} />}
+          <QuestionSheet model={model} />
+          <PdfFooter schoolName={schoolName} generatedAt={generatedAt} />
+        </Page>
+      ) : null}
 
-      <Page size="A4" orientation="landscape" style={baseStyles.pageLandscape}>
-        <MatrixSheet matrix={model.matrix} />
-        <PdfFooter schoolName={schoolName} generatedAt={generatedAt} />
-      </Page>
+      {includeMatrix ? (
+        <Page size="A4" orientation="landscape" style={baseStyles.pageLandscape}>
+          {singleSheet ? <CompactHeader model={model} /> : null}
+          <MatrixSheet matrix={model.matrix} />
+          <PdfFooter schoolName={schoolName} generatedAt={generatedAt} />
+        </Page>
+      ) : null}
 
-      <Page size="A4" orientation="landscape" style={baseStyles.pageLandscape}>
-        <ScheduleSheet schedule={model.schedule} />
-        <PdfFooter schoolName={schoolName} generatedAt={generatedAt} />
-      </Page>
+      {includeSchedule ? (
+        <Page size="A4" orientation="landscape" style={baseStyles.pageLandscape}>
+          {singleSheet ? <CompactHeader model={model} /> : null}
+          <ScheduleSheet schedule={model.schedule} />
+          <PdfFooter schoolName={schoolName} generatedAt={generatedAt} />
+        </Page>
+      ) : null}
     </Document>
   );
 }
