@@ -57,7 +57,7 @@ export const ATLAS_CALENDAR_EVENTS = [
   event('course_start', '2026-09-07', 'Kurs başlıyor', 'ATLAS kursu başlıyor.'),
   event('school_start', '2026-09-14', 'Okul açılıyor', '2026–2027 eğitim öğretim yılı birinci dönemi başlıyor.'),
   exam('2026-09-12', [8]),
-  exam('2026-09-19', [5, 6, 7, 8]),
+  exam('2026-09-19', [5, 6, 7]),
   event('parent_meeting', '2026-09-26', '1. veli toplantısı', 'Birinci dönem veli toplantısı.'),
   event('important_day', '2026-09-30', 'Psikolojik Danışmanlar Günü', 'Psikolojik Danışmanlar Günü.', {
     notify: false,
@@ -65,7 +65,7 @@ export const ATLAS_CALENDAR_EVENTS = [
 
   exam('2026-10-03', [8]),
   exam('2026-10-10', [7, 8]),
-  exam('2026-10-17', [5, 6, 8]),
+  exam('2026-10-17', [5, 6]),
   exam('2026-10-24', [7, 8]),
   holiday('2026-10-29', '2026-10-29', 'Cumhuriyet Bayramı', '29 Ekim Cumhuriyet Bayramı. Kurum tatil.'),
   exam('2026-10-31', [8]),
@@ -86,7 +86,7 @@ export const ATLAS_CALENDAR_EVENTS = [
   event('important_day', '2026-11-24', 'Öğretmenler Günü', '24 Kasım Öğretmenler Günü.', { notify: false }),
   exam('2026-11-28', [7, 8]),
 
-  exam('2026-12-05', [5, 6, 8]),
+  exam('2026-12-05', [5, 6]),
   exam('2026-12-12', [7, 8]),
   event(
     'activity',
@@ -100,10 +100,9 @@ export const ATLAS_CALENDAR_EVENTS = [
   holiday('2026-12-31', '2026-12-31', 'Yılbaşı gecesi', 'Yılbaşı gecesi. Kurum tatil.'),
 
   holiday('2027-01-01', '2027-01-03', 'Yılbaşı tatili', 'Yılbaşı tatili. Kurum tatil.'),
-  exam('2027-01-09', [5, 6, 7, 8]),
-  exam('2027-01-16', [8]),
+  exam('2027-01-09', [5, 6]),
+  exam('2027-01-16', [7, 8]),
   event('school_end', '2027-01-22', 'Dönem bitişi', 'Birinci dönem sona eriyor.'),
-  exam('2027-01-29', [8]),
 
   holiday(
     '2027-02-01',
@@ -118,9 +117,8 @@ export const ATLAS_CALENDAR_EVENTS = [
     'İkinci dönem başlıyor. Aynı gün Ramazan başlangıcı.'
   ),
   event('important_day', '2027-02-08', 'Ramazan başlangıcı', 'Ramazan ayı başlıyor.', { notify: false }),
-  exam('2027-02-13', [5, 6, 7, 8]),
-  exam('2027-02-20', [8]),
-  exam('2027-02-27', [8]),
+  exam('2027-02-13', [5, 6]),
+  exam('2027-02-20', [7, 8]),
 
   holiday(
     '2027-03-05',
@@ -141,7 +139,7 @@ export const ATLAS_CALENDAR_EVENTS = [
   exam('2027-04-03', [8]),
   exam('2027-04-10', [7, 8]),
   event('important_day', '2027-04-10', 'Polis Haftası', 'Polis Haftası.', { notify: false }),
-  exam('2027-04-17', [5, 6, 8]),
+  exam('2027-04-17', [5, 6]),
   holiday(
     '2027-04-23',
     '2027-04-23',

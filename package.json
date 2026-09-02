@@ -15,6 +15,7 @@
     "create-director": "node scripts/create-director.mjs",
     "update-school-branding": "node scripts/update-school-branding.mjs",
     "seed-curriculum-units": "node scripts/seed-curriculum-units.mjs --sync-week-plans",
+    "seed-atlas-calendar": "node scripts/seed-atlas-calendar.mjs",
     "generate-algorithm-pdf": "node scripts/generate-atlas-algorithm-pdf.mjs"
   },
   "dependencies": {
