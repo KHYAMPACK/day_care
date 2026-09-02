@@ -1,0 +1,300 @@
+[
+  {
+    "grade": 5,
+    "slug": "matematik",
+    "units": [
+      { "title": "Sayılar ve Nicelikler (1)", "duration_weeks": 5 },
+      { "title": "Sayılar ve Nicelikler (2)", "duration_weeks": 6 },
+      { "title": "İşlemlerle Cebirsel Düşünme", "duration_weeks": 4 },
+      { "title": "Geometrik Şekiller", "duration_weeks": 7 },
+      { "title": "Geometrik Nicelikler", "duration_weeks": 4 },
+      { "title": "İstatistiksel Araştırma Süreci", "duration_weeks": 5 },
+      { "title": "Veriden Olasılığa", "duration_weeks": 2 }
+    ]
+  },
+  {
+    "grade": 6,
+    "slug": "matematik",
+    "units": [
+      { "title": "Sayılar ve Nicelikler (1)", "duration_weeks": 3 },
+      { "title": "Sayılar ve Nicelikler (2)", "duration_weeks": 7 },
+      { "title": "İşlemlerle Cebirsel Düşünme ve Değişimler", "duration_weeks": 6 },
+      { "title": "Geometrik Şekiller", "duration_weeks": 4 },
+      { "title": "Geometrik Nicelikler", "duration_weeks": 6 },
+      { "title": "İstatistiksel Araştırma Süreci", "duration_weeks": 5 },
+      { "title": "Veriden Olasılığa", "duration_weeks": 2 }
+    ]
+  },
+  {
+    "grade": 7,
+    "slug": "matematik",
+    "units": [
+      { "title": "Sayılar ve Nicelikler (1)", "duration_weeks": 6 },
+      { "title": "Sayılar ve Nicelikler (2)", "duration_weeks": 3 },
+      { "title": "İşlemlerle Cebirsel Düşünme ve Değişimler", "duration_weeks": 7 },
+      { "title": "Dönüşüm", "duration_weeks": 2 },
+      { "title": "Geometrik Nicelikler (1)", "duration_weeks": 4 },
+      { "title": "Geometrik Nicelikler (2)", "duration_weeks": 4 },
+      { "title": "Geometrik Şekiller", "duration_weeks": 1 },
+      { "title": "İstatistiksel Araştırma Süreci", "duration_weeks": 5 },
+      { "title": "Veriden Olasılığa", "duration_weeks": 2 }
+    ]
+  },
+  {
+    "grade": 8,
+    "slug": "matematik",
+    "units": [
+      { "title": "Çarpanlar ve Katlar", "duration_weeks": 2 },
+      { "title": "Üslü İfadeler", "duration_weeks": 3 },
+      { "title": "Kareköklü İfadeler", "duration_weeks": 4 },
+      { "title": "Veri Analizi", "duration_weeks": 2 },
+      { "title": "Basit Olayların Olma Olasılığı", "duration_weeks": 2 },
+      { "title": "Cebirsel İfadeler ve Özdeşlikler", "duration_weeks": 3 },
+      { "title": "Doğrusal Denklemler", "duration_weeks": 4 },
+      { "title": "Eşitsizlikler", "duration_weeks": 2 },
+      { "title": "Üçgenler", "duration_weeks": 3 },
+      { "title": "Eşlik ve Benzerlik", "duration_weeks": 2 },
+      { "title": "Dönüşüm Geometrisi", "duration_weeks": 2 },
+      { "title": "Geometrik Cisimler", "duration_weeks": 2 }
+    ]
+  },
+  {
+    "grade": 5,
+    "slug": "fen",
+    "units": [
+      { "title": "Gökyüzündeki Komşularımız ve Biz", "duration_weeks": 4 },
+      { "title": "Kuvveti Tanıyalım", "duration_weeks": 4 },
+      { "title": "Canlıların Yapısına Yolculuk", "duration_weeks": 4 },
+      { "title": "Işığın Dünyası", "duration_weeks": 4 },
+      { "title": "Maddenin Doğası", "duration_weeks": 4 },
+      { "title": "Yaşamımızdaki Elektrik", "duration_weeks": 4 },
+      { "title": "Sürdürülebilir Yaşam ve Geri Dönüşüm", "duration_weeks": 2 }
+    ]
+  },
+  {
+    "grade": 6,
+    "slug": "fen",
+    "units": [
+      { "title": "Güneş Sistemi ve Tutulmalar", "duration_weeks": 4 },
+      { "title": "Kuvvetin Etkisinde Hareket", "duration_weeks": 4 },
+      { "title": "Canlılarda Sistemler", "duration_weeks": 4 },
+      { "title": "Işığın Yansıması ve Renkler", "duration_weeks": 4 },
+      { "title": "Maddenin Ayırt Edici Özellikleri", "duration_weeks": 3 },
+      { "title": "Elektriğin İletimi ve Direnç", "duration_weeks": 3 },
+      { "title": "Sürdürülebilir Yaşam ve Etkileşim", "duration_weeks": 2 },
+      { "title": "Genel Tekrar", "duration_weeks": 2 }
+    ]
+  },
+  {
+    "grade": 7,
+    "slug": "fen",
+    "units": [
+      { "title": "Uzay Çağı", "duration_weeks": 4 },
+      { "title": "Kuvvet ve Enerjiyi Keşfedelim", "duration_weeks": 4 },
+      { "title": "Vücudumuzdaki Sistemler", "duration_weeks": 4 },
+      { "title": "Işığın Kırılması ve Mercekler", "duration_weeks": 4 },
+      { "title": "Maddenin Doğasına Yolculuk", "duration_weeks": 4 },
+      { "title": "Elektrikenme", "duration_weeks": 2 },
+      { "title": "Sürdürülebilir Yaşam ve Enerji", "duration_weeks": 2 },
+      { "title": "Genel Tekrar", "duration_weeks": 2 }
+    ]
+  },
+  {
+    "grade": 8,
+    "slug": "fen",
+    "units": [
+      { "title": "Mevsimler ve İklim", "duration_weeks": 4 },
+      { "title": "DNA ve Genetik Kod", "duration_weeks": 6 },
+      { "title": "Basınç", "duration_weeks": 3 },
+      { "title": "Madde ve Endüstri", "duration_weeks": 7 },
+      { "title": "Basit Makineler", "duration_weeks": 3 },
+      { "title": "Enerji Dönüşümleri ve Çevre Bilimi", "duration_weeks": 6 },
+      { "title": "Elektrik Yükleri ve Elektrik Enerjisi", "duration_weeks": 5 }
+    ]
+  },
+  {
+    "grade": 5,
+    "slug": "ingilizce",
+    "units": [
+      { "title": "School Life", "duration_weeks": 3 },
+      { "title": "Classroom Life", "duration_weeks": 3 },
+      { "title": "Person Life", "duration_weeks": 3 },
+      { "title": "Family Life", "duration_weeks": 2 },
+      { "title": "Life in the Neighbourhood and City", "duration_weeks": 3 },
+      { "title": "Life in the Nature", "duration_weeks": 3 },
+      { "title": "Life in the Universe and Future", "duration_weeks": 2 }
+    ]
+  },
+  {
+    "grade": 6,
+    "slug": "ingilizce",
+    "units": [
+      { "title": "Life", "duration_weeks": 3 },
+      { "title": "Yummy Breakfast", "duration_weeks": 2 },
+      { "title": "Downtown", "duration_weeks": 3 },
+      { "title": "Weather and Emotions", "duration_weeks": 2 },
+      { "title": "At the Fair", "duration_weeks": 2 },
+      { "title": "Occupations", "duration_weeks": 1 },
+      { "title": "Holidays", "duration_weeks": 3 },
+      { "title": "Bookworms", "duration_weeks": 3 },
+      { "title": "Saving the Planets", "duration_weeks": 3 },
+      { "title": "Democracy", "duration_weeks": 2 }
+    ]
+  },
+  {
+    "grade": 7,
+    "slug": "ingilizce",
+    "units": [
+      { "title": "Appearance and Personality", "duration_weeks": 1 },
+      { "title": "Sports", "duration_weeks": 1 },
+      { "title": "Biographies", "duration_weeks": 3 },
+      { "title": "Wild Animals", "duration_weeks": 2 },
+      { "title": "Television", "duration_weeks": 2 },
+      { "title": "Celebrations", "duration_weeks": 3 },
+      { "title": "Dreams", "duration_weeks": 2 },
+      { "title": "Public Buildings", "duration_weeks": 4 },
+      { "title": "Environment", "duration_weeks": 2 },
+      { "title": "Planets", "duration_weeks": 1 }
+    ]
+  },
+  {
+    "grade": 8,
+    "slug": "ingilizce",
+    "units": [
+      { "title": "Friendship", "duration_weeks": 1 },
+      { "title": "Teen Life", "duration_weeks": 2 },
+      { "title": "In the Kitchen", "duration_weeks": 3 },
+      { "title": "On the Phone", "duration_weeks": 2 },
+      { "title": "The Internet", "duration_weeks": 2 },
+      { "title": "Adventures", "duration_weeks": 3 },
+      { "title": "Tourism", "duration_weeks": 3 },
+      { "title": "Chores", "duration_weeks": 2 },
+      { "title": "Science", "duration_weeks": 1 },
+      { "title": "Natural Forces", "duration_weeks": 1 }
+    ]
+  },
+  {
+    "grade": 5,
+    "slug": "sosyal",
+    "units": [
+      { "title": "Birlikte Yaşamak", "duration_weeks": 5 },
+      { "title": "Evimiz Dünya", "duration_weeks": 7 },
+      { "title": "Ortak Mirasımız", "duration_weeks": 6 },
+      { "title": "Yaşayan Demokrasimiz", "duration_weeks": 7 },
+      { "title": "Hayatımızda Ekonomi", "duration_weeks": 6 },
+      { "title": "Teknoloji ve Sosyal Bilimler", "duration_weeks": 2 }
+    ]
+  },
+  {
+    "grade": 6,
+    "slug": "sosyal",
+    "units": [
+      { "title": "Birlikte Yaşamak", "duration_weeks": 5 },
+      { "title": "Evimiz Dünya", "duration_weeks": 7 },
+      { "title": "Ortak Mirasımız", "duration_weeks": 6 },
+      { "title": "Yaşayan Demokrasimiz", "duration_weeks": 6 },
+      { "title": "Hayatımızda Ekonomi", "duration_weeks": 6 },
+      { "title": "Teknoloji ve Sosyal Bilimler", "duration_weeks": 3 }
+    ]
+  },
+  {
+    "grade": 7,
+    "slug": "sosyal",
+    "units": [
+      { "title": "Birlikte Yaşamak", "duration_weeks": 5 },
+      { "title": "Evimiz Dünya", "duration_weeks": 3 },
+      { "title": "Ortak Mirasımız", "duration_weeks": 8 },
+      { "title": "Yaşayan Demokrasimiz", "duration_weeks": 7 },
+      { "title": "Hayatımızda Ekonomi", "duration_weeks": 4 },
+      { "title": "Teknoloji ve Sosyal Bilimler", "duration_weeks": 6 }
+    ]
+  },
+  {
+    "grade": 8,
+    "slug": "sosyal",
+    "subjectName": "T.C. İnkılap Tarihi ve Atatürkçülük",
+    "units": [
+      { "title": "Bir Kahraman Doğuyor", "duration_weeks": 9 },
+      { "title": "Milli Uyanış", "duration_weeks": 9 },
+      { "title": "Ya İstiklal Ya Ölüm", "duration_weeks": 7 },
+      { "title": "Atatürkçülük ve Çağdaşlaşan Türkiye", "duration_weeks": 6 },
+      { "title": "Demokratikleşme Çabaları", "duration_weeks": 3 },
+      { "title": "Atatürk Dönemi Dış Politika", "duration_weeks": 3 },
+      { "title": "Atatürk'ün Ölümü ve Sonrası", "duration_weeks": 4 }
+    ]
+  },
+  {
+    "grade": 5,
+    "slug": "turkce",
+    "skip": true,
+    "units": []
+  },
+  {
+    "grade": 6,
+    "slug": "turkce",
+    "temporary": true,
+    "units": [
+      { "title": "Sözcükte Anlam", "duration_weeks": 2 },
+      { "title": "Cümlede Anlam", "duration_weeks": 2 },
+      { "title": "Deyim ve Atasözleri", "duration_weeks": 2 },
+      { "title": "Paragrafta Anlam", "duration_weeks": 6 },
+      { "title": "Hikaye", "duration_weeks": 3 },
+      { "title": "Şiir ve Söz Sanatları", "duration_weeks": 3 },
+      { "title": "İsimler", "duration_weeks": 3 },
+      { "title": "Sıfatlar", "duration_weeks": 4 },
+      { "title": "Zamirler", "duration_weeks": 4 },
+      { "title": "Yazım - Noktalama", "duration_weeks": 3 },
+      { "title": "Görsel Okuma", "duration_weeks": 2 },
+      { "title": "Sözel Mantık", "duration_weeks": 2 }
+    ]
+  },
+  {
+    "grade": 7,
+    "slug": "turkce",
+    "temporary": true,
+    "units": [
+      { "title": "Sözcükte Anlam", "duration_weeks": 2 },
+      { "title": "Cümlede Anlam", "duration_weeks": 2 },
+      { "title": "Deyim ve Atasözleri", "duration_weeks": 2 },
+      { "title": "Paragrafta Anlam", "duration_weeks": 6 },
+      { "title": "Hikaye", "duration_weeks": 3 },
+      { "title": "Şiir ve Söz Sanatları", "duration_weeks": 3 },
+      { "title": "İsimler", "duration_weeks": 3 },
+      { "title": "Sıfatlar", "duration_weeks": 4 },
+      { "title": "Zamirler", "duration_weeks": 4 },
+      { "title": "Yazım - Noktalama", "duration_weeks": 3 },
+      { "title": "Görsel Okuma", "duration_weeks": 2 },
+      { "title": "Sözel Mantık", "duration_weeks": 2 }
+    ]
+  },
+  {
+    "grade": 8,
+    "slug": "turkce",
+    "temporary": true,
+    "units": [
+      { "title": "Sözcükte Anlam", "duration_weeks": 2 },
+      { "title": "Cümlede Anlam", "duration_weeks": 2 },
+      { "title": "Deyim ve Atasözleri", "duration_weeks": 2 },
+      { "title": "Paragrafta Anlam", "duration_weeks": 6 },
+      { "title": "Hikaye", "duration_weeks": 3 },
+      { "title": "Şiir ve Söz Sanatları", "duration_weeks": 3 },
+      { "title": "İsimler", "duration_weeks": 3 },
+      { "title": "Sıfatlar", "duration_weeks": 4 },
+      { "title": "Zamirler", "duration_weeks": 4 },
+      { "title": "Yazım - Noktalama", "duration_weeks": 3 },
+      { "title": "Görsel Okuma", "duration_weeks": 2 },
+      { "title": "Sözel Mantık", "duration_weeks": 2 }
+    ]
+  },
+  {
+    "grade": 8,
+    "slug": "din",
+    "units": [
+      { "title": "Ünite 1", "duration_weeks": 1 },
+      { "title": "Ünite 2", "duration_weeks": 1 },
+      { "title": "Ünite 3", "duration_weeks": 1 },
+      { "title": "Ünite 4", "duration_weeks": 1 },
+      { "title": "Ünite 5", "duration_weeks": 1 }
+    ]
+  }
+]

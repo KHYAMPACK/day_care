@@ -5,6 +5,7 @@ import { CALENDAR_SELECT, STUDENT_GRADES, formatStudentGrade, istanbulDateIso } 
 import {
   WEEK_PLAN_SELECT,
   academicWeekIndex,
+  filterSubjectsForGrade,
   formatPlannedUnitBanner,
   formatWeekRangeTr,
   loadCurriculumCatalog,
@@ -31,7 +32,7 @@ export default function DirectorCurriculum({ schoolId, atlasSchedule = false }) 
   const [success, setSuccess] = useState(null);
 
   const gradeSubjects = useMemo(
-    () => subjects.filter((subject) => subject.grade === grade),
+    () => filterSubjectsForGrade(subjects, grade),
     [subjects, grade]
   );
   const unitsBySubject = useMemo(() => {

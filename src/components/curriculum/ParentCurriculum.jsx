@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../lib/supabase';
-import { loadCurriculumCatalog, PROGRESS_SELECT } from '../../lib/curriculum';
+import { loadCurriculumCatalog, PROGRESS_SELECT, filterSubjectsForGrade } from '../../lib/curriculum';
 import { InlineError } from '../dashboardUi';
 import { Icon } from '../ui/Icon';
 
@@ -52,7 +52,7 @@ export function ParentCurriculumRecap({ childrenData, onOpen }) {
 
 function ParentStudentCurriculum({ student, subjects, units, progress }) {
   const gradeSubjects = useMemo(
-    () => subjects.filter((subject) => subject.grade === student.grade),
+    () => filterSubjectsForGrade(subjects, student.grade),
     [subjects, student.grade]
   );
   const [selectedSubjectId, setSelectedSubjectId] = useState('');
@@ -287,7 +287,7 @@ export function useParentCurriculumRecap(students) {
       students.map((student) => ({
         student,
         topic: currentTopic(
-          subjects.filter((subject) => subject.grade === student.grade),
+          filterSubjectsForGrade(subjects, student.grade),
           units,
           progress,
           student.id

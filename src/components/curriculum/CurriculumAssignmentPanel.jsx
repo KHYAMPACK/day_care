@@ -5,6 +5,7 @@ import {
   formatClassLabel,
   getTeacherBransDisplay,
   getTeacherSubjectSlug,
+  isSubjectVisibleForGrade,
   resolveSubjectForClass,
 } from '../../lib/curriculum';
 import { InlineError, SendButton, SuccessMessage } from '../dashboardUi';
@@ -49,10 +50,17 @@ export default function CurriculumAssignmentPanel({
 
     if (!resolvedSubject) {
       const bransName = teacherBrans?.name ?? 'Branş';
+      const slug = getTeacherSubjectSlug(selectedTeacher);
+      const dinHidden =
+        slug === 'din' &&
+        selectedClass?.grade != null &&
+        !isSubjectVisibleForGrade({ slug: 'din' }, selectedClass.grade);
       setError(
-        selectedTeacher && !getTeacherSubjectSlug(selectedTeacher)
-          ? 'Öğretmenin branşı tanımlı değil. Öğretmen Yönetimi sekmesinden branş atayın.'
-          : `${bransName} dersi ${formatClassLabel(selectedClass?.grade, selectedClass?.name)} için müfredatta yok.`
+        dinHidden
+          ? 'Din Kültürü yalnızca 8. sınıflara atanabilir.'
+          : selectedTeacher && !slug
+            ? 'Öğretmenin branşı tanımlı değil. Öğretmen Yönetimi sekmesinden branş atayın.'
+            : `${bransName} dersi ${formatClassLabel(selectedClass?.grade, selectedClass?.name)} için müfredatta yok.`
       );
       return;
     }

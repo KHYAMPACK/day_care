@@ -42,6 +42,18 @@ export function resolveSubjectForClass(subjects, subjectSlug, classGrade) {
   );
 }
 
+/** Atlas: Din Kültürü is only offered in 8th grade. */
+export function isSubjectVisibleForGrade(subject, grade) {
+  if (subject?.slug === 'din' && grade < 8) return false;
+  return true;
+}
+
+export function filterSubjectsForGrade(subjects, grade) {
+  return (subjects ?? []).filter(
+    (subject) => subject.grade === grade && isSubjectVisibleForGrade(subject, grade)
+  );
+}
+
 /** Display metadata for teacher branş (name, color, icon) from slug. */
 export function getTeacherBransDisplay(profile) {
   const slug = getTeacherSubjectSlug(profile);
