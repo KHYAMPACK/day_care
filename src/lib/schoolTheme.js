@@ -1,11 +1,13 @@
 export const DEFAULT_THEME = {
-  primary: '#c4b5fd',
-  primaryHover: '#a78bfa',
-  primaryText: '#4c1d95',
-  secondary: '#ede9fe',
-  secondaryText: '#6d28d9',
-  accentSoft: '#e9d5ff',
-  accentBorder: '#ddd6fe',
+  primary: '#334155',
+  primaryHover: '#1e293b',
+  primaryText: '#ffffff',
+  secondary: '#f1f5f9',
+  accent: '#64748b',
+  accentSoft: '#e2e8f0',
+  accentBorder: '#cbd5e1',
+  onLight: '#1c1c1e',
+  secondaryText: '#3a3a3c',
 };
 
 export const THEME_CSS_VARS = [
@@ -15,9 +17,15 @@ export const THEME_CSS_VARS = [
   '--theme-on-light',
   '--theme-secondary',
   '--theme-secondary-text',
+  '--theme-accent',
+  '--theme-accent-strong',
   '--theme-accent-soft',
   '--theme-accent-border',
 ];
+
+const NEUTRAL_PAGE_BG = '#f7f6f4';
+const NEUTRAL_TEXT_PRIMARY = '#1c1c1e';
+const NEUTRAL_TEXT_SECONDARY = '#3a3a3c';
 
 function parseHexColor(value) {
   if (!value || typeof value !== 'string') return null;
@@ -69,31 +77,26 @@ function relativeLuminance({ r, g, b }) {
 function contrastText(hex) {
   const rgb = parseHexColor(hex);
   if (!rgb) return DEFAULT_THEME.primaryText;
-  return relativeLuminance(rgb) > 0.62 ? '#3d3a36' : '#ffffff';
-}
-
-function inkOnLight(hex) {
-  const rgb = parseHexColor(hex);
-  if (!rgb) return DEFAULT_THEME.primaryText;
-  if (relativeLuminance(rgb) > 0.45) {
-    return mixHex(hex, '#1c1917', 0.58);
-  }
-  return toHex(rgb);
+  return relativeLuminance(rgb) > 0.62 ? '#1c1c1e' : '#ffffff';
 }
 
 export function buildThemeFromSchool(school) {
   const primary = school?.primary_color?.trim() || DEFAULT_THEME.primary;
-  const secondary = school?.secondary_color?.trim() || DEFAULT_THEME.secondary;
+  const accentRaw = school?.secondary_color?.trim() || DEFAULT_THEME.accent;
+  const secondaryWash = mixHex(accentRaw, '#ffffff', 0.88);
 
   return {
     primary,
     primaryHover: mixHex(primary, '#000000', 0.14),
     primaryText: contrastText(primary),
-    onLight: inkOnLight(primary),
-    secondary,
-    secondaryText: contrastText(secondary) === '#ffffff' ? mixHex(secondary, '#000000', 0.55) : contrastText(secondary),
-    accentSoft: mixHex(secondary, '#ffffff', 0.35),
+    onLight: NEUTRAL_TEXT_PRIMARY,
+    secondary: secondaryWash,
+    secondaryText: NEUTRAL_TEXT_SECONDARY,
+    accent: accentRaw,
+    accentStrong: mixHex(accentRaw, '#000000', 0.22),
+    accentSoft: mixHex(accentRaw, '#ffffff', 0.82),
     accentBorder: mixHex(primary, '#ffffff', 0.45),
+    pageBackground: mixHex(NEUTRAL_PAGE_BG, accentRaw, 0.15),
   };
 }
 
@@ -109,9 +112,11 @@ export function applySchoolTheme(school) {
   root.style.setProperty('--theme-on-light', theme.onLight);
   root.style.setProperty('--theme-secondary', theme.secondary);
   root.style.setProperty('--theme-secondary-text', theme.secondaryText);
+  root.style.setProperty('--theme-accent', theme.accent);
+  root.style.setProperty('--theme-accent-strong', theme.accentStrong);
   root.style.setProperty('--theme-accent-soft', theme.accentSoft);
   root.style.setProperty('--theme-accent-border', theme.accentBorder);
-  root.style.setProperty('--bg-page', mixHex(theme.secondary, '#ffffff', 0.72));
+  root.style.setProperty('--bg-page', theme.pageBackground);
 }
 
 export function normalizeHexColor(value) {

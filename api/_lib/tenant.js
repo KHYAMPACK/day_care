@@ -204,7 +204,29 @@ async function readDefaultIconPng(size) {
   return readFile(path.join(publicDir, filename));
 }
 
+async function readPublicBrandingFile(relativePath) {
+  const normalized = relativePath.replace(/^\/+/, '');
+  if (!normalized.startsWith('branding/')) {
+    throw new Error(`Invalid branding path: ${relativePath}`);
+  }
+
+  const filePath = path.resolve(publicDir, normalized);
+  if (!filePath.startsWith(publicDir)) {
+    throw new Error(`Invalid branding path: ${relativePath}`);
+  }
+
+  return readFile(filePath);
+}
+
 async function fetchLogoBuffer(logoUrl) {
+  if (typeof logoUrl === 'string') {
+    const trimmed = logoUrl.trim();
+    if (trimmed.startsWith('/branding/') || trimmed.startsWith('branding/')) {
+      const relativePath = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+      return readPublicBrandingFile(relativePath);
+    }
+  }
+
   const response = await fetch(logoUrl, {
     signal: AbortSignal.timeout(8000),
   });

@@ -45,8 +45,8 @@ const supabase = createClient(supabaseUrl, serviceRoleKey, {
 const DEMO_SCHOOL = {
   name: 'Yıldızlar Demo Kreşi',
   school_code: 'DEMO123',
-  primary_color: '#7c3aed',
-  secondary_color: '#ede9fe',
+  primary_color: '#334155',
+  secondary_color: '#64748b',
   logo_url: null,
 };
 

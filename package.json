@@ -13,6 +13,7 @@
     "reset-demo-parent": "node scripts/reset-demo-parent.mjs",
     "cleanup-extra-schools": "node scripts/cleanup-extra-schools.mjs",
     "create-director": "node scripts/create-director.mjs",
+    "update-school-branding": "node scripts/update-school-branding.mjs",
     "generate-algorithm-pdf": "node scripts/generate-atlas-algorithm-pdf.mjs"
   },
   "dependencies": {
