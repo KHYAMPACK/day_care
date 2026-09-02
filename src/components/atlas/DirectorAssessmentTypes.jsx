@@ -93,7 +93,7 @@ export default function DirectorAssessmentTypes({ schoolId }) {
         <summary className="cal-collapsible-form__summary cal-browser__summary">
           <span className="cal-collapsible-form__chevron" aria-hidden="true" />
           <span className="cal-browser__summary-text">
-            <span className="dash-section-title">Değerlendirme türleri</span>
+            <span className="dash-section-title">4 · Değerlendirme türleri</span>
             <span className="dash-hint">Yükleniyor…</span>
           </span>
         </summary>
@@ -106,7 +106,7 @@ export default function DirectorAssessmentTypes({ schoolId }) {
       <summary className="cal-collapsible-form__summary cal-browser__summary">
         <span className="cal-collapsible-form__chevron" aria-hidden="true" />
         <span className="cal-browser__summary-text">
-          <span className="dash-section-title">Değerlendirme türleri</span>
+          <span className="dash-section-title">4 · Değerlendirme türleri</span>
           <span className="dash-hint">Quiz, Konu Ölçme gibi test kategorilerini yönetin.</span>
         </span>
       </summary>

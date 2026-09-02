@@ -8,6 +8,7 @@ import {
   academicWeekIndex,
   formatClassLabel,
   plannedUnitForWeek,
+  resolvePlannedUnitForWeek,
 } from './curriculum';
 
 export const ATTENDANCE_FLAG_THRESHOLD = 2;
@@ -58,9 +59,18 @@ export async function saveClassAttendance({ classId, subjectId, takenOn, weekInd
   return data;
 }
 
-export function snapshotForDate({ units, takenOn }) {
+export function snapshotForDate({ units, takenOn, weekPlans, subjectId, grade }) {
   const weekIndex = academicWeekIndex(takenOn);
-  const planned = plannedUnitForWeek({ units, weekIndex });
+  const planned =
+    subjectId != null && grade != null
+      ? resolvePlannedUnitForWeek({
+          weekPlans,
+          units,
+          subjectId,
+          grade,
+          weekIndex,
+        })
+      : plannedUnitForWeek({ units, weekIndex });
   return {
     weekIndex,
     unitId: planned?.unit?.id ?? null,

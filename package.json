@@ -14,7 +14,7 @@
     "cleanup-extra-schools": "node scripts/cleanup-extra-schools.mjs",
     "create-director": "node scripts/create-director.mjs",
     "update-school-branding": "node scripts/update-school-branding.mjs",
-    "seed-curriculum-units": "node scripts/seed-curriculum-units.mjs",
+    "seed-curriculum-units": "node scripts/seed-curriculum-units.mjs --sync-week-plans",
     "generate-algorithm-pdf": "node scripts/generate-atlas-algorithm-pdf.mjs"
   },
   "dependencies": {

@@ -3,33 +3,51 @@ import { supabase } from '../../lib/supabase';
 import { withSchoolFilter } from '../../lib/tenant';
 import { CALENDAR_SELECT, STUDENT_GRADES, formatStudentGrade, istanbulDateIso } from '../../lib/calendar';
 import {
-  WEEK_PLAN_SELECT,
+  deriveAcademicWeeksFromCalendar,
   academicWeekIndex,
+  countAssignedWeeksForSubject,
   filterSubjectsForGrade,
-  formatPlannedUnitBanner,
+  formatAcademicYearLabel,
   formatWeekRangeTr,
-  loadCurriculumCatalog,
-  plannedUnitForWeek,
+  loadCurriculumContext,
   weekOverlapsHoliday,
 } from '../../lib/curriculum';
-import { InlineError, SendButton, SuccessMessage } from '../dashboardUi';
+import { useAuth } from '../../context/AuthContext';
+import {
+  MAX_ACADEMIC_WEEKS,
+  MIN_ACADEMIC_WEEKS,
+  resolveAcademicWeeks,
+  saveAcademicWeeks,
+} from '../../lib/schoolFeatures';
+import { InlineError, SendButton } from '../dashboardUi';
 import { Icon } from '../ui/Icon';
 import DirectorAssessmentTypes from '../atlas/DirectorAssessmentTypes';
+import SubjectPlanEditor from './SubjectPlanEditor';
+import WeeklySubjectOverview from './WeeklySubjectOverview';
 
 const CURRENT_WEEK = Math.max(1, academicWeekIndex(istanbulDateIso()));
+const ACADEMIC_YEAR = formatAcademicYearLabel();
 
 export default function DirectorCurriculum({ schoolId, atlasSchedule = false }) {
+  const { school, refreshSchool } = useAuth();
+  const [calendarEvents, setCalendarEvents] = useState([]);
+  const calendarSuggestedWeeks = useMemo(
+    () => deriveAcademicWeeksFromCalendar(calendarEvents),
+    [calendarEvents]
+  );
+  const academicWeeks = resolveAcademicWeeks(school, calendarEvents, { atlasSchedule });
+  const [academicWeeksInput, setAcademicWeeksInput] = useState(String(academicWeeks));
+  const [savingAcademicWeeks, setSavingAcademicWeeks] = useState(false);
+  const [academicWeeksError, setAcademicWeeksError] = useState(null);
+  const [academicWeeksSaved, setAcademicWeeksSaved] = useState(false);
   const [subjects, setSubjects] = useState([]);
   const [units, setUnits] = useState([]);
   const [weekPlans, setWeekPlans] = useState([]);
   const [holidays, setHolidays] = useState([]);
   const [grade, setGrade] = useState(5);
   const [weekIndex, setWeekIndex] = useState(CURRENT_WEEK);
-  const [pinUnitId, setPinUnitId] = useState('');
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(null);
 
   const gradeSubjects = useMemo(
     () => filterSubjectsForGrade(subjects, grade),
@@ -45,45 +63,87 @@ export default function DirectorCurriculum({ schoolId, atlasSchedule = false }) 
     }
     return map;
   }, [gradeSubjects, units]);
-  const pinnedThisWeek = useMemo(
-    () =>
-      weekPlans.filter((plan) => plan.grade === grade && plan.week_index === weekIndex),
-    [weekPlans, grade, weekIndex]
-  );
-  const pinnedUnitIds = useMemo(
-    () => new Set(pinnedThisWeek.map((plan) => plan.unit_id)),
-    [pinnedThisWeek]
-  );
-  const scheduledThisWeek = useMemo(
-    () =>
-      gradeSubjects
-        .map((subject) => {
-          const subjectUnits = unitsBySubject.get(subject.id) ?? [];
-          const plan = plannedUnitForWeek({ units: subjectUnits, weekIndex });
-          return plan ? { subject, plan } : null;
-        })
-        .filter(Boolean),
-    [gradeSubjects, unitsBySubject, weekIndex]
-  );
+
+  const gradeStats = useMemo(() => {
+    let unitCount = 0;
+    let assignedWeeks = 0;
+    for (const subject of gradeSubjects) {
+      const subjectUnits = unitsBySubject.get(subject.id) ?? [];
+      unitCount += subjectUnits.length;
+      assignedWeeks += countAssignedWeeksForSubject(
+        weekPlans,
+        grade,
+        subject.id,
+        academicWeeks
+      );
+    }
+    return {
+      subjectCount: gradeSubjects.length,
+      unitCount,
+      assignedWeeks,
+      totalWeekSlots: gradeSubjects.length * academicWeeks,
+    };
+  }, [gradeSubjects, unitsBySubject, weekPlans, grade, academicWeeks]);
+
+  useEffect(() => {
+    setAcademicWeeksInput(String(academicWeeks));
+  }, [academicWeeks]);
+
+  useEffect(() => {
+    setWeekIndex((current) => Math.min(Math.max(1, current), academicWeeks));
+  }, [academicWeeks]);
+
+  useEffect(() => {
+    if (!atlasSchedule || !schoolId || !calendarEvents.length || !calendarSuggestedWeeks) {
+      return;
+    }
+
+    const stored = school?.features?.academic_weeks;
+    const shouldAutoSet =
+      stored == null || (Number(stored) === 52 && calendarSuggestedWeeks !== 52);
+    if (!shouldAutoSet) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        await saveAcademicWeeks(
+          supabase,
+          schoolId,
+          school?.features,
+          calendarSuggestedWeeks
+        );
+        if (!cancelled) await refreshSchool?.();
+      } catch {
+        // Director can set manually if auto-save fails.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    atlasSchedule,
+    calendarEvents.length,
+    calendarSuggestedWeeks,
+    refreshSchool,
+    school?.features,
+    schoolId,
+  ]);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const catalog = await loadCurriculumCatalog();
-      setSubjects(catalog.subjects);
-      setUnits(catalog.units);
-
-      const [plansRes, eventsRes] = await Promise.all([
-        withSchoolFilter(supabase.from('curriculum_week_plans').select(WEEK_PLAN_SELECT), schoolId),
-        withSchoolFilter(
-          supabase.from('calendar_events').select(CALENDAR_SELECT).eq('event_type', 'holiday'),
-          schoolId
-        ),
+      const [curriculum, eventsRes] = await Promise.all([
+        loadCurriculumContext(schoolId),
+        withSchoolFilter(supabase.from('calendar_events').select(CALENDAR_SELECT), schoolId),
       ]);
-      if (plansRes.error) throw plansRes.error;
-      setWeekPlans(plansRes.data ?? []);
-      setHolidays(eventsRes.error ? [] : eventsRes.data ?? []);
+      setSubjects(curriculum.subjects);
+      setUnits(curriculum.units);
+      setWeekPlans(curriculum.weekPlans);
+      const events = eventsRes.error ? [] : eventsRes.data ?? [];
+      setCalendarEvents(events);
+      setHolidays(events.filter((event) => event.event_type === 'holiday'));
     } catch (loadError) {
       setError(loadError);
     } finally {
@@ -95,45 +155,47 @@ export default function DirectorCurriculum({ schoolId, atlasSchedule = false }) 
     load();
   }, [load]);
 
-  async function handlePin(event) {
+  async function handleSaveAcademicWeeks(event) {
     event.preventDefault();
-    if (!pinUnitId) return;
-    setSaving(true);
-    setError(null);
-    setSuccess(null);
+    setSavingAcademicWeeks(true);
+    setAcademicWeeksError(null);
+    setAcademicWeeksSaved(false);
     try {
-      const { error: insertError } = await supabase.from('curriculum_week_plans').insert({
-        school_id: schoolId,
-        grade,
-        week_index: weekIndex,
-        unit_id: pinUnitId,
-      });
-      if (insertError) throw insertError;
-      setPinUnitId('');
-      setSuccess(
-        `${formatStudentGrade(grade)} · Hafta ${weekIndex} için ünite sabitlendi. Bu kayıt okul planınız içindir; öğretmen kendi ilerlemesini yine panelinden işaretler.`
-      );
-      await load();
-    } catch (pinError) {
-      setError(pinError);
+      await saveAcademicWeeks(supabase, schoolId, school?.features, academicWeeksInput);
+      await refreshSchool?.();
+      setAcademicWeeksSaved(true);
+    } catch (saveError) {
+      setAcademicWeeksError(saveError);
     } finally {
-      setSaving(false);
+      setSavingAcademicWeeks(false);
     }
   }
 
-  async function handleUnpin(planId) {
-    setError(null);
-    const { error: deleteError } = await withSchoolFilter(
-      supabase.from('curriculum_week_plans').delete().eq('id', planId),
-      schoolId
-    );
-    if (deleteError) {
-      setError(deleteError);
-      return;
-    }
-    setSuccess('Sabitleme kaldırıldı.');
-    await load();
+  function jumpToWeek(nextWeek) {
+    setWeekIndex(nextWeek);
   }
+
+  function handleSubjectPlanSaved(subjectId, savedUnits) {
+    setUnits((current) => {
+      const others = current.filter((unit) => unit.subject_id !== subjectId);
+      return [...others, ...savedUnits].sort(
+        (left, right) => (left.sort_order ?? 0) - (right.sort_order ?? 0)
+      );
+    });
+  }
+
+  const onSubjectPlanSaved = useCallback((subjectId, savedUnits) => {
+    handleSubjectPlanSaved(subjectId, savedUnits);
+  }, []);
+
+  const onWeekPlansBatchChange = useCallback(({ subjectId, plans }) => {
+    setWeekPlans((current) => {
+      const others = current.filter(
+        (plan) => !(plan.grade === grade && plan.subject_id === subjectId)
+      );
+      return [...others, ...(plans ?? [])];
+    });
+  }, [grade]);
 
   if (loading) {
     return (
@@ -144,9 +206,59 @@ export default function DirectorCurriculum({ schoolId, atlasSchedule = false }) 
   }
 
   return (
-    <section className="director-panel">
-      <div className="dash-card cur-grade-picker">
-        <p className="cur-director-step-label">Sınıf</p>
+    <section className="director-panel cur-director">
+      <header className="dash-card cur-director-hero">
+        <div className="cur-director-hero__head">
+          <div>
+            <p className="cur-director-hero__eyebrow">{ACADEMIC_YEAR} eğitim yılı</p>
+            <h1 className="dash-title cur-director-hero__title">Müfredat yönetimi</h1>
+          </div>
+          <p className="cur-director-hero__badge">
+            Şu an · Hafta {CURRENT_WEEK}
+            <span className="cur-director-hero__badge-sub">{formatWeekRangeTr(CURRENT_WEEK)}</span>
+          </p>
+        </div>
+        <p className="dash-hint cur-director-hero__lead">
+          Eğitim yılı uzunluğunu bir kez ayarlayın; yıllık planda haftalara ünite atayın. Ünite
+          listesi ayrı yönetilir. Haftalık takip salt okunurdur.
+        </p>
+      </header>
+
+      <div className="dash-card cur-director-step">
+        <p className="cur-director-step-label">Eğitim yılı · hafta sayısı</p>
+        <form className="cur-academic-weeks-form" onSubmit={handleSaveAcademicWeeks}>
+          <label className="dash-label cur-academic-weeks-form__field">
+            Bu eğitim yılı kaç hafta?
+            <input
+              className="dash-input"
+              type="number"
+              min={MIN_ACADEMIC_WEEKS}
+              max={MAX_ACADEMIC_WEEKS}
+              value={academicWeeksInput}
+              onChange={(event) => setAcademicWeeksInput(event.target.value)}
+              disabled={savingAcademicWeeks}
+            />
+          </label>
+          <SendButton
+            sending={savingAcademicWeeks}
+            label="Kaydet"
+            sendingLabel="Kaydediliyor…"
+          />
+        </form>
+        <p className="dash-hint">
+          Yıllık düzenleme Hafta 1–{academicWeeks} arasını kapsar. Yıl başında bir kez ayarlanır.
+          {atlasSchedule && calendarSuggestedWeeks ? (
+            <> Atlas takvimine göre önerilen: {calendarSuggestedWeeks} hafta.</>
+          ) : null}
+        </p>
+        {academicWeeksError ? <InlineError error={academicWeeksError} context="general" /> : null}
+        {academicWeeksSaved ? (
+          <p className="dash-hint cur-academic-weeks-form__saved">Hafta sayısı kaydedildi.</p>
+        ) : null}
+      </div>
+
+      <div className="dash-card cur-director-step">
+        <p className="cur-director-step-label">1 · Sınıf seçin</p>
         <div className="cur-assign-chips" role="tablist" aria-label="Sınıf">
           {STUDENT_GRADES.map((value) => (
             <button
@@ -161,26 +273,92 @@ export default function DirectorCurriculum({ schoolId, atlasSchedule = false }) 
             </button>
           ))}
         </div>
+        <p className="cur-director-step__meta">
+          {formatStudentGrade(grade)} · {gradeStats.subjectCount} ders · {gradeStats.unitCount}{' '}
+          ünite · {gradeStats.assignedWeeks}/{gradeStats.totalWeekSlots} haftalık atama
+        </p>
       </div>
 
-      <details className="cal-collapsible-form dash-card">
+      <details className="cal-collapsible-form dash-card" open>
         <summary className="cal-collapsible-form__summary cal-browser__summary">
           <span className="cal-collapsible-form__chevron" aria-hidden="true" />
           <span className="cal-browser__summary-text">
-            <span className="dash-section-title">Haftalık plan</span>
+            <span className="dash-section-title">2 · Yıllık plan</span>
+            <span className="dash-hint">
+              {formatStudentGrade(grade)} · hafta atamaları ve ünite listesi
+            </span>
+          </span>
+        </summary>
+
+        <div className="cal-collapsible-form__body cur-director-year">
+          <p className="dash-hint">
+            Her ders için üniteleri yönetin ve Hafta 1–{academicWeeks} arasında hangi ünitenin
+            işleneceğini atayın.
+          </p>
+
+          {gradeSubjects.length === 0 ? (
+            <p className="dash-hint">Bu sınıf için ders bulunamadı.</p>
+          ) : (
+            <div className="cur-subject-plan-list">
+              {gradeSubjects.map((subject) => {
+                const subjectUnits = unitsBySubject.get(subject.id) ?? [];
+                const subjectAssignedWeeks = countAssignedWeeksForSubject(
+                  weekPlans,
+                  grade,
+                  subject.id,
+                  academicWeeks
+                );
+
+                return (
+                  <details key={subject.id} className="cur-subject-plan">
+                    <summary
+                      className="cur-subject-plan__summary"
+                      style={{ '--cur-subject': subject.color }}
+                    >
+                      <span className="cur-subject-plan__title">
+                        <Icon name={subject.icon} size={16} /> {subject.name}
+                      </span>
+                      <span className="cur-subject-plan__meta">
+                        {subjectUnits.length} ünite · {subjectAssignedWeeks}/{academicWeeks} hafta
+                      </span>
+                    </summary>
+
+                    <SubjectPlanEditor
+                      subject={subject}
+                      units={subjectUnits}
+                      weekPlans={weekPlans}
+                      grade={grade}
+                      schoolId={schoolId}
+                      academicWeeks={academicWeeks}
+                      currentWeekIndex={CURRENT_WEEK}
+                      onSaved={(savedUnits) => onSubjectPlanSaved(subject.id, savedUnits)}
+                      onWeekPlansBatchChange={onWeekPlansBatchChange}
+                    />
+                  </details>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </details>
+
+      <details className="cal-collapsible-form dash-card" open>
+        <summary className="cal-collapsible-form__summary cal-browser__summary">
+          <span className="cal-collapsible-form__chevron" aria-hidden="true" />
+          <span className="cal-browser__summary-text">
+            <span className="dash-section-title">3 · Haftalık takip</span>
             <span className="dash-hint">
               {formatStudentGrade(grade)} · Hafta {weekIndex}
+              {weekIndex === CURRENT_WEEK ? ' · şu an' : ''}
             </span>
           </span>
         </summary>
 
         <div className="cal-collapsible-form__body">
           <p className="dash-hint">
-            Hafta seçin. Yıllık planda o hafta hangi ünitelerin geldiğini görün; isterseniz ek
-            olarak müdür sabitlemesi ekleyin.
+            Yıllık plandan otomatik hesaplanır; bu ekranda yalnızca görüntülenir.
           </p>
 
-          <p className="cur-director-step-label">Hafta</p>
           <div className="cal-month__nav">
             <button
               type="button"
@@ -196,7 +374,7 @@ export default function DirectorCurriculum({ schoolId, atlasSchedule = false }) 
                 <button
                   type="button"
                   className="demo-btn cur-week-jump"
-                  onClick={() => setWeekIndex(CURRENT_WEEK)}
+                  onClick={() => jumpToWeek(CURRENT_WEEK)}
                 >
                   Bu haftaya dön
                 </button>
@@ -210,138 +388,27 @@ export default function DirectorCurriculum({ schoolId, atlasSchedule = false }) 
             <button
               type="button"
               className="demo-btn"
-              onClick={() => setWeekIndex((value) => Math.min(52, value + 1))}
+              onClick={() => setWeekIndex((value) => Math.min(academicWeeks, value + 1))}
             >
               Sonraki
             </button>
           </div>
 
           {error && <InlineError error={error} context="curriculum" />}
-          {success && <SuccessMessage message={success} />}
 
           <div className="cur-week-block">
-            <h3 className="cur-week-block__title">Yıllık planda bu hafta</h3>
-            <p className="dash-hint">
-              Her dersin ünite sürelerine göre otomatik hesaplanır. Öğretmen panelinde de bu plan
-              referans alınır.
-            </p>
-            {scheduledThisWeek.length === 0 ? (
-              <p className="dash-hint">Bu sınıf için bu haftaya denk gelen ünite yok.</p>
-            ) : (
-              <ul className="cur-week-plan-list">
-                {scheduledThisWeek.map(({ subject, plan }) => (
-                  <li key={subject.id} className="cur-week-plan-item">
-                    <span
-                      className="cur-week-plan-item__subject"
-                      style={{ '--cur-subject': subject.color }}
-                    >
-                      <Icon name={subject.icon} size={14} /> {subject.name}
-                    </span>
-                    <span className="cur-week-plan-item__unit">{plan.unit.title}</span>
-                    <span className="cur-week-plan-item__meta">
-                      {formatPlannedUnitBanner(plan)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-
-          <div className="cur-week-block cur-week-block--pin">
-            <h3 className="cur-week-block__title">Müdür sabitlemesi (isteğe bağlı)</h3>
-            <p className="dash-hint">
-              Belirli bir üniteyi bu hafta için not olarak işaretleyin. Öğretmen yine kendi sınıfının
-              ilerlemesini işaretler; sabitleme okul içi planlama içindir.
-            </p>
-
-            <form className="dash-form cur-pin-form" onSubmit={handlePin}>
-              <label className="dash-label">
-                Ünite seçin
-                <select
-                  className="dash-input"
-                  value={pinUnitId}
-                  onChange={(event) => setPinUnitId(event.target.value)}
-                  disabled={saving}
-                >
-                  <option value="">Seçin…</option>
-                  {gradeSubjects.map((subject) => (
-                    <optgroup key={subject.id} label={subject.name}>
-                      {(unitsBySubject.get(subject.id) ?? [])
-                        .filter((unit) => !pinnedUnitIds.has(unit.id))
-                        .map((unit) => (
-                          <option key={unit.id} value={unit.id}>
-                            {unit.sort_order}. {unit.title}
-                          </option>
-                        ))}
-                    </optgroup>
-                  ))}
-                </select>
-              </label>
-              <SendButton
-                sending={saving}
-                disabled={!pinUnitId}
-                label="Bu haftaya sabitle"
-                sendingLabel="Ekleniyor…"
-              />
-            </form>
-
-            {pinnedThisWeek.length === 0 ? (
-              <p className="dash-hint">Bu hafta için sabitlenmiş ünite yok.</p>
-            ) : (
-              <ul className="history-list">
-                {pinnedThisWeek.map((plan) => {
-                  const unit = units.find((item) => item.id === plan.unit_id);
-                  const subject = subjects.find((item) => item.id === unit?.subject_id);
-                  return (
-                    <li key={plan.id} className="history-item">
-                      <div className="history-meta">
-                        <strong>{unit?.title ?? 'Ünite'}</strong>
-                        <span>
-                          {subject?.name} · {formatStudentGrade(grade)} · Hafta {weekIndex}
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        className="match-item__remove"
-                        onClick={() => handleUnpin(plan.id)}
-                      >
-                        Kaldır
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
+            <h3 className="cur-week-block__title">Bu haftanın dersleri</h3>
+            <WeeklySubjectOverview
+              subjects={gradeSubjects}
+              unitsBySubject={unitsBySubject}
+              weekPlans={weekPlans}
+              grade={grade}
+              weekIndex={weekIndex}
+              currentWeekIndex={CURRENT_WEEK}
+            />
           </div>
         </div>
       </details>
-
-      <div className="dash-card">
-        <h2 className="dash-section-title">{formatStudentGrade(grade)} ders kataloğu</h2>
-        <p className="dash-hint">
-          Hazır müfredat listesi — düzenlenemez. Her kartta o dersteki toplam ünite sayısı
-          gösterilir.
-        </p>
-        <div className="cur-subject-grid">
-          {gradeSubjects.map((subject) => (
-            <article
-              key={subject.id}
-              className="cur-subject-card"
-              style={{ '--cur-subject': subject.color }}
-            >
-              <p className="cur-subject-card__name">
-                <Icon name={subject.icon} size={16} /> {subject.name}
-              </p>
-              <p className="cur-subject-card__icon" aria-hidden="true">
-                <Icon name={subject.icon} size={22} />
-              </p>
-              <p className="cur-subject-card__meta">
-                {(unitsBySubject.get(subject.id) ?? []).length} ünite
-              </p>
-            </article>
-          ))}
-        </div>
-      </div>
 
       {atlasSchedule ? (
         <div className="cur-director-assessment-types">

@@ -3,10 +3,10 @@ import { supabase } from '../../lib/supabase';
 import { withSchoolFilter } from '../../lib/tenant';
 import { CALENDAR_SELECT, istanbulDateIso } from '../../lib/calendar';
 import {
-  UNIT_SELECT,
   formatPlannedUnitBanner,
   formatClassLabel,
   formatWeekRangeTr,
+  loadCurriculumContext,
   loadSchoolClasses,
   loadCurriculumSubjects,
   getTeacherSubjectSlug,
@@ -188,6 +188,7 @@ export default function TeacherAtlasLessons({
   const [classes, setClasses] = useState([]);
   const [subjects, setSubjects] = useState([]);
   const [units, setUnits] = useState([]);
+  const [weekPlans, setWeekPlans] = useState([]);
   const [students, setStudents] = useState([]);
   const [classSessions, setClassSessions] = useState([]);
   const [calendarEvents, setCalendarEvents] = useState([]);
@@ -219,8 +220,17 @@ export default function TeacherAtlasLessons({
   );
 
   const snapshot = useMemo(
-    () => (sessionDate ? snapshotForDate({ units: subjectUnits, takenOn: sessionDate }) : null),
-    [subjectUnits, sessionDate]
+    () =>
+      sessionDate
+        ? snapshotForDate({
+            units: subjectUnits,
+            takenOn: sessionDate,
+            weekPlans,
+            subjectId: subject?.id,
+            grade: klass?.grade,
+          })
+        : null,
+    [subjectUnits, sessionDate, weekPlans, subject?.id, klass?.grade]
   );
 
   const liveMode = sessionDate ? canLiveLogForDate(sessionDate) : false;
@@ -252,10 +262,10 @@ export default function TeacherAtlasLessons({
     setLoading(true);
     setError(null);
     try {
-      const [allClasses, catalogSubjects, unitsRes, eventsRes] = await Promise.all([
+      const [allClasses, catalogSubjects, curriculum, eventsRes] = await Promise.all([
         loadSchoolClasses(schoolId),
         loadCurriculumSubjects(),
-        supabase.from('curriculum_units').select(UNIT_SELECT).order('sort_order'),
+        loadCurriculumContext(schoolId),
         withSchoolFilter(
           supabase.from('calendar_events').select(CALENDAR_SELECT),
           schoolId
@@ -263,8 +273,8 @@ export default function TeacherAtlasLessons({
       ]);
       setClasses(allClasses);
       setSubjects(catalogSubjects);
-      if (unitsRes.error) throw unitsRes.error;
-      setUnits(unitsRes.data ?? []);
+      setUnits(curriculum.units);
+      setWeekPlans(curriculum.weekPlans);
       if (eventsRes.error) throw eventsRes.error;
       setCalendarEvents(eventsRes.data ?? []);
 

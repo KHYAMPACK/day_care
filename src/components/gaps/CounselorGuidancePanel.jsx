@@ -4,7 +4,8 @@ import {
   academicWeekIndex,
   formatWeekRangeTr,
   loadCurriculumSubjects,
-  plannedUnitForWeek,
+  loadSchoolWeekPlans,
+  resolvePlannedUnitForWeek,
 } from '../../lib/curriculum';
 import { loadCurriculumUnitsWithSections } from '../../lib/studentGapsData';
 import { currentAcademicYear } from '../../lib/homework';
@@ -201,6 +202,7 @@ export default function CounselorGuidancePanel({ dossier, schoolId }) {
 
   const [subjects, setSubjects] = useState([]);
   const [units, setUnits] = useState([]);
+  const [weekPlans, setWeekPlans] = useState([]);
   const [matrixSubjectId, setMatrixSubjectId] = useState('');
   const [matrixCells, setMatrixCells] = useState([]);
   const [matrixResources, setMatrixResources] = useState([]);
@@ -230,13 +232,16 @@ export default function CounselorGuidancePanel({ dossier, schoolId }) {
     const gradeSubjects = subjects.filter((s) => s.grade === student?.grade);
     const firstSubject = gradeSubjects[0];
     const planned = firstSubject
-      ? plannedUnitForWeek({
-          units: units.filter((u) => u.subject_id === firstSubject.id),
+      ? resolvePlannedUnitForWeek({
+          weekPlans,
+          units,
+          subjectId: firstSubject.id,
+          grade: student?.grade,
           weekIndex,
         })
       : null;
     return buildScheduleHints({ gapProfile, plannedUnit: planned });
-  }, [gapProfile, student?.grade, subjects, units, weekIndex]);
+  }, [gapProfile, student?.grade, subjects, units, weekPlans, weekIndex]);
 
   const rowWarnings = useMemo(() => buildQuestionRowWarnings(questionRows), [questionRows]);
 
@@ -343,13 +348,15 @@ export default function CounselorGuidancePanel({ dossier, schoolId }) {
     let cancelled = false;
     (async () => {
       try {
-        const [subjectRows, unitRows] = await Promise.all([
+        const [subjectRows, unitRows, planRows] = await Promise.all([
           loadCurriculumSubjects(),
           loadCurriculumUnitsWithSections(),
+          schoolId ? loadSchoolWeekPlans(schoolId).catch(() => []) : Promise.resolve([]),
         ]);
         if (cancelled) return;
         setSubjects(subjectRows);
         setUnits(unitRows);
+        setWeekPlans(planRows);
         const gradeSubjects = subjectRows.filter((row) => row.grade === student?.grade);
         const lgsMatch = gradeSubjects.find((row) =>
           LGS_SUBJECTS.some((def) => def.code === row.slug)
@@ -362,7 +369,7 @@ export default function CounselorGuidancePanel({ dossier, schoolId }) {
     return () => {
       cancelled = true;
     };
-  }, [student?.grade]);
+  }, [student?.grade, schoolId]);
 
   useEffect(() => {
     loadMatrixData();

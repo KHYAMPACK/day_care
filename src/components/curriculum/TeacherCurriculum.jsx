@@ -2,9 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { withSchoolFilter } from '../../lib/tenant';
 import { CALENDAR_SELECT, istanbulDateIso } from '../../lib/calendar';
+import { useAuth } from '../../context/AuthContext';
 import {
   PROGRESS_SELECT,
-  UNIT_SELECT,
   academicWeekIndex,
   applyUnitProgressToClass,
   loadCurriculumWeekNote,
@@ -14,31 +14,43 @@ import {
   formatAssignmentLabel,
   formatPlannedUnitBanner,
   formatWeekRangeTr,
-  expandSubjectSchedule,
   formatScheduleWeekRange,
+  groupWeekPlansByUnit,
+  loadCurriculumContext,
   loadSchoolClasses,
   loadCurriculumSubjects,
   loadTeacherAssignments,
   getTeacherSubjectSlug,
   getTeacherBransDisplay,
   resolveSubjectForClass,
-  plannedUnitForWeek,
+  resolvePlannedUnitForWeek,
   weekOverlapsHoliday,
 } from '../../lib/curriculum';
 import { recordSchoolActivity } from '../../lib/activityLog';
+import { resolveAcademicWeeks } from '../../lib/schoolFeatures';
 import { InlineError, SendButton, SuccessMessage } from '../dashboardUi';
 import { Icon } from '../ui/Icon';
 import AtlasClassPicker from '../atlas/AtlasClassPicker';
 
-function WeekHeader({ weekIndex, isHoliday, showSchedule, onToggleSchedule, subjectName }) {
+function WeekHeader({
+  weekIndex,
+  isHoliday,
+  showSchedule,
+  onToggleSchedule,
+  subjectName,
+  academicWeeks,
+}) {
   return (
     <div className="cal-month__nav">
       <span className="cal-month__nav-spacer" aria-hidden="true" />
       <div className="cur-week-title">
         {showSchedule ? (
-          <h2 className="dash-section-title">
-            {subjectName ? `${subjectName} · yıllık plan` : 'Yıllık plan'}
-          </h2>
+          <>
+            <h2 className="dash-section-title">
+              {subjectName ? `${subjectName} · yıllık plan` : 'Yıllık plan'}
+            </h2>
+            <p className="dash-hint">Hafta 1–{academicWeeks}</p>
+          </>
         ) : (
           <>
             <h2 className="dash-section-title">Hafta {weekIndex}</h2>
@@ -55,6 +67,7 @@ function WeekHeader({ weekIndex, isHoliday, showSchedule, onToggleSchedule, subj
 }
 
 export default function TeacherCurriculum({ profile, schoolId, atlasSchedule = false }) {
+  const { school } = useAuth();
   const subjectSlug = getTeacherSubjectSlug(profile);
   const bransDisplay = getTeacherBransDisplay(profile);
   const [assignments, setAssignments] = useState([]);
@@ -62,9 +75,12 @@ export default function TeacherCurriculum({ profile, schoolId, atlasSchedule = f
   const [subjects, setSubjects] = useState([]);
   const [selectedClassId, setSelectedClassId] = useState(null);
   const [units, setUnits] = useState([]);
+  const [weekPlans, setWeekPlans] = useState([]);
   const [students, setStudents] = useState([]);
   const [progress, setProgress] = useState([]);
   const [holidays, setHolidays] = useState([]);
+  const [calendarEvents, setCalendarEvents] = useState([]);
+  const academicWeeks = resolveAcademicWeeks(school, calendarEvents, { atlasSchedule });
   const [assignmentId, setAssignmentId] = useState('');
   const [weekIndex, setWeekIndex] = useState(() => Math.max(1, academicWeekIndex(istanbulDateIso())));
   const [completed, setCompleted] = useState(false);
@@ -89,12 +105,37 @@ export default function TeacherCurriculum({ profile, schoolId, atlasSchedule = f
   );
   const studentIds = useMemo(() => students.map((student) => student.id), [students]);
   const planned = useMemo(
-    () => plannedUnitForWeek({ units: subjectUnits, weekIndex }),
-    [subjectUnits, weekIndex]
+    () =>
+      subject && klass
+        ? resolvePlannedUnitForWeek({
+            weekPlans,
+            units: subjectUnits,
+            subjectId: subject.id,
+            grade: klass.grade,
+            weekIndex,
+          })
+        : null,
+    [weekPlans, subjectUnits, subject, klass, weekIndex]
   );
   const focusUnit = planned?.unit ?? null;
   const plannedBanner = formatPlannedUnitBanner(planned);
-  const scheduleRows = useMemo(() => expandSubjectSchedule(subjectUnits), [subjectUnits]);
+  const scheduleRows = useMemo(
+    () =>
+      subject && klass
+        ? groupWeekPlansByUnit({
+            weekPlans,
+            units: subjectUnits,
+            subjectId: subject.id,
+            grade: klass.grade,
+            academicWeeks,
+          })
+        : [],
+    [weekPlans, subjectUnits, subject, klass, academicWeeks]
+  );
+
+  useEffect(() => {
+    setWeekIndex((current) => Math.min(Math.max(1, current), academicWeeks));
+  }, [academicWeeks]);
 
   useEffect(() => {
     setShowSchedule(false);
@@ -158,30 +199,21 @@ export default function TeacherCurriculum({ profile, schoolId, atlasSchedule = f
         });
       }
 
-      const [unitsRes, eventsRes] = await Promise.all([
-        supabase.from('curriculum_units').select(UNIT_SELECT).order('sort_order'),
-        withSchoolFilter(
-          supabase
-            .from('calendar_events')
-            .select(CALENDAR_SELECT)
-            .eq('event_type', 'holiday'),
-          schoolId
-        ),
+      const [curriculum, eventsRes] = await Promise.all([
+        loadCurriculumContext(schoolId),
+        withSchoolFilter(supabase.from('calendar_events').select(CALENDAR_SELECT), schoolId),
       ]);
-      if (unitsRes.error && /duration_weeks/i.test(unitsRes.error.message ?? '')) {
-        const fallback = await supabase
-          .from('curriculum_units')
-          .select('id, subject_id, title, sort_order, sections')
-          .order('sort_order');
-        if (fallback.error) throw fallback.error;
-        setUnits(fallback.data ?? []);
-      } else if (unitsRes.error) {
-        throw unitsRes.error;
-      } else {
-        setUnits(unitsRes.data ?? []);
+      setUnits(curriculum.units);
+      setWeekPlans(curriculum.weekPlans);
+      if (!atlasSchedule) {
+        setSubjects(curriculum.subjects);
       }
-      if (eventsRes.error && !/calendar_events/i.test(eventsRes.error.message ?? '')) throw eventsRes.error;
-      setHolidays(eventsRes.error ? [] : eventsRes.data ?? []);
+      const events = eventsRes.error ? [] : eventsRes.data ?? [];
+      setCalendarEvents(events);
+      if (eventsRes.error && !/calendar_events/i.test(eventsRes.error.message ?? '')) {
+        throw eventsRes.error;
+      }
+      setHolidays(events.filter((event) => event.event_type === 'holiday'));
     } catch (loadError) {
       setError(loadError);
     } finally {
@@ -405,6 +437,7 @@ export default function TeacherCurriculum({ profile, schoolId, atlasSchedule = f
               showSchedule={showSchedule}
               onToggleSchedule={() => setShowSchedule((current) => !current)}
               subjectName={subject?.name}
+              academicWeeks={academicWeeks}
             />
 
             {showSchedule ? (

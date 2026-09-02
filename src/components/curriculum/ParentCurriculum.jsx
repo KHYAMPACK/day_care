@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../lib/supabase';
-import { loadCurriculumCatalog, PROGRESS_SELECT, filterSubjectsForGrade } from '../../lib/curriculum';
+import { istanbulDateIso } from '../../lib/calendar';
+import {
+  loadCurriculumContext,
+  PROGRESS_SELECT,
+  filterSubjectsForGrade,
+  academicWeekIndex,
+  isPlaceholderUnitTitle,
+  resolvePlannedUnitForWeek,
+} from '../../lib/curriculum';
 import { InlineError } from '../dashboardUi';
 import { Icon } from '../ui/Icon';
 
@@ -12,15 +20,33 @@ function unitState(progress, studentId, unitId) {
   };
 }
 
-function currentTopic(subjects, units, progress, studentId) {
-  for (const subject of subjects) {
-    const subjectUnits = units.filter((unit) => unit.subject_id === subject.id);
-    const next = subjectUnits.find((unit) => !unitState(progress, studentId, unit.id).completed);
-    if (next) {
-      return { subject, unit: next };
-    }
+function currentWeekTopics(subjects, units, weekPlans, student) {
+  const gradeSubjects = filterSubjectsForGrade(subjects, student.grade);
+  const weekIndex = Math.max(1, academicWeekIndex(istanbulDateIso()));
+
+  return gradeSubjects
+    .map((subject) => {
+      const subjectUnits = units.filter((unit) => unit.subject_id === subject.id);
+      const planned = resolvePlannedUnitForWeek({
+        weekPlans,
+        units: subjectUnits,
+        subjectId: subject.id,
+        grade: student.grade,
+        weekIndex,
+      });
+      if (!planned?.unit || isPlaceholderUnitTitle(planned.unit.title)) return null;
+      return { subject, unit: planned.unit, weekIndex };
+    })
+    .filter(Boolean);
+}
+
+function formatWeekTopicsSummary(topics) {
+  if (!topics.length) return null;
+  if (topics.length === 1) {
+    const row = topics[0];
+    return `${row.subject.name} — ${row.unit.title}`;
   }
-  return null;
+  return topics.map((row) => `${row.subject.name}: ${row.unit.title}`).join(' · ');
 }
 
 export function ParentCurriculumRecap({ childrenData, onOpen }) {
@@ -33,12 +59,12 @@ export function ParentCurriculumRecap({ childrenData, onOpen }) {
         {childrenData.map((child) => (
           <li key={child.student.id}>
             <strong>{child.student.full_name}</strong>
-            {child.topic ? (
+            {child.topics?.length ? (
               <p className="dash-hint">
-                Şu anki konu: {child.topic.subject.name} — {child.topic.unit.title}
+                Bu hafta (Hafta {child.topics[0].weekIndex}): {formatWeekTopicsSummary(child.topics)}
               </p>
             ) : (
-              <p className="dash-hint">Kayıtlı ünite ilerlemesi yok.</p>
+              <p className="dash-hint">Bu hafta için planlı konu bulunamadı.</p>
             )}
           </li>
         ))}
@@ -50,11 +76,30 @@ export function ParentCurriculumRecap({ childrenData, onOpen }) {
   );
 }
 
-function ParentStudentCurriculum({ student, subjects, units, progress }) {
+function ParentStudentCurriculum({ student, subjects, units, weekPlans, progress }) {
   const gradeSubjects = useMemo(
     () => filterSubjectsForGrade(subjects, student.grade),
     [subjects, student.grade]
   );
+  const weekIndex = useMemo(
+    () => Math.max(1, academicWeekIndex(istanbulDateIso())),
+    []
+  );
+  const plannedUnitIds = useMemo(() => {
+    const ids = new Set();
+    for (const subject of gradeSubjects) {
+      const subjectUnits = units.filter((unit) => unit.subject_id === subject.id);
+      const planned = resolvePlannedUnitForWeek({
+        weekPlans,
+        units: subjectUnits,
+        subjectId: subject.id,
+        grade: student.grade,
+        weekIndex,
+      });
+      if (planned?.unit?.id) ids.add(planned.unit.id);
+    }
+    return ids;
+  }, [gradeSubjects, units, weekPlans, student.grade, weekIndex]);
   const [selectedSubjectId, setSelectedSubjectId] = useState('');
 
   useEffect(() => {
@@ -140,14 +185,17 @@ function ParentStudentCurriculum({ student, subjects, units, progress }) {
                 {unitProgress.map(({ unit, state }, index) => (
                   <li
                     key={unit.id}
-                    className={`cur-parent-unit${state.completed ? ' cur-parent-unit--done' : ''}`}
+                    className={`cur-parent-unit${state.completed ? ' cur-parent-unit--done' : ''}${plannedUnitIds.has(unit.id) ? ' cur-parent-unit--current-week' : ''}`}
                   >
                     <span className="cur-parent-unit__mark" aria-hidden="true">
                       <Icon name={state.completed ? 'check' : 'book'} size={15} />
                     </span>
                     <div className="cur-parent-unit__main">
                       <strong className="cur-parent-unit__title">{unit.title}</strong>
-                      <span className="cur-parent-unit__index">Ünite {index + 1}</span>
+                      <span className="cur-parent-unit__index">
+                        Ünite {index + 1}
+                        {plannedUnitIds.has(unit.id) ? ' · bu hafta' : ''}
+                      </span>
                     </div>
                     <div className="cur-parent-unit__meta">
                       <span
@@ -172,9 +220,10 @@ function ParentStudentCurriculum({ student, subjects, units, progress }) {
   );
 }
 
-export default function ParentCurriculum({ students }) {
+export default function ParentCurriculum({ students, schoolId }) {
   const [subjects, setSubjects] = useState([]);
   const [units, setUnits] = useState([]);
+  const [weekPlans, setWeekPlans] = useState([]);
   const [progress, setProgress] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -183,9 +232,10 @@ export default function ParentCurriculum({ students }) {
     setLoading(true);
     setError(null);
     try {
-      const catalog = await loadCurriculumCatalog();
-      setSubjects(catalog.subjects);
-      setUnits(catalog.units);
+      const curriculum = await loadCurriculumContext(schoolId);
+      setSubjects(curriculum.subjects);
+      setUnits(curriculum.units);
+      setWeekPlans(curriculum.weekPlans);
 
       const ids = students.map((student) => student.id);
       if (ids.length) {
@@ -203,7 +253,7 @@ export default function ParentCurriculum({ students }) {
     } finally {
       setLoading(false);
     }
-  }, [students]);
+  }, [schoolId, students]);
 
   useEffect(() => {
     load();
@@ -221,7 +271,9 @@ export default function ParentCurriculum({ students }) {
     <>
       <header className="dash-header">
         <h1 className="dash-title">Müfredat</h1>
-        <p className="dash-subtitle">Ünitelerin tamamlanma durumu ve çözülen soru sayısı.</p>
+        <p className="dash-subtitle">
+          Ünitelerin tamamlanma durumu, çözülen soru sayısı ve bu haftanın planlı konuları.
+        </p>
       </header>
 
       {error && <InlineError error={error} context="curriculum" />}
@@ -237,6 +289,7 @@ export default function ParentCurriculum({ students }) {
             student={student}
             subjects={subjects}
             units={units}
+            weekPlans={weekPlans}
             progress={progress}
           />
         ))
@@ -245,34 +298,25 @@ export default function ParentCurriculum({ students }) {
   );
 }
 
-export function useParentCurriculumRecap(students) {
+export function useParentCurriculumRecap(students, schoolId) {
   const [subjects, setSubjects] = useState([]);
   const [units, setUnits] = useState([]);
-  const [progress, setProgress] = useState([]);
+  const [weekPlans, setWeekPlans] = useState([]);
 
   useEffect(() => {
     let mounted = true;
     async function load() {
       try {
-        const catalog = await loadCurriculumCatalog();
+        const curriculum = await loadCurriculumContext(schoolId);
         if (!mounted) return;
-        setSubjects(catalog.subjects);
-        setUnits(catalog.units);
-        const ids = students.map((student) => student.id);
-        if (!ids.length) {
-          setProgress([]);
-          return;
-        }
-        const { data, error } = await supabase
-          .from('student_unit_progress')
-          .select(PROGRESS_SELECT)
-          .in('student_id', ids);
-        if (error || !mounted) return;
-        setProgress(data ?? []);
+        setSubjects(curriculum.subjects);
+        setUnits(curriculum.units);
+        setWeekPlans(curriculum.weekPlans);
       } catch {
         if (mounted) {
           setSubjects([]);
           setUnits([]);
+          setWeekPlans([]);
         }
       }
     }
@@ -280,19 +324,14 @@ export function useParentCurriculumRecap(students) {
     return () => {
       mounted = false;
     };
-  }, [students]);
+  }, [students, schoolId]);
 
   return useMemo(
     () =>
       students.map((student) => ({
         student,
-        topic: currentTopic(
-          filterSubjectsForGrade(subjects, student.grade),
-          units,
-          progress,
-          student.id
-        ),
+        topics: currentWeekTopics(subjects, units, weekPlans, student),
       })),
-    [students, subjects, units, progress]
+    [students, subjects, units, weekPlans]
   );
 }

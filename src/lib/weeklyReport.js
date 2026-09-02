@@ -4,7 +4,7 @@ import {
   formatClassLabel,
   formatWeekRangeTr,
   isPlaceholderUnitTitle,
-  plannedUnitForWeek,
+  resolvePlannedUnitForWeek,
   weekRangeIso,
 } from './curriculum';
 
@@ -38,6 +38,7 @@ export function buildStudentWeeklyReport({
   weekIndex,
   subjects,
   units,
+  weekPlans,
   progress,
   sessions,
   records,
@@ -58,12 +59,24 @@ export function buildStudentWeeklyReport({
   const konular = gradeSubjects
     .map((subject) => {
       const subjectUnits = (units ?? []).filter((unit) => unit.subject_id === subject.id);
-      const planned = weekIndex ? plannedUnitForWeek({ units: subjectUnits, weekIndex }) : null;
+      const planned = weekIndex
+        ? resolvePlannedUnitForWeek({
+            weekPlans,
+            units: subjectUnits,
+            subjectId: subject.id,
+            grade: student.grade,
+            weekIndex,
+          })
+        : null;
       if (!planned?.unit || isPlaceholderUnitTitle(planned.unit.title)) return null;
+      const banner =
+        planned.source === 'plan' || !planned.weekInSpan
+          ? planned.unit.title
+          : `${planned.unit.title} · hafta ${planned.weekInSpan}/${planned.durationWeeks}`;
       return {
         subjectName: subject.name,
         unitTitle: planned.unit.title,
-        banner: `${planned.unit.title} · hafta ${planned.weekInSpan}/${planned.durationWeeks}`,
+        banner,
       };
     })
     .filter(Boolean);
@@ -356,6 +369,7 @@ export function buildStudentWeeklyReportAtlas({
   weekIndex,
   subjects,
   units,
+  weekPlans,
   atlasSessions,
   atlasAttendance,
   atlasResults,
@@ -372,6 +386,7 @@ export function buildStudentWeeklyReportAtlas({
     weekIndex,
     subjects,
     units,
+    weekPlans,
     progress: [],
     sessions: [],
     records: [],

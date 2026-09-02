@@ -4,6 +4,7 @@
  * Usage:
  *   npm run seed-curriculum-units
  *   node scripts/seed-curriculum-units.mjs [path/to/units.json]
+ *   node scripts/seed-curriculum-units.mjs --sync-week-plans
  *
  * Requires SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY in .env
  */
@@ -12,6 +13,11 @@ import { createClient } from '@supabase/supabase-js';
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { ATLAS_CALENDAR_EVENTS } from '../src/lib/atlasCalendar2026.js';
+import {
+  ACADEMIC_YEAR_ANCHOR,
+  deriveAcademicWeeksFromCalendar,
+} from './lib/academicWeeks.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, '..');
@@ -34,7 +40,120 @@ function loadEnv() {
 
 loadEnv();
 
-const jsonPath = process.argv[2] ? resolve(process.cwd(), process.argv[2]) : defaultJsonPath;
+const jsonArg = process.argv.slice(2).find((arg) => !arg.startsWith('--') && arg.endsWith('.json'));
+const jsonPath = jsonArg ? resolve(process.cwd(), jsonArg) : defaultJsonPath;
+const syncWeekPlans = process.argv.includes('--sync-week-plans');
+const ACADEMIC_WEEKS = deriveAcademicWeeksFromCalendar(ATLAS_CALENDAR_EVENTS);
+
+function clampDurationWeeks(value) {
+  const parsed = Number.parseInt(String(value), 10);
+  if (!Number.isFinite(parsed)) return 1;
+  return Math.max(1, Math.min(20, parsed));
+}
+
+function weekAssignmentsFromUnits(units) {
+  const ordered = [...(units ?? [])].sort(
+    (left, right) => (left.sort_order ?? 0) - (right.sort_order ?? 0)
+  );
+  const assignments = [];
+  let cursor = 1;
+
+  for (const unit of ordered) {
+    const durationWeeks = clampDurationWeeks(unit.duration_weeks);
+    const spanEnd = cursor + durationWeeks - 1;
+    for (let week = cursor; week <= Math.min(spanEnd, ACADEMIC_WEEKS); week += 1) {
+      assignments.push({ weekIndex: week, unitId: unit.id });
+    }
+    cursor = spanEnd + 1;
+  }
+
+  return assignments;
+}
+
+async function syncWeekPlansForSubject({ schoolId, grade, subjectId }) {
+  const { data: units, error: unitsError } = await supabase
+    .from('curriculum_units')
+    .select('id, sort_order, duration_weeks')
+    .eq('subject_id', subjectId)
+    .order('sort_order', { ascending: true });
+  if (unitsError) throw unitsError;
+
+  const assignments = weekAssignmentsFromUnits(units ?? []);
+  const { error: deleteError } = await supabase
+    .from('curriculum_week_plans')
+    .delete()
+    .eq('school_id', schoolId)
+    .eq('grade', grade)
+    .eq('subject_id', subjectId);
+  if (deleteError) throw deleteError;
+
+  if (!assignments.length) return 0;
+
+  const rows = assignments.map((row) => ({
+    school_id: schoolId,
+    grade,
+    week_index: row.weekIndex,
+    subject_id: subjectId,
+    unit_id: row.unitId,
+  }));
+
+  const { error: insertError } = await supabase.from('curriculum_week_plans').insert(rows);
+  if (insertError) throw insertError;
+  return rows.length;
+}
+
+async function syncAllWeekPlans() {
+  const { data: schools, error: schoolsError } = await supabase.from('schools').select('id, name');
+  if (schoolsError) throw schoolsError;
+
+  const { data: subjects, error: subjectsError } = await supabase
+    .from('curriculum_subjects')
+    .select('id, grade, name');
+  if (subjectsError) throw subjectsError;
+
+  let totalRows = 0;
+  for (const school of schools ?? []) {
+    for (const subject of subjects ?? []) {
+      const count = await syncWeekPlansForSubject({
+        schoolId: school.id,
+        grade: subject.grade,
+        subjectId: subject.id,
+      });
+      totalRows += count;
+    }
+    console.log(`Week plans synced for ${school.name ?? school.id}`);
+  }
+
+  console.log(`\nWeek plan sync complete — ${totalRows} rows across ${schools?.length ?? 0} school(s).`);
+}
+
+async function syncAtlasAcademicWeeks() {
+  const { data: schools, error } = await supabase
+    .from('schools')
+    .select('id, name, features');
+  if (error) throw error;
+
+  let updated = 0;
+  for (const school of schools ?? []) {
+    if (!school.features?.atlas_schedule) continue;
+    const { error: updateError } = await supabase
+      .from('schools')
+      .update({
+        features: {
+          ...(school.features ?? {}),
+          academic_weeks: ACADEMIC_WEEKS,
+        },
+      })
+      .eq('id', school.id);
+    if (updateError) throw updateError;
+    updated += 1;
+    console.log(`Academic weeks set to ${ACADEMIC_WEEKS} for ${school.name ?? school.id}`);
+  }
+
+  if (!updated) {
+    console.log('No Atlas schools found — skipped academic_weeks sync.');
+  }
+}
 const supabaseUrl = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -142,7 +261,10 @@ async function seedBlock(block) {
 }
 
 async function main() {
-  console.log(`Loading curriculum from ${jsonPath}\n`);
+  console.log(`Loading curriculum from ${jsonPath}`);
+  console.log(
+    `Academic year: ${ACADEMIC_WEEKS} weeks (calendar anchor ${ACADEMIC_YEAR_ANCHOR})\n`
+  );
 
   let seeded = 0;
   let skipped = 0;
@@ -154,6 +276,14 @@ async function main() {
   }
 
   console.log(`\nDone. ${seeded} subject(s) updated, ${skipped} skipped.`);
+
+  if (syncWeekPlans) {
+    console.log('\nSyncing curriculum_week_plans from unit durations…');
+    await syncAllWeekPlans();
+    await syncAtlasAcademicWeeks();
+  } else {
+    console.log('\nTip: run with --sync-week-plans to rebuild haftalık eşlemeler for all schools.');
+  }
 }
 
 main().catch((error) => {

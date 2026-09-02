@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import {
-  UNIT_SELECT,
   formatAssignmentLabel,
   formatPlannedUnitBanner,
+  loadCurriculumContext,
   loadTeacherAssignments,
 } from '../../lib/curriculum';
 import { istanbulDateIso } from '../../lib/calendar';
@@ -29,6 +29,7 @@ function formatAttendanceDate(isoDate) {
 export default function TeacherAttendance({ profile, schoolId }) {
   const [assignments, setAssignments] = useState([]);
   const [units, setUnits] = useState([]);
+  const [weekPlans, setWeekPlans] = useState([]);
   const [students, setStudents] = useState([]);
   const [absentIds, setAbsentIds] = useState(() => new Set());
   const [flags, setFlags] = useState([]);
@@ -49,8 +50,15 @@ export default function TeacherAttendance({ profile, schoolId }) {
     [units, subject]
   );
   const snapshot = useMemo(
-    () => snapshotForDate({ units: subjectUnits, takenOn }),
-    [subjectUnits, takenOn]
+    () =>
+      snapshotForDate({
+        units: subjectUnits,
+        takenOn,
+        weekPlans,
+        subjectId: subject?.id,
+        grade: klass?.grade,
+      }),
+    [subjectUnits, takenOn, weekPlans, subject?.id, klass?.grade]
   );
   const banner = formatPlannedUnitBanner(snapshot.planned);
   const classLabel = selected ? formatAssignmentLabel(selected) : '';
@@ -71,25 +79,15 @@ export default function TeacherAttendance({ profile, schoolId }) {
         if (current && rows.some((row) => row.id === current)) return current;
         return rows[0]?.id ?? '';
       });
-      const unitsRes = await supabase.from('curriculum_units').select(UNIT_SELECT).order('sort_order');
-      if (unitsRes.error && /duration_weeks/i.test(unitsRes.error.message ?? '')) {
-        const fallback = await supabase
-          .from('curriculum_units')
-          .select('id, subject_id, title, sort_order, sections')
-          .order('sort_order');
-        if (fallback.error) throw fallback.error;
-        setUnits(fallback.data ?? []);
-      } else if (unitsRes.error) {
-        throw unitsRes.error;
-      } else {
-        setUnits(unitsRes.data ?? []);
-      }
+      const curriculum = await loadCurriculumContext(schoolId);
+      setUnits(curriculum.units);
+      setWeekPlans(curriculum.weekPlans);
     } catch (loadError) {
       setError(loadError);
     } finally {
       setLoading(false);
     }
-  }, [profile.id]);
+  }, [profile.id, schoolId]);
 
   useEffect(() => {
     load();

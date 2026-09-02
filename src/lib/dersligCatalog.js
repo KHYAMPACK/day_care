@@ -66,6 +66,11 @@ export function namedUnitsKey(grade, slug) {
   return `${grade}-${slug}`;
 }
 
+export function getCatalogUnitsForSubject(grade, slug) {
+  const key = namedUnitsKey(grade, slug);
+  return NAMED_UNITS[key] ?? [];
+}
+
 export function buildSubjectUnits(grade, slug) {
   const key = namedUnitsKey(grade, slug);
   const named = NAMED_UNITS[key] ?? [];

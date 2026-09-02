@@ -13,6 +13,7 @@ import {
   PROGRESS_SELECT,
   loadCurriculumCatalog,
   loadCurriculumWeekNotesForWeek,
+  loadSchoolWeekPlans,
   weekRangeIso,
 } from '../../lib/curriculum';
 import { loadAttendanceForWeek } from '../../lib/attendance';
@@ -806,6 +807,7 @@ export default function ParentWeeklyReport({
 }) {
   const [subjects, setSubjects] = useState([]);
   const [units, setUnits] = useState([]);
+  const [weekPlans, setWeekPlans] = useState([]);
   const [classes, setClasses] = useState([]);
   const [progress, setProgress] = useState([]);
   const [sessions, setSessions] = useState([]);
@@ -839,6 +841,11 @@ export default function ParentWeeklyReport({
       const catalog = await loadCurriculumCatalog();
       setSubjects(catalog.subjects);
       setUnits(catalog.units);
+      try {
+        setWeekPlans(await loadSchoolWeekPlans(schoolId));
+      } catch {
+        setWeekPlans([]);
+      }
 
       const upcomingUntil = addDaysIso(today, 7);
       const [classesRes, progressRes, eventsRes, announcementsRes, messagesRes] = await Promise.all([
@@ -956,6 +963,7 @@ export default function ParentWeeklyReport({
               weekIndex,
               subjects,
               units,
+              weekPlans,
               atlasSessions: atlasPack.sessions,
               atlasAttendance: atlasPack.attendance,
               atlasResults: atlasPack.results,
@@ -972,6 +980,7 @@ export default function ParentWeeklyReport({
               weekIndex,
               subjects,
               units,
+              weekPlans,
               progress,
               sessions,
               records,
@@ -1006,6 +1015,7 @@ export default function ParentWeeklyReport({
       units,
       weekIndex,
       weekNotes,
+      weekPlans,
     ]
   );
 

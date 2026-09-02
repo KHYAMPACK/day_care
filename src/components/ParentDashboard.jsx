@@ -185,7 +185,7 @@ export default function ParentDashboard({ profile, schoolId, onSignOut }) {
   }, [students]);
 
   const viewerGrades = useMemo(() => uniqueGrades(students), [students]);
-  const curriculumRecap = useParentCurriculumRecap(students);
+  const curriculumRecap = useParentCurriculumRecap(students, schoolId);
   const tomorrowEvents = useMemo(() => {
     const tomorrow = addDaysIso(istanbulDateIso(), 1);
     return calendarEvents.filter(
@@ -530,7 +530,7 @@ export default function ParentDashboard({ profile, schoolId, onSignOut }) {
         ) : demoNav.tab === 'exams' ? (
           <ParentExams students={students} schoolId={schoolId} school={school} />
         ) : demoNav.tab === 'curriculum' ? (
-          <ParentCurriculum students={students} />
+          <ParentCurriculum students={students} schoolId={schoolId} />
         ) : demoNav.tab === 'homework' ? (
           <ParentHomework students={students} schoolId={schoolId} />
         ) : (
