@@ -458,6 +458,9 @@ export default function TeacherCurriculum({ profile, schoolId, atlasSchedule = f
                 <p className="cur-subject-card__name">
                   <Icon name={subject.icon} size={16} /> {subject.name}
                 </p>
+                <p className="cur-subject-card__icon" aria-hidden="true">
+                  <Icon name={subject.icon} size={22} />
+                </p>
                 <p className="cur-subject-card__meta">{subjectUnits.length} ünite</p>
               </article>
             ) : null}

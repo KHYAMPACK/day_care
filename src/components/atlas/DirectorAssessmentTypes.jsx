@@ -88,46 +88,63 @@ export default function DirectorAssessmentTypes({ schoolId }) {
   }
 
   if (loading) {
-    return <p className="dash-hint">Değerlendirme türleri yükleniyor…</p>;
+    return (
+      <details className="cal-collapsible-form dash-card">
+        <summary className="cal-collapsible-form__summary cal-browser__summary">
+          <span className="cal-collapsible-form__chevron" aria-hidden="true" />
+          <span className="cal-browser__summary-text">
+            <span className="dash-section-title">Değerlendirme türleri</span>
+            <span className="dash-hint">Yükleniyor…</span>
+          </span>
+        </summary>
+      </details>
+    );
   }
 
   return (
-    <section className="dash-card">
-      <h2 className="dash-section-title">Değerlendirme türleri</h2>
-      <p className="dash-hint">Quiz, Konu Ölçme gibi test kategorilerini yönetin.</p>
+    <details className="cal-collapsible-form dash-card">
+      <summary className="cal-collapsible-form__summary cal-browser__summary">
+        <span className="cal-collapsible-form__chevron" aria-hidden="true" />
+        <span className="cal-browser__summary-text">
+          <span className="dash-section-title">Değerlendirme türleri</span>
+          <span className="dash-hint">Quiz, Konu Ölçme gibi test kategorilerini yönetin.</span>
+        </span>
+      </summary>
 
-      {error && <InlineError error={error} context="general" />}
-      {success && <SuccessMessage message={success} />}
+      <div className="cal-collapsible-form__body">
+        {error && <InlineError error={error} context="general" />}
+        {success && <SuccessMessage message={success} />}
 
-      <ul className="atlas-type-list">
-        {types.map((row) => (
-          <li key={row.id} className="atlas-type-list__row">
-            <span>{row.name}</span>
-            <button
-              type="button"
-              className="demo-btn demo-btn--ghost"
+        <ul className="atlas-type-list">
+          {types.map((row) => (
+            <li key={row.id} className="atlas-type-list__row">
+              <span>{row.name}</span>
+              <button
+                type="button"
+                className="demo-btn demo-btn--ghost"
+                disabled={saving}
+                onClick={() => toggleActive(row)}
+              >
+                {row.is_active ? 'Pasifleştir' : 'Etkinleştir'}
+              </button>
+            </li>
+          ))}
+        </ul>
+
+        <form className="dash-form" onSubmit={handleAdd}>
+          <label className="dash-label">
+            Yeni tür
+            <input
+              className="dash-input"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="Örn. Deneme"
               disabled={saving}
-              onClick={() => toggleActive(row)}
-            >
-              {row.is_active ? 'Pasifleştir' : 'Etkinleştir'}
-            </button>
-          </li>
-        ))}
-      </ul>
-
-      <form className="dash-form" onSubmit={handleAdd}>
-        <label className="dash-label">
-          Yeni tür
-          <input
-            className="dash-input"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            placeholder="Örn. Deneme"
-            disabled={saving}
-          />
-        </label>
-        <SendButton sending={saving} label="Ekle" sendingLabel="Ekleniyor…" />
-      </form>
-    </section>
+            />
+          </label>
+          <SendButton sending={saving} label="Ekle" sendingLabel="Ekleniyor…" />
+        </form>
+      </div>
+    </details>
   );
 }
