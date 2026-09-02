@@ -57,10 +57,32 @@ export function normalizeCurriculumText(value) {
     .trim();
 }
 
-export function mapTopicToCurriculum(topicLabel, units = [], subjectCode = null) {
+export function mapTopicToCurriculum(
+  topicLabel,
+  units = [],
+  subjectCode = null,
+  mappingLookup = null
+) {
   const label = String(topicLabel ?? '').trim();
   if (!label || label === '—' || label === 'Diğer') {
     return { unitId: null, unitTitle: null, sectionLabel: null, mapped: false };
+  }
+
+  if (mappingLookup && subjectCode) {
+    const stored = mappingLookup.get(`${subjectCode}::${normalizeCurriculumText(label)}`);
+    if (stored) {
+      if (!stored.unit_id) {
+        return { unitId: null, unitTitle: null, sectionLabel: null, mapped: false, skipped: true };
+      }
+      const unit = (units ?? []).find((row) => row.id === stored.unit_id);
+      return {
+        unitId: stored.unit_id,
+        unitTitle: unit?.title ?? null,
+        sectionLabel: stored.section_label ?? null,
+        mapped: true,
+        source: 'mapping',
+      };
+    }
   }
 
   const normalizedLabel = normalizeCurriculumText(label);
@@ -463,11 +485,16 @@ export function computeGrowthTarget({ tierInfo, trajectory, progressSeries = [],
   };
 }
 
-export function rollupDenemeTopicsToUnits(topicRows = [], units = []) {
+export function rollupDenemeTopicsToUnits(topicRows = [], units = [], mappingLookup = null) {
   const buckets = new Map();
 
   for (const row of topicRows) {
-    const mapping = mapTopicToCurriculum(row.topicLabel, units, row.subject_code);
+    const mapping = mapTopicToCurriculum(
+      row.topicLabel,
+      units,
+      row.subject_code,
+      mappingLookup
+    );
     const unitKey = mapping.unitId ?? `unmapped:${row.subject_code}:${row.topicLabel}`;
     const bucket = buckets.get(unitKey) ?? {
       unitId: mapping.unitId,
@@ -668,6 +695,7 @@ export function buildStudentGapProfile({
   subjectResults = [],
   rankings = [],
   classSubjectResults = [],
+  mappingLookup = null,
 }) {
   const missedByUnitId = new Map(
     (missedUnitFlags ?? [])
@@ -699,7 +727,12 @@ export function buildStudentGapProfile({
     if ((topic.examCount ?? 0) < GAP_MIN_EXAMS || (topic.attempts ?? 0) < GAP_MIN_ATTEMPTS) continue;
     if ((topic.successRate ?? 100) >= foundationThreshold) continue;
 
-    const mapping = mapTopicToCurriculum(topic.topicLabel, units, topic.subject_code);
+    const mapping = mapTopicToCurriculum(
+      topic.topicLabel,
+      units,
+      topic.subject_code,
+      mappingLookup
+    );
     const atlasRow = atlasUnits.find((row) => row.unitId === mapping.unitId);
     const missed = mapping.unitId ? missedByUnitId.get(mapping.unitId) : null;
 
@@ -732,7 +765,12 @@ export function buildStudentGapProfile({
     if (tier === 'A' && topic.successRate >= 60) continue;
     if (tier === 'C' && topic.successRate < foundationThreshold) continue;
 
-    const mapping = mapTopicToCurriculum(topic.topicLabel, units, topic.subject_code);
+    const mapping = mapTopicToCurriculum(
+      topic.topicLabel,
+      units,
+      topic.subject_code,
+      mappingLookup
+    );
     const atlasRow = atlasUnits.find((row) => row.unitId === mapping.unitId);
     const missed = mapping.unitId ? missedByUnitId.get(mapping.unitId) : null;
 
@@ -754,7 +792,12 @@ export function buildStudentGapProfile({
     const trendDropPp = computeTopicTrendDrop(sortedSessions, topic.subject_code, topic.topicLabel);
     if (trendDropPp == null || trendDropPp < TREND_TOPIC_DROP_PP) continue;
 
-    const mapping = mapTopicToCurriculum(topic.topicLabel, units, topic.subject_code);
+    const mapping = mapTopicToCurriculum(
+      topic.topicLabel,
+      units,
+      topic.subject_code,
+      mappingLookup
+    );
     const atlasRow = atlasUnits.find((row) => row.unitId === mapping.unitId);
     const missed = mapping.unitId ? missedByUnitId.get(mapping.unitId) : null;
 
@@ -919,7 +962,12 @@ export function buildStudentGapProfile({
       );
       if ((lastRow?.attempts ?? 0) < 2) continue;
 
-      const mapping = mapTopicToCurriculum(topic.topicLabel, units, topic.subject_code);
+      const mapping = mapTopicToCurriculum(
+      topic.topicLabel,
+      units,
+      topic.subject_code,
+      mappingLookup
+    );
       flags.push({
         ...buildTopicFlagBase(topic, mapping, null, null),
         flagType: FLAG_TYPES.careless,

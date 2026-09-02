@@ -80,6 +80,7 @@ export const SCHOOL_MODULES = [
       'exam_subject_results',
       'exam_session_rankings',
       'exam_topics',
+      'exam_konu_mappings',
       'exam_answer_keys',
       'exam_questions',
       'exam_student_answers',

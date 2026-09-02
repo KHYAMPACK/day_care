@@ -19,6 +19,13 @@ import {
 } from '../../lib/examOptikImport';
 import { InlineError, SuccessMessage } from '../dashboardUi';
 import AnswerKeyReviewGrid from './AnswerKeyReviewGrid';
+import KonuEslestirmeDialog from './KonuEslestirmeDialog';
+import {
+  findUnknownKonuFromQuestions,
+  loadExamKonuContext,
+  resolveAudienceGrades,
+  saveKonuMappingBatch,
+} from '../../lib/examKonuMapping';
 
 const WIZARD_STEPS = [
   { id: 'upload-key', label: 'Cevap anahtarı' },
@@ -178,6 +185,10 @@ export default function ExamCsvImportWizard({
   const [studentFilter, setStudentFilter] = useState('all');
   const [expandedRows, setExpandedRows] = useState(() => new Set());
   const [localAnswerKeyId, setLocalAnswerKeyId] = useState(null);
+  const [konuDialogOpen, setKonuDialogOpen] = useState(false);
+  const [unknownKonu, setUnknownKonu] = useState([]);
+  const [konuContext, setKonuContext] = useState(null);
+  const audienceGrades = useMemo(() => resolveAudienceGrades(session), [session]);
 
   const activeAnswerKeyId = answerKeyId ?? localAnswerKeyId;
 
@@ -247,6 +258,26 @@ export default function ExamCsvImportWizard({
     }
   }
 
+  async function persistAnswerKey() {
+    const keyRow = await saveAnswerKeyWithQuestions({
+      schoolId,
+      sessionId: session.id,
+      title: session.title || 'Cevap anahtarı',
+      questions: draftQuestions,
+    });
+    setLocalAnswerKeyId(keyRow.id);
+    recordSchoolActivity(supabase, profile, {
+      schoolId,
+      category: 'exam',
+      action: 'saved',
+      summary: `Cevap anahtarı: ${session.title ?? 'Deneme'} · ${draftQuestions.length} soru`,
+    });
+    setSuccess('Cevap anahtarı kaydedildi. Şimdi öğrenci cevaplarını yükleyin.');
+    setDraftWarnings([]);
+    await onAnswerKeySaved?.();
+    setStep('upload-students');
+  }
+
   async function handleConfirmAnswerKey() {
     setSaving(true);
     setError(null);
@@ -256,23 +287,45 @@ export default function ExamCsvImportWizard({
       if (!validQuestions.length) {
         throw new Error('Kaydetmek için en az bir geçerli cevap şıkkı gerekli.');
       }
-      const keyRow = await saveAnswerKeyWithQuestions({
-        schoolId,
-        sessionId: session.id,
-        title: session.title || 'Cevap anahtarı',
+
+      const context = await loadExamKonuContext(schoolId, audienceGrades);
+      const unknown = findUnknownKonuFromQuestions({
         questions: draftQuestions,
+        units: context.allUnits,
+        mappingLookup: context.mappingLookup,
       });
-      setLocalAnswerKeyId(keyRow.id);
-      recordSchoolActivity(supabase, profile, {
+
+      if (unknown.length) {
+        setKonuContext(context);
+        setUnknownKonu(unknown);
+        setKonuDialogOpen(true);
+        return;
+      }
+
+      await persistAnswerKey();
+    } catch (saveError) {
+      setError(saveError);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleKonuDialogConfirm(decisions) {
+    if (!konuContext) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await saveKonuMappingBatch({
         schoolId,
-        category: 'exam',
-        action: 'saved',
-        summary: `Cevap anahtarı: ${session.title ?? 'Deneme'} · ${draftQuestions.length} soru`,
+        grades: audienceGrades,
+        decisions,
+        units: konuContext.allUnits,
+        subjects: konuContext.subjects,
+        createdBy: profile?.id ?? null,
       });
-      setSuccess('Cevap anahtarı kaydedildi. Şimdi öğrenci cevaplarını yükleyin.');
-      setDraftWarnings([]);
-      await onAnswerKeySaved?.();
-      setStep('upload-students');
+      setKonuDialogOpen(false);
+      setUnknownKonu([]);
+      await persistAnswerKey();
     } catch (saveError) {
       setError(saveError);
     } finally {
@@ -374,6 +427,19 @@ export default function ExamCsvImportWizard({
 
   return (
     <div className="exam-import-wizard">
+      <KonuEslestirmeDialog
+        open={konuDialogOpen}
+        unknownItems={unknownKonu}
+        units={konuContext?.allUnits ?? []}
+        grades={audienceGrades}
+        saving={saving}
+        onCancel={() => {
+          if (saving) return;
+          setKonuDialogOpen(false);
+        }}
+        onConfirm={handleKonuDialogConfirm}
+      />
+
       <WizardStepIndicator currentStep={step} answerKeyId={activeAnswerKeyId} complete={complete} />
 
       {error ? <InlineError error={error} context="calendar" /> : null}
@@ -422,6 +488,8 @@ export default function ExamCsvImportWizard({
           <p className="dash-hint">
             {draftQuestions.length} soru
             {draftWarnings.length ? ` · ${draftWarnings.length} uyarı` : ''}
+            {' · '}
+            Konu etiketleri kayıttan önce müfredat ünitelerine bağlanır.
           </p>
           {draftWarnings.length ? (
             <ul className="exam-import-wizard__warnings">

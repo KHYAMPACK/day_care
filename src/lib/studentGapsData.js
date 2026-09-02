@@ -15,6 +15,7 @@ import {
   enrichUnitsWithSubject,
   rollupDenemeTopicsToUnits,
 } from './studentGaps';
+import { buildKonuMappingLookup, loadExamKonuMappings } from './examKonuMapping';
 
 export async function loadCurriculumUnitsWithSections() {
   const { supabase } = await import('./supabase');
@@ -29,7 +30,8 @@ export async function loadCurriculumUnitsWithSections() {
 async function loadStudentGapContext({ schoolId, student, sessionIds = null, includeAtlas = true }) {
   const { supabase } = await import('./supabase');
 
-  const [units, examPack, attendanceFlags, subjectResults, rankings] = await Promise.all([
+  const [units, examPack, attendanceFlags, subjectResults, rankings, konuMappings] =
+    await Promise.all([
     loadCurriculumUnitsWithSections(),
     sessionIds
       ? loadExamGapDataForSessions(sessionIds)
@@ -39,6 +41,7 @@ async function loadStudentGapContext({ schoolId, student, sessionIds = null, inc
     loadAttendanceFlags({ schoolId, classId: student.class_id }).catch(() => []),
     loadPublishedSubjectResultsForStudents([student.id]),
     loadRankingsForStudents([student.id]),
+    loadExamKonuMappings(schoolId, [student.grade]).catch(() => []),
   ]);
 
   const examSessions = [...(examPack.sessions ?? [])].sort((a, b) =>
@@ -61,7 +64,8 @@ async function loadStudentGapContext({ schoolId, student, sessionIds = null, inc
   const rowsBySession = sessionTopicRows.map((entry) => entry.topics);
   const aggregatedTopics = aggregateTopicStatsAcrossExams(rowsBySession);
   const gradeUnits = units.filter((unit) => unit.curriculum_subjects?.grade === student.grade);
-  const unitRollup = rollupDenemeTopicsToUnits(aggregatedTopics, gradeUnits);
+  const mappingLookup = buildKonuMappingLookup(konuMappings);
+  const unitRollup = rollupDenemeTopicsToUnits(aggregatedTopics, gradeUnits, mappingLookup);
 
   let atlasUnits = [];
   if (includeAtlas) {
@@ -101,6 +105,7 @@ async function loadStudentGapContext({ schoolId, student, sessionIds = null, inc
     subjectResults,
     rankings,
     classSubjectResults,
+    mappingLookup,
   });
 
   const allSessionIds = new Set([

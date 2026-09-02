@@ -20,6 +20,7 @@ import {
   saveAcademicWeeks,
 } from '../../lib/schoolFeatures';
 import { InlineError, SendButton } from '../dashboardUi';
+import CollapsibleSection from '../ui/CollapsibleSection';
 import { Icon } from '../ui/Icon';
 import DirectorAssessmentTypes from '../atlas/DirectorAssessmentTypes';
 import SubjectPlanEditor from './SubjectPlanEditor';
@@ -207,56 +208,6 @@ export default function DirectorCurriculum({ schoolId, atlasSchedule = false }) 
 
   return (
     <section className="director-panel cur-director">
-      <header className="dash-card cur-director-hero">
-        <div className="cur-director-hero__head">
-          <div>
-            <p className="cur-director-hero__eyebrow">{ACADEMIC_YEAR} eğitim yılı</p>
-            <h1 className="dash-title cur-director-hero__title">Müfredat yönetimi</h1>
-          </div>
-          <p className="cur-director-hero__badge">
-            Şu an · Hafta {CURRENT_WEEK}
-            <span className="cur-director-hero__badge-sub">{formatWeekRangeTr(CURRENT_WEEK)}</span>
-          </p>
-        </div>
-        <p className="dash-hint cur-director-hero__lead">
-          Eğitim yılı uzunluğunu bir kez ayarlayın; yıllık planda haftalara ünite atayın. Ünite
-          listesi ayrı yönetilir. Haftalık takip salt okunurdur.
-        </p>
-      </header>
-
-      <div className="dash-card cur-director-step">
-        <p className="cur-director-step-label">Eğitim yılı · hafta sayısı</p>
-        <form className="cur-academic-weeks-form" onSubmit={handleSaveAcademicWeeks}>
-          <label className="dash-label cur-academic-weeks-form__field">
-            Bu eğitim yılı kaç hafta?
-            <input
-              className="dash-input"
-              type="number"
-              min={MIN_ACADEMIC_WEEKS}
-              max={MAX_ACADEMIC_WEEKS}
-              value={academicWeeksInput}
-              onChange={(event) => setAcademicWeeksInput(event.target.value)}
-              disabled={savingAcademicWeeks}
-            />
-          </label>
-          <SendButton
-            sending={savingAcademicWeeks}
-            label="Kaydet"
-            sendingLabel="Kaydediliyor…"
-          />
-        </form>
-        <p className="dash-hint">
-          Yıllık düzenleme Hafta 1–{academicWeeks} arasını kapsar. Yıl başında bir kez ayarlanır.
-          {atlasSchedule && calendarSuggestedWeeks ? (
-            <> Atlas takvimine göre önerilen: {calendarSuggestedWeeks} hafta.</>
-          ) : null}
-        </p>
-        {academicWeeksError ? <InlineError error={academicWeeksError} context="general" /> : null}
-        {academicWeeksSaved ? (
-          <p className="dash-hint cur-academic-weeks-form__saved">Hafta sayısı kaydedildi.</p>
-        ) : null}
-      </div>
-
       <div className="dash-card cur-director-step">
         <p className="cur-director-step-label">1 · Sınıf seçin</p>
         <div className="cur-assign-chips" role="tablist" aria-label="Sınıf">
@@ -415,6 +366,67 @@ export default function DirectorCurriculum({ schoolId, atlasSchedule = false }) 
           <DirectorAssessmentTypes schoolId={schoolId} />
         </div>
       ) : null}
+
+      <div className="cur-director-settings">
+        <CollapsibleSection
+          variant="card"
+          title="Müfredat yönetimi"
+          meta={`${ACADEMIC_YEAR} · Hafta ${CURRENT_WEEK}`}
+        >
+          <div className="cur-director-hero">
+            <div className="cur-director-hero__head">
+              <p className="cur-director-hero__badge">
+                Şu an · Hafta {CURRENT_WEEK}
+                <span className="cur-director-hero__badge-sub">
+                  {formatWeekRangeTr(CURRENT_WEEK)}
+                </span>
+              </p>
+            </div>
+            <p className="dash-hint cur-director-hero__lead">
+              Eğitim yılı uzunluğunu bir kez ayarlayın; yıllık planda haftalara ünite atayın. Ünite
+              listesi ayrı yönetilir. Haftalık takip salt okunurdur.
+            </p>
+          </div>
+        </CollapsibleSection>
+
+        <CollapsibleSection
+          variant="card"
+          title="Eğitim yılı · hafta sayısı"
+          meta={`${academicWeeks} hafta`}
+        >
+          <form className="cur-academic-weeks-form" onSubmit={handleSaveAcademicWeeks}>
+            <label className="dash-label cur-academic-weeks-form__field">
+              Bu eğitim yılı kaç hafta?
+              <input
+                className="dash-input"
+                type="number"
+                min={MIN_ACADEMIC_WEEKS}
+                max={MAX_ACADEMIC_WEEKS}
+                value={academicWeeksInput}
+                onChange={(event) => setAcademicWeeksInput(event.target.value)}
+                disabled={savingAcademicWeeks}
+              />
+            </label>
+            <SendButton
+              sending={savingAcademicWeeks}
+              label="Kaydet"
+              sendingLabel="Kaydediliyor…"
+            />
+          </form>
+          <p className="dash-hint">
+            Yıllık düzenleme Hafta 1–{academicWeeks} arasını kapsar. Yıl başında bir kez ayarlanır.
+            {atlasSchedule && calendarSuggestedWeeks ? (
+              <> Atlas takvimine göre önerilen: {calendarSuggestedWeeks} hafta.</>
+            ) : null}
+          </p>
+          {academicWeeksError ? (
+            <InlineError error={academicWeeksError} context="general" />
+          ) : null}
+          {academicWeeksSaved ? (
+            <p className="dash-hint cur-academic-weeks-form__saved">Hafta sayısı kaydedildi.</p>
+          ) : null}
+        </CollapsibleSection>
+      </div>
     </section>
   );
 }
