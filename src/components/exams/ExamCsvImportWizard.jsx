@@ -14,12 +14,12 @@ import {
   downloadOptikTemplate,
   matchOptikEntriesToStudents,
   parseOptikExamCsv,
-  previewOptikEntryStats,
   saveOptikImport,
 } from '../../lib/examOptikImport';
 import { InlineError, SuccessMessage } from '../dashboardUi';
 import AnswerKeyReviewGrid from './AnswerKeyReviewGrid';
 import KonuEslestirmeDialog from './KonuEslestirmeDialog';
+import OgrenciImportOnayDialog from './OgrenciImportOnayDialog';
 import {
   findUnknownKonuFromQuestions,
   loadExamKonuContext,
@@ -42,8 +42,9 @@ function stepIndex(stepId) {
   return WIZARD_STEPS.findIndex((step) => step.id === stepId);
 }
 
-function WizardStepIndicator({ currentStep, answerKeyId, complete }) {
-  const currentIndex = stepIndex(currentStep);
+function WizardStepIndicator({ currentStep, answerKeyId, complete, studentDialogOpen }) {
+  const displayStep = studentDialogOpen ? 'review-students' : currentStep;
+  const currentIndex = stepIndex(displayStep);
 
   return (
     <ol className="exam-import-wizard__steps" aria-label="Import adımları">
@@ -68,95 +69,6 @@ function WizardStepIndicator({ currentStep, answerKeyId, complete }) {
         );
       })}
     </ol>
-  );
-}
-
-function StudentReviewRow({ row, questions, students, onAssignStudent, expanded, onToggle }) {
-  const stats = useMemo(() => previewOptikEntryStats(row, questions), [row, questions]);
-  const matched = Boolean(row.student_id);
-  const rowKey = row.rowNumber ?? row.student_number ?? row.studentName ?? 'row';
-
-  return (
-    <details
-      className={`exam-workspace-section exam-student-review__row${expanded ? ' exam-student-review__row--open' : ''}`}
-      open={expanded}
-      onToggle={(event) => onToggle(rowKey, event.currentTarget.open)}
-    >
-      <summary className="exam-workspace-section__summary exam-student-review__summary">
-        <span className="exam-workspace-section__title">{row.studentName || row.student_number || '—'}</span>
-        <span className="exam-student-review__meta">
-          {row.student_number ? <span className="dash-hint">No {row.student_number}</span> : null}
-          <span className={`exam-student-review__badge${matched ? ' exam-student-review__badge--ok' : ' exam-student-review__badge--warn'}`}>
-            {matched ? 'Eşleşti' : 'Eşleşmedi'}
-          </span>
-          {matched ? (
-            <span className="dash-hint">
-              Net {stats.totalNet.toFixed(2)} · D {stats.totalCorrect} / Y {stats.totalWrong} / B {stats.totalBlank}
-            </span>
-          ) : null}
-        </span>
-      </summary>
-      <div className="exam-workspace-section__body">
-        {!matched ? (
-          <label className="dash-label">
-            Öğrenci eşleştir
-            <select
-              className="dash-input"
-              value={row.student_id ?? ''}
-              onChange={(event) => onAssignStudent(rowKey, event.target.value || null)}
-            >
-              <option value="">Seçin…</option>
-              {students.map((student) => (
-                <option key={student.id} value={student.id}>
-                  {student.full_name}
-                  {student.student_number ? ` · ${student.student_number}` : ''}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : null}
-
-        <div className="exam-student-review__subjects">
-          {stats.subjects
-            .filter((subject) => subject.correct + subject.wrong + subject.blank > 0)
-            .map((subject) => (
-              <span key={subject.subject_code} className="exam-student-review__subject-chip">
-                {subject.shortLabel}: {subject.net.toFixed(1)} net
-              </span>
-            ))}
-        </div>
-
-        <div className="exam-grid-wrap">
-          <table className="exam-entry-grid exam-student-review__grid">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>CVP</th>
-                <th>Öğr.</th>
-                <th>Durum</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(questions ?? []).map((question) => {
-                const choice = row.choices?.[question.question_index] ?? '';
-                let status = 'blank';
-                if (choice) {
-                  status = choice === question.correct_choice ? 'correct' : 'wrong';
-                }
-                return (
-                  <tr key={question.question_index} className={`exam-student-review__choice exam-student-review__choice--${status}`}>
-                    <td>{question.question_index}</td>
-                    <td>{question.correct_choice ?? '—'}</td>
-                    <td>{choice || '—'}</td>
-                    <td>{status === 'correct' ? 'D' : status === 'wrong' ? 'Y' : 'B'}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </details>
   );
 }
 
@@ -186,6 +98,7 @@ export default function ExamCsvImportWizard({
   const [expandedRows, setExpandedRows] = useState(() => new Set());
   const [localAnswerKeyId, setLocalAnswerKeyId] = useState(null);
   const [konuDialogOpen, setKonuDialogOpen] = useState(false);
+  const [studentDialogOpen, setStudentDialogOpen] = useState(false);
   const [unknownKonu, setUnknownKonu] = useState([]);
   const [konuContext, setKonuContext] = useState(null);
   const audienceGrades = useMemo(() => resolveAudienceGrades(session), [session]);
@@ -202,6 +115,7 @@ export default function ExamCsvImportWizard({
     setStudentPreview([]);
     setExpandedRows(new Set());
     setLocalAnswerKeyId(null);
+    setStudentDialogOpen(false);
   }, [session.id]);
 
   useEffect(() => {
@@ -222,17 +136,6 @@ export default function ExamCsvImportWizard({
   const reviewQuestions = savedQuestions.length ? savedQuestions : draftQuestions;
 
   const matchedCount = studentPreview.filter((row) => row.student_id).length;
-  const unmatchedCount = studentPreview.length - matchedCount;
-
-  const filteredPreview = useMemo(() => {
-    if (studentFilter === 'matched') {
-      return studentPreview.filter((row) => row.student_id);
-    }
-    if (studentFilter === 'issues') {
-      return studentPreview.filter((row) => !row.student_id);
-    }
-    return studentPreview;
-  }, [studentPreview, studentFilter]);
 
   function patchDraftQuestion(index, field, value) {
     setDraftQuestions((current) =>
@@ -345,7 +248,8 @@ export default function ExamCsvImportWizard({
       setStudentPreview(matched);
       setQuestionCount(parsed.questionHeaders.length);
       setExpandedRows(new Set());
-      setStep('review-students');
+      setStudentFilter('all');
+      setStudentDialogOpen(true);
     } catch (fileError) {
       setError(fileError);
       setStudentPreview([]);
@@ -408,6 +312,7 @@ export default function ExamCsvImportWizard({
       setStudentPreview([]);
       setComplete(true);
       setStep('upload-students');
+      setStudentDialogOpen(false);
       onResultsSaved?.();
     } catch (importError) {
       setError(importError);
@@ -440,7 +345,31 @@ export default function ExamCsvImportWizard({
         onConfirm={handleKonuDialogConfirm}
       />
 
-      <WizardStepIndicator currentStep={step} answerKeyId={activeAnswerKeyId} complete={complete} />
+      <OgrenciImportOnayDialog
+        open={studentDialogOpen}
+        studentPreview={studentPreview}
+        questions={reviewQuestions}
+        students={students}
+        questionCount={questionCount}
+        studentFilter={studentFilter}
+        onStudentFilterChange={setStudentFilter}
+        expandedRows={expandedRows}
+        onToggleRow={handleToggleRow}
+        onAssignStudent={handleAssignStudent}
+        saving={saving}
+        onCancel={() => {
+          if (saving) return;
+          setStudentDialogOpen(false);
+        }}
+        onConfirm={handleConfirmStudentImport}
+      />
+
+      <WizardStepIndicator
+        currentStep={step}
+        answerKeyId={activeAnswerKeyId}
+        complete={complete}
+        studentDialogOpen={studentDialogOpen}
+      />
 
       {error ? <InlineError error={error} context="calendar" /> : null}
       {success ? <SuccessMessage message={success} /> : null}
@@ -541,66 +470,19 @@ export default function ExamCsvImportWizard({
                 Öğrenci cevapları CSV
                 <input className="dash-input" type="file" accept=".csv,text/csv" onChange={handleStudentFile} />
               </label>
+              {studentPreview.length && !studentDialogOpen ? (
+                <div className="exam-import-wizard__actions">
+                  <button
+                    type="button"
+                    className="demo-btn demo-btn--primary"
+                    onClick={() => setStudentDialogOpen(true)}
+                  >
+                    Öğrenci eşleştirmesini aç ({matchedCount}/{studentPreview.length})
+                  </button>
+                </div>
+              ) : null}
             </>
           )}
-        </div>
-      ) : null}
-
-      {!complete && step === 'review-students' ? (
-        <div className="exam-import-wizard__step-panel">
-          <h3 className="exam-workspace-block__title">4. Öğrenci cevaplarını onayla</h3>
-          <p className="dash-hint">
-            {questionCount} soru sütunu · {matchedCount} eşleşen
-            {unmatchedCount ? ` · ${unmatchedCount} eşleşmeyen` : ''}
-          </p>
-
-          <div className="exam-student-review__filters" role="group" aria-label="Öğrenci filtresi">
-            {[
-              { id: 'all', label: 'Tümü' },
-              { id: 'matched', label: 'Eşleşenler' },
-              { id: 'issues', label: 'Sorunlu' },
-            ].map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                className={`cur-assign-chip${studentFilter === item.id ? ' cur-assign-chip--active' : ''}`}
-                onClick={() => setStudentFilter(item.id)}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-
-          <div className="exam-student-review">
-            {filteredPreview.map((row) => {
-              const rowKey = row.rowNumber ?? row.student_number ?? row.studentName ?? 'row';
-              return (
-                <StudentReviewRow
-                  key={rowKey}
-                  row={row}
-                  questions={reviewQuestions}
-                  students={students}
-                  onAssignStudent={handleAssignStudent}
-                  expanded={expandedRows.has(rowKey)}
-                  onToggle={handleToggleRow}
-                />
-              );
-            })}
-          </div>
-
-          <div className="exam-import-wizard__actions">
-            <button type="button" className="demo-btn demo-btn--ghost" onClick={() => setStep('upload-students')}>
-              Geri
-            </button>
-            <button
-              type="button"
-              className="demo-btn demo-btn--primary"
-              disabled={saving || matchedCount === 0}
-              onClick={handleConfirmStudentImport}
-            >
-              {saving ? 'Aktarılıyor…' : `${matchedCount} öğrenciyi onayla ve içe aktar`}
-            </button>
-          </div>
         </div>
       ) : null}
     </div>

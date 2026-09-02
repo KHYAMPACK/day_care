@@ -30,6 +30,7 @@ function KonuMappingRow({ item, units, grades, value, onChange }) {
           <select
             className="dash-input"
             value={value.unitId ?? ''}
+            disabled={Boolean(value.skipped)}
             onChange={(event) => {
               const unitId = event.target.value || null;
               onChange({ unitId, sectionLabel: null, skipped: false });
@@ -49,7 +50,7 @@ function KonuMappingRow({ item, units, grades, value, onChange }) {
             <select
               className="dash-input"
               value={value.sectionLabel ?? ''}
-              disabled={!value.unitId}
+              disabled={!value.unitId || Boolean(value.skipped)}
               onChange={(event) =>
                 onChange({
                   ...value,

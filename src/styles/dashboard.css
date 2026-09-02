@@ -8013,59 +8013,174 @@ body {
   max-height: calc(100vh - 2rem);
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .exam-konu-map-dialog__list {
   display: grid;
   gap: 0.75rem;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   max-height: min(26rem, 55vh);
   margin: 0.75rem 0;
-  padding-right: 0.15rem;
+  padding-right: 0.25rem;
+  min-width: 0;
 }
 
 .exam-konu-map-dialog__progress {
   margin: 0;
+  flex-shrink: 0;
 }
 
-.exam-konu-map-row {
-  display: grid;
-  gap: 0.65rem;
-  padding: 0.75rem;
+.exam-import-review-dialog {
+  width: min(42rem, calc(100vw - 2rem));
+  max-height: calc(100vh - 2rem);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.exam-import-review-dialog__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  overflow-x: hidden;
+  overflow-y: auto;
+  max-height: min(26rem, 55vh);
+  margin: 0.75rem 0;
+  padding-right: 0.25rem;
+  min-width: 0;
+}
+
+.exam-import-review-dialog__progress {
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.exam-import-review-dialog__empty {
+  margin: 0;
+  padding: 0.5rem 0;
+}
+
+.exam-import-review-row {
   border: 1px solid var(--dash-border, #e5e7eb);
   border-radius: 0.75rem;
   background: color-mix(in srgb, var(--bg-page, #f8fafc) 35%, white);
+  overflow: hidden;
+  min-width: 0;
 }
 
-@media (min-width: 640px) {
-  .exam-konu-map-row {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
-    align-items: start;
-  }
+.exam-import-review-row--issue {
+  border-color: color-mix(in srgb, #f59e0b 35%, var(--dash-border, #e5e7eb));
+}
+
+.exam-import-review-row__summary {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.35rem 0.75rem;
+  padding: 0.75rem 0.9rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.exam-import-review-row__summary::-webkit-details-marker {
+  display: none;
+}
+
+.exam-import-review-row__title {
+  font-weight: 650;
+  font-size: 0.9375rem;
+}
+
+.exam-import-review-row__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+  font-size: 0.8125rem;
+}
+
+.exam-import-review-row__body {
+  padding: 0 0.9rem 0.85rem;
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.exam-import-review-row__assign {
+  margin: 0;
+  min-width: 0;
+}
+
+.exam-import-review-row__assign .dash-input {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.exam-konu-map-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.85rem 0.9rem;
+  border: 1px solid var(--dash-border, #e5e7eb);
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--bg-page, #f8fafc) 35%, white);
+  min-width: 0;
+}
+
+.exam-konu-map-row__source {
+  min-width: 0;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid var(--dash-border, #e5e7eb);
 }
 
 .exam-konu-map-row__label {
   margin: 0;
   font-weight: 650;
+  font-size: 0.9375rem;
+  line-height: 1.35;
+  word-break: break-word;
 }
 
 .exam-konu-map-row__meta {
-  margin: 0.2rem 0 0;
+  margin: 0.25rem 0 0;
   font-size: 0.8125rem;
   color: var(--text-muted);
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 500;
 }
 
 .exam-konu-map-row__target {
   display: grid;
-  gap: 0.55rem;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.exam-konu-map-row__target .dash-label {
+  min-width: 0;
+  margin: 0;
+}
+
+.exam-konu-map-row__target .dash-input {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .exam-konu-map-row__skip {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
-  font-size: 0.8125rem;
+  gap: 0.45rem;
+  font-size: 0.875rem;
+  font-weight: 500;
   color: var(--text-secondary);
+  text-transform: none;
+  letter-spacing: normal;
+  cursor: pointer;
+  margin: 0;
 }
 
 .exam-student-review {
@@ -8774,6 +8889,28 @@ body {
   background: #fff;
   box-shadow: 0 20px 50px rgb(15 23 42 / 0.18);
   animation: anim-dialog-in 0.24s var(--ease-out) both;
+}
+
+.app-dialog__panel.exam-konu-map-dialog {
+  width: min(42rem, calc(100vw - 2rem));
+  max-height: calc(100vh - 2rem);
+  padding: 1.25rem 1.35rem;
+}
+
+.app-dialog__panel.exam-konu-map-dialog .app-dialog__actions {
+  flex-shrink: 0;
+  margin-top: 0.25rem;
+}
+
+.app-dialog__panel.exam-import-review-dialog {
+  width: min(42rem, calc(100vw - 2rem));
+  max-height: calc(100vh - 2rem);
+  padding: 1.25rem 1.35rem;
+}
+
+.app-dialog__panel.exam-import-review-dialog .app-dialog__actions {
+  flex-shrink: 0;
+  margin-top: 0.25rem;
 }
 
 .app-dialog--out .app-dialog__panel {
