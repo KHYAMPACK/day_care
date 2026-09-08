@@ -2139,7 +2139,7 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
           />
         )}
 
-        {activeTab === 'schedule' && hasAtlasSchedule(school) && (
+        {activeTab === 'schedule' && (
           <section className="director-panel">
             <ClassWeekTimetableEditor
               schoolId={schoolId}

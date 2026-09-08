@@ -1,4 +1,4 @@
-import { hasAccounting, hasAtlasSchedule } from './schoolFeatures';
+import { hasAccounting } from './schoolFeatures';
 
 export const MANAGEMENT_TAB_IDS = new Set([
   'parents',
@@ -18,6 +18,7 @@ const MANAGEMENT_CHILDREN = [
   { id: 'student-mgmt', label: 'Öğrenci Yönetimi', icon: 'child' },
   { id: 'staff', label: 'Öğretmen Yönetimi', icon: 'teacher' },
   { id: 'assignment', label: 'Şube Atama', icon: 'school' },
+  { id: 'schedule', label: 'Haftalık ders programı', icon: 'calendar' },
   { id: 'curriculum', label: 'Müfredat', icon: 'book' },
 ];
 
@@ -31,17 +32,8 @@ const COMMUNICATIONS_CHILDREN = [
   { id: 'templates', label: 'Şablonlar', icon: 'sparkle' },
 ];
 
-export function buildManagementChildren(school) {
-  if (!hasAtlasSchedule(school)) return MANAGEMENT_CHILDREN;
-  const curriculumIndex = MANAGEMENT_CHILDREN.findIndex((item) => item.id === 'curriculum');
-  const insertAt = curriculumIndex >= 0 ? curriculumIndex + 1 : MANAGEMENT_CHILDREN.length;
-  const children = [...MANAGEMENT_CHILDREN];
-  children.splice(insertAt, 0, {
-    id: 'schedule',
-    label: 'Haftalık ders programı',
-    icon: 'calendar',
-  });
-  return children;
+export function buildManagementChildren() {
+  return MANAGEMENT_CHILDREN;
 }
 
 export function buildDirectorNav(school) {
@@ -51,7 +43,7 @@ export function buildDirectorNav(school) {
       id: 'management',
       label: 'Yönetim',
       icon: 'users',
-      children: buildManagementChildren(school),
+      children: buildManagementChildren(),
     },
     { id: 'calendar', label: 'Takvim', icon: 'calendar' },
     { id: 'exams', label: 'Sınavlar', icon: 'file' },
@@ -119,15 +111,15 @@ export function resolveActiveLabel(nav, activeTab) {
 
 export function getDefaultTabForTopLevel(topLevel, school) {
   if (topLevel === 'management') {
-    return buildManagementChildren(school)[0]?.id ?? 'parents';
+    return buildManagementChildren()[0]?.id ?? 'parents';
   }
   if (topLevel === 'records') return 'audit';
   if (topLevel === 'communications') return 'announcements';
   return topLevel;
 }
 
-export function getManagementSubNavItems(school) {
-  return buildManagementChildren(school);
+export function getManagementSubNavItems() {
+  return buildManagementChildren();
 }
 
 export function getRecordsSubNavItems() {
