@@ -2643,6 +2643,11 @@ body {
   color: var(--text-secondary);
 }
 
+.student-roster-item__parent {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
 .student-roster-item--updating {
   opacity: 0.82;
 }

@@ -1,0 +1,40 @@
+---
+description: When the user says "new version", publish a staff Sürüm notu covering work since the last "new version".
+alwaysApply: true
+---
+
+# Sürüm notları (“new version”)
+
+When the user says **new version** (or **yeni sürüm**), add a staff release note. Do not wait for them to mention changelog.
+
+## Scope
+
+Write one nutshell of **everything shipped for staff since the previous “new version” in this conversation** (or since the last `STAFF_CHANGELOG` entry if this chat has none). Include features **and** bug fixes. Skip unfinished or reverted work. Do not dump file lists.
+
+## How to publish
+
+1. Edit `src/lib/staffChangelog.js` only (unless they ask otherwise).
+2. **Insert a new object at the top** of `STAFF_CHANGELOG`. Never edit an old `id` in place — seen notes stay dismissed.
+3. New `id`: `YYYY-MM-DD-short-slug` (today’s date). Must be unique.
+4. Copy is **Turkish**, same voice as existing notes: short `title`, `summary`, optional `steps` for how to find it in the panel.
+5. Set `roles` on the entry or on items (`director`, `teacher`, `counselor`) so people only see what applies to them.
+6. Parents do not see these notes.
+
+## Example shape
+
+```js
+{
+  id: '2026-09-08-atlas-classes',
+  title: 'Kısa başlık',
+  publishedOn: '2026-09-08',
+  intro: 'Bir cümlelik özet.',
+  items: [
+    {
+      title: 'Ne değişti',
+      summary: 'Personelin bilmesi gereken etki.',
+      steps: ['Yönetim → …'],
+      roles: ['director'],
+    },
+  ],
+}
+```

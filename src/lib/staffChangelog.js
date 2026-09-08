@@ -11,6 +11,43 @@ import { normalizeProfileRoles } from './profileRoles';
  */
 export const STAFF_CHANGELOG = [
   {
+    id: '2026-09-08-atlas-yonetim',
+    title: 'Atlas yönetim ve öğrenci listesi',
+    publishedOn: '2026-09-08',
+    intro:
+      'Haftalık program ayrı sayfada. Atlas’ta tüm öğretmenler tüm şubelere erişir. Öğrenci listesinde veli adı görünür.',
+    items: [
+      {
+        title: 'Haftalık ders programı',
+        summary:
+          'Program artık Müfredat içinde değil; Yönetim altında kendi sayfası. Rehberlikçi Program sekmesini kullanır.',
+        steps: [
+          'Yönetim → Haftalık ders programı.',
+          'Şube ve hafta seçip Pazartesi–Cuma 4 dersi kaydedin.',
+        ],
+        roles: ['director', 'counselor', 'teacher'],
+      },
+      {
+        title: 'Atlas şube erişimi',
+        summary:
+          'Yeni ve mevcut öğretmenler tüm şubelere atanır; yeni şube de tüm öğretmenlere açılır. Şube Atama Atlas’ta gizlenir.',
+        steps: ['Öğretmen oluşturduktan sonra Ders ve mesaj için tüm şubeler hazırdır.'],
+        roles: ['director', 'teacher'],
+      },
+      {
+        title: 'Öğrenci listesinde veli',
+        summary: 'Öğrenci Yönetimi’nde çocuğa bağlı veli varsa adı şube satırının altında görünür.',
+        steps: ['Yönetim → Öğrenci Yönetimi → öğrenci satırında «Veli: …».'],
+        roles: ['director'],
+      },
+      {
+        title: 'Veli oluşturma',
+        summary: 'Veli hesabı oluştururken oluşan sunucu hatası giderildi.',
+        roles: ['director'],
+      },
+    ],
+  },
+  {
     id: '2026-09-08-branch-timetable',
     title: 'Öğretmen branşları ve haftalık program',
     publishedOn: '2026-09-08',

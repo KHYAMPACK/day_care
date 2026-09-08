@@ -1002,6 +1002,8 @@ function StudentManagementTab({
   runAsyncAction,
   accountingEnabled = false,
   atlasSchedule = false,
+  parents = [],
+  links = [],
 }) {
   const today = istanbulDateIso();
   const [fullName, setFullName] = useState('');
@@ -1023,15 +1025,33 @@ function StudentManagementTab({
     [classes]
   );
 
+  const parentNameById = useMemo(
+    () => Object.fromEntries(parents.map((parent) => [parent.id, parent.full_name ?? parent.username])),
+    [parents]
+  );
+
+  const parentNamesByStudentId = useMemo(() => {
+    const map = new Map();
+    for (const link of links) {
+      const name = parentNameById[link.parent_id];
+      if (!name || !link.student_id) continue;
+      const current = map.get(link.student_id) ?? [];
+      if (!current.includes(name)) current.push(name);
+      map.set(link.student_id, current);
+    }
+    return map;
+  }, [links, parentNameById]);
+
   const filteredStudents = useMemo(() => {
     return students.filter((student) =>
       matchesPersonSearch(
         searchQuery,
         student.full_name,
-        student.class_id ? classNameById[student.class_id] : ''
+        student.class_id ? classNameById[student.class_id] : '',
+        (parentNamesByStudentId.get(student.id) ?? []).join(' ')
       )
     );
-  }, [students, searchQuery, classNameById]);
+  }, [students, searchQuery, classNameById, parentNamesByStudentId]);
 
   async function handleCreateBranch(event) {
     event.preventDefault();
@@ -1466,6 +1486,11 @@ function StudentManagementTab({
                   ) : (
                     <span className="dash-hint">Şube atanmadı</span>
                   )}
+                  {(parentNamesByStudentId.get(student.id) ?? []).length ? (
+                    <span className="student-roster-item__parent">
+                      Veli: {parentNamesByStudentId.get(student.id).join(', ')}
+                    </span>
+                  ) : null}
                   <div className="student-roster-item__class-select">
                     <select
                       className="dash-input"
@@ -2193,6 +2218,8 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
             runAsyncAction={runAsyncAction}
             accountingEnabled={hasAccounting(school)}
             atlasSchedule={hasAtlasSchedule(school)}
+            parents={parents}
+            links={links}
           />
         )}
 
