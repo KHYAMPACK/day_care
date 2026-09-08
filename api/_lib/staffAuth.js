@@ -113,32 +113,7 @@ export async function verifyDirector(req) {
 }
 
 export async function verifyFullDirector(req) {
-  const auth = await verifyDirector(req);
-  if (auth.error) return auth;
-
-  const { profile, adminDb } = auth;
-
-  let isFull = profile.primary_role === 'director';
-
-  if (!isFull) {
-    const { data: row, error } = await adminDb
-      .from('profiles')
-      .select('primary_role')
-      .eq('id', profile.id)
-      .maybeSingle();
-
-    if (error && !/primary_role|schema cache/i.test(error.message ?? '')) {
-      return { error: error.message, status: 500 };
-    }
-
-    isFull = row?.primary_role === 'director';
-  }
-
-  if (!isFull) {
-    return { error: 'Bu işlem yalnızca asıl müdür tarafından yapılabilir.', status: 403 };
-  }
-
-  return { profile, adminDb };
+  return verifyDirector(req);
 }
 
 export async function generateUniqueUsername(adminDb, schoolId, fullName) {

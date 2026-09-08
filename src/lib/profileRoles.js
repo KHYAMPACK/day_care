@@ -57,9 +57,9 @@ export function resolveActiveRole(profile, storedRole = null) {
 }
 
 export function isFullDirector(profile) {
-  return profile?.primary_role === USER_ROLES.director;
+  return profileHasRole(profile, USER_ROLES.director);
 }
 
 export function isAssistantDirector(profile) {
-  return profileHasRole(profile, USER_ROLES.director) && !isFullDirector(profile);
+  return false;
 }
