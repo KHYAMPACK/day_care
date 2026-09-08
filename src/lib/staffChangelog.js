@@ -11,6 +11,38 @@ import { normalizeProfileRoles } from './profileRoles';
  */
 export const STAFF_CHANGELOG = [
   {
+    id: '2026-09-08-branch-timetable',
+    title: 'Öğretmen branşları ve haftalık program',
+    publishedOn: '2026-09-08',
+    intro:
+      'Rehberlikçi artık öğretmen gibi eklenir. Atlas okullarında her şube için haftalık 4 derslik program elle girilir.',
+    items: [
+      {
+        title: 'Öğretmen branşları',
+        summary:
+          'Yeni öğretmen oluştururken branş: Sosyal, İngilizce, Rehberlik, Matematik, Türkçe, Fen. Rehberlik seçilince kişi rehberlikçi paneline de girer.',
+        steps: [
+          'Personel → Yeni öğretmen formunu açın.',
+          'Ad soyad ve branş seçin. Rehberlik branşı ayrı rehberlikçi formu yerine geçer.',
+          'Mevcut öğretmende branşı Rehberlik olarak kaydederseniz rehberlikçi rolü eklenir; başka branşa çevirirseniz kalkar.',
+        ],
+        roles: ['director'],
+      },
+      {
+        title: 'Haftalık ders programı',
+        summary:
+          'Her şube ve hafta için Pazartesi–Cuma 4 dersi siz seçersiniz. Atlas yoklaması öğretmen branşına göre değil, o saatteki programa göre kaydedilir.',
+        steps: [
+          'Müdür: Yönetim → Haftalık ders programı. Rehberlikçi: Program sekmesi.',
+          'Şube ve hafta seçin, her güne 4 ders atayın, kaydedin.',
+          'Aynı programı hızlandırmak için «Önceki haftayı kopyala» kullanın.',
+          'Veliler ana ekranda çocuğun o haftaki programını görür.',
+        ],
+        roles: ['director', 'counselor', 'teacher'],
+      },
+    ],
+  },
+  {
     id: '2026-09-08-panel-updates',
     title: 'Panel güncellemeleri',
     publishedOn: '2026-09-08',
@@ -98,19 +130,22 @@ export function isStaffProfile(profile) {
   return normalizeProfileRoles(profile).some((role) => STAFF_ROLES.includes(role));
 }
 
+export function getVisibleStaffChangelog(userStaffRoles = []) {
+  if (!userStaffRoles.length) return [];
+
+  return STAFF_CHANGELOG.map((entry) => {
+    const items = visibleItemsForRoles(entry, userStaffRoles);
+    if (!roleMatchesFilter(userStaffRoles, entry.roles) && !items.length) return null;
+    if (!items.length) return null;
+    return { ...entry, items };
+  }).filter(Boolean);
+}
+
 export function getUnseenStaffChangelog(profile, userStaffRoles = []) {
   if (!profile?.id || !userStaffRoles.length) return [];
 
   const seen = readSeenIds(profile.id);
-
-  return STAFF_CHANGELOG.filter((entry) => !seen.has(entry.id))
-    .map((entry) => {
-      const items = visibleItemsForRoles(entry, userStaffRoles);
-      if (!roleMatchesFilter(userStaffRoles, entry.roles) && !items.length) return null;
-      if (!items.length) return null;
-      return { ...entry, items };
-    })
-    .filter(Boolean);
+  return getVisibleStaffChangelog(userStaffRoles).filter((entry) => !seen.has(entry.id));
 }
 
 export function markStaffChangelogSeen(profileId, entryIds) {

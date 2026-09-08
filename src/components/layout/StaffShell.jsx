@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { formatRoleLabel } from '../../lib/roles';
 import { Avatar } from '../ui/Avatar';
 import { Icon } from '../ui/Icon';
+import { useStaffPatchNotes } from '../StaffWhatsNewHost';
 
 function NavGroup({ item, activeTab, expanded, onToggle, onTabChange }) {
   const childActive = item.children?.some((child) => child.id === activeTab) ?? false;
@@ -62,6 +63,7 @@ export default function StaffShell({
   signOutLabel = 'Çıkış Yap',
   children,
 }) {
+  const patchNotes = useStaffPatchNotes();
   const groupIds = useMemo(
     () => tabs.filter((tab) => tab.children?.length).map((tab) => tab.id),
     [tabs]
@@ -171,6 +173,16 @@ export default function StaffShell({
                 </button>
               ))}
             </div>
+          ) : null}
+          {patchNotes.available ? (
+            <button
+              type="button"
+              className="staff-sidebar__patch-notes"
+              onClick={patchNotes.openArchive}
+            >
+              <Icon name="sparkle" size={15} />
+              Sürüm notları
+            </button>
           ) : null}
           {onSignOut ? (
             <button type="button" className="staff-sidebar__signout" onClick={onSignOut}>

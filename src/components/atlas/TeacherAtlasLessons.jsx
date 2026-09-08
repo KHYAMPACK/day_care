@@ -9,9 +9,6 @@ import {
   loadCurriculumContext,
   loadSchoolClasses,
   loadCurriculumSubjects,
-  getTeacherSubjectSlug,
-  getTeacherBransDisplay,
-  resolveSubjectForClass,
 } from '../../lib/curriculum';
 import {
   ATLAS_SLOT_COUNT,
@@ -31,11 +28,17 @@ import {
 import { resolveMissedDayPromptForDate } from '../../lib/atlasAlerts';
 import { recordSchoolActivity } from '../../lib/activityLog';
 import { InlineError, SendButton, SuccessMessage } from '../dashboardUi';
-import { Icon } from '../ui/Icon';
 import { AnimatedView } from '../ui/AnimatedView';
 import AtlasClassPicker from './AtlasClassPicker';
+import {
+  formatTimetableSubject,
+  isoWeekday,
+  loadTimetableForWeek,
+  resolveTimetableSubject,
+  subjectSlugFromTimetableRows,
+} from '../../lib/classWeekTimetable';
 
-function SlotStrip({ sessions, selectedSlot, onSelectSlot, disabled }) {
+function SlotStrip({ sessions, selectedSlot, onSelectSlot, disabled, plannedBySlot }) {
   const filledBySlot = useMemo(() => {
     const map = new Map();
     for (const session of sessions) {
@@ -49,6 +52,7 @@ function SlotStrip({ sessions, selectedSlot, onSelectSlot, disabled }) {
       {Array.from({ length: ATLAS_SLOT_COUNT }, (_, index) => {
         const slot = index + 1;
         const existing = filledBySlot.get(slot);
+        const planned = plannedBySlot?.get(slot);
         const isFilled = Boolean(existing);
         const isSelected = selectedSlot === slot;
         return (
@@ -70,11 +74,11 @@ function SlotStrip({ sessions, selectedSlot, onSelectSlot, disabled }) {
             <span className="atlas-slot-strip__num">{slot}. ders</span>
             {existing ? (
               <span className="atlas-slot-strip__meta">
-                {existing.curriculum_subjects?.name ?? 'Ders'}
+                {existing.curriculum_subjects?.name ?? planned ?? 'Ders'}
                 {existing.profiles?.full_name ? ` · ${existing.profiles.full_name.split(/\s+/)[0]}` : ''}
               </span>
             ) : (
-              <span className="atlas-slot-strip__meta">Boş</span>
+              <span className="atlas-slot-strip__meta">{planned || 'Boş'}</span>
             )}
           </button>
         );
@@ -182,15 +186,13 @@ export default function TeacherAtlasLessons({
   catchUpPreset,
   onCatchUpConsumed,
 }) {
-  const subjectSlug = getTeacherSubjectSlug(profile);
-  const bransDisplay = getTeacherBransDisplay(profile);
-
   const [classes, setClasses] = useState([]);
   const [subjects, setSubjects] = useState([]);
   const [units, setUnits] = useState([]);
   const [weekPlans, setWeekPlans] = useState([]);
   const [students, setStudents] = useState([]);
   const [classSessions, setClassSessions] = useState([]);
+  const [timetableRows, setTimetableRows] = useState([]);
   const [calendarEvents, setCalendarEvents] = useState([]);
   const [selectedClassId, setSelectedClassId] = useState(null);
   const [slotIndex, setSlotIndex] = useState(1);
@@ -204,15 +206,25 @@ export default function TeacherAtlasLessons({
 
   const effectiveCatchUp = catchUpPreset ?? localCatchUp;
   const klass = classes.find((row) => row.id === selectedClassId) ?? null;
-  const subject = useMemo(
-    () => resolveSubjectForClass(subjects, subjectSlug, klass?.grade),
-    [subjects, subjectSlug, klass?.grade]
-  );
 
   const sessionDate = useMemo(
     () => resolveLessonDate({ catchUpDate: effectiveCatchUp?.sessionDate, calendarEvents }),
     [effectiveCatchUp?.sessionDate, calendarEvents]
   );
+
+  const slotSubject = useMemo(
+    () =>
+      resolveTimetableSubject({
+        rows: timetableRows,
+        sessionDate,
+        slotIndex,
+        subjects,
+        classGrade: klass?.grade,
+      }),
+    [timetableRows, sessionDate, slotIndex, subjects, klass?.grade]
+  );
+  const subject = slotSubject.subject;
+  const slotSubjectSlug = slotSubject.subjectSlug;
 
   const subjectUnits = useMemo(
     () => units.filter((unit) => unit.subject_id === subject?.id),
@@ -248,6 +260,17 @@ export default function TeacherAtlasLessons({
     () => classSessions.map((session) => session.slot_index),
     [classSessions]
   );
+
+  const plannedBySlot = useMemo(() => {
+    const map = new Map();
+    if (!sessionDate) return map;
+    const weekday = isoWeekday(sessionDate);
+    for (let slot = 1; slot <= ATLAS_SLOT_COUNT; slot += 1) {
+      const slug = subjectSlugFromTimetableRows(timetableRows, weekday, slot);
+      if (slug) map.set(slot, formatTimetableSubject(slug));
+    }
+    return map;
+  }, [timetableRows, sessionDate]);
 
   const refreshClassSessions = useCallback(async (classId, date) => {
     if (!classId || !date) {
@@ -320,6 +343,32 @@ export default function TeacherAtlasLessons({
   }, [klass?.id, schoolId, sessionDate, refreshClassSessions]);
 
   useEffect(() => {
+    if (!klass?.id || !sessionDate || !schoolId) {
+      setTimetableRows([]);
+      return;
+    }
+    let mounted = true;
+    (async () => {
+      try {
+        const rows = await loadTimetableForWeek(
+          schoolId,
+          klass.id,
+          academicWeekIndex(sessionDate)
+        );
+        if (mounted) setTimetableRows(rows);
+      } catch (loadError) {
+        if (mounted) {
+          setTimetableRows([]);
+          setError(loadError);
+        }
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [klass?.id, schoolId, sessionDate]);
+
+  useEffect(() => {
     if (effectiveCatchUp?.slotIndex) {
       setSlotIndex(effectiveCatchUp.slotIndex);
       return;
@@ -365,7 +414,12 @@ export default function TeacherAtlasLessons({
 
   async function handleSaveAttendance(event) {
     event.preventDefault();
-    if (!klass?.id || !subject?.id || !sessionDate || !snapshot) return;
+    if (!klass?.id || !subject?.id || !sessionDate || !snapshot) {
+      if (!subject?.id) {
+        setError(new Error('Bu ders saati için program girilmemiş.'));
+      }
+      return;
+    }
     if (!canLog) {
       setError(new Error('Canlı kayıt 20:00\'a kadar. Haftalık telafi listesini kullanın.'));
       return;
@@ -425,17 +479,6 @@ export default function TeacherAtlasLessons({
     );
   }
 
-  if (!subjectSlug) {
-    return (
-      <section className="director-panel">
-        <h2 className="dash-section-title">Ders</h2>
-        <p className="dash-hint">
-          Branşınız tanımlı değil. Müdürünüz Öğretmen Yönetimi sekmesinden branş ataması yapmalı.
-        </p>
-      </section>
-    );
-  }
-
   if (!classes.length) {
     return (
       <section className="director-panel">
@@ -445,12 +488,12 @@ export default function TeacherAtlasLessons({
     );
   }
 
-  if (selectedClassId && !subject?.id) {
+  if (selectedClassId && slotSubjectSlug && !subject?.id) {
     return (
       <section className="director-panel">
         <h2 className="dash-section-title">Ders</h2>
         <p className="dash-hint">
-          Seçilen sınıf için {bransDisplay?.name ?? 'branş'} müfredatı bulunamadı.
+          Seçilen sınıf için {formatTimetableSubject(slotSubjectSlug)} müfredatı bulunamadı.
         </p>
         <button type="button" className="demo-btn" onClick={handleBackToClasses}>
           ← Sınıflar
@@ -508,8 +551,8 @@ export default function TeacherAtlasLessons({
         {error && <InlineError error={error} context="general" />}
         <AtlasClassPicker
           classes={classes}
-          subjectName={bransDisplay?.name}
-          hint="Yoklama girmek için sınıf seçin."
+          subjectName="Haftalık program"
+          hint="Yoklama girmek için sınıf seçin. Ders, o günün programından gelir."
           onSelectClass={handleSelectClass}
         />
       </section>
@@ -569,7 +612,14 @@ export default function TeacherAtlasLessons({
             selectedSlot={slotIndex}
             onSelectSlot={setSlotIndex}
             disabled={saving}
+            plannedBySlot={plannedBySlot}
           />
+          {!slotSubjectSlug ? (
+            <p className="dash-hint">
+              Bu ders saati için program girilmemiş. Müdür veya rehberlikçi Haftalık ders
+              programından doldurmalı.
+            </p>
+          ) : null}
         </>
       ) : null}
 
@@ -598,7 +648,7 @@ export default function TeacherAtlasLessons({
         ) : (
           <SendButton
             sending={saving}
-            disabled={filledSlots.includes(slotIndex)}
+            disabled={filledSlots.includes(slotIndex) || !subject?.id}
             label="Yoklamayı kaydet"
             sendingLabel="Kaydediliyor…"
           />

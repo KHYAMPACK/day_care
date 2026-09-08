@@ -2998,6 +2998,26 @@ body {
   color: var(--theme-accent-strong, var(--theme-accent));
 }
 
+.page-header__menu-patch-notes {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: 100%;
+  margin-top: 0.45rem;
+  padding: 0.5rem 0.35rem;
+  border: none;
+  border-radius: 0.55rem;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.page-header__menu-patch-notes:hover {
+  background: color-mix(in srgb, var(--theme-accent) 12%, transparent);
+}
+
 .page-header__menu-signout {
   display: inline-flex;
   align-items: center;
@@ -7589,6 +7609,90 @@ body {
   border-top: 1px solid var(--dash-border, #e5e7eb);
 }
 
+.class-week-timetable {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.class-week-timetable__toolbar {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.class-week-timetable__range {
+  margin: 0;
+  align-self: end;
+}
+
+.class-week-timetable__table-wrap {
+  overflow-x: auto;
+}
+
+.class-week-timetable__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.class-week-timetable__table th,
+.class-week-timetable__table td {
+  border: 1px solid var(--dash-border, #e5e7eb);
+  padding: 0.4rem;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.class-week-timetable__table th {
+  background: color-mix(in srgb, var(--bg-page, #f8fafc) 70%, white);
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.class-week-timetable__table .dash-input {
+  width: 100%;
+  min-width: 7rem;
+}
+
+.class-week-timetable__table--readonly td {
+  white-space: nowrap;
+}
+
+.class-week-timetable__row--holiday td,
+.class-week-timetable__row--holiday th {
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--bg-page, #f8fafc) 80%, white);
+}
+
+.class-week-timetable__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.parent-class-timetable {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.parent-class-timetable__child {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.parent-class-timetable__child-title {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 650;
+}
+
+@media (min-width: 640px) {
+  .class-week-timetable__toolbar {
+    grid-template-columns: minmax(8rem, 12rem) minmax(8rem, 12rem) 1fr;
+    align-items: end;
+  }
+}
+
 .dash-form__block {
   display: grid;
   gap: 0.35rem;
@@ -10903,6 +11007,29 @@ body {
     cursor: pointer;
     text-align: left;
     transition: background 0.15s ease;
+  }
+
+  .staff-sidebar__patch-notes {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    width: 100%;
+    padding: 0.45rem 0.55rem;
+    border: none;
+    border-radius: 0.7rem;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.86);
+    font: inherit;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.15s ease;
+  }
+
+  .staff-sidebar__patch-notes:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
   }
 
   .staff-sidebar__signout:hover {

@@ -84,6 +84,10 @@ export function createStaffUser(payload) {
   return staffApiRequest('/api/staff', { action: 'create', ...payload });
 }
 
+export function updateStaffSubject(payload) {
+  return staffApiRequest('/api/staff', { action: 'update-subject', ...payload });
+}
+
 export function resetStaffPin(userId) {
   return staffApiRequest('/api/staff', { action: 'reset-pin', user_id: userId });
 }

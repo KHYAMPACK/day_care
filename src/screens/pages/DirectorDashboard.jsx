@@ -18,14 +18,15 @@ import {
   isValidWhatsAppPhone,
   normalizePhone,
 } from '../../lib/announcements';
-import { CURRICULUM_SUBJECT_DEFS } from '../../lib/dersligCatalog';
+import { TEACHER_BRANCH_DEFS, teacherBranchBySlug } from '../../lib/teacherBranches';
 import TeacherAnnouncements from '../../components/announcements/TeacherAnnouncements';
 import AcademicCalendar from '../../components/calendar/AcademicCalendar';
 import DirectorCurriculum from '../../components/curriculum/DirectorCurriculum';
+import ClassWeekTimetableEditor from '../../components/curriculum/ClassWeekTimetableEditor';
 import CurriculumAssignmentPanel from '../../components/curriculum/CurriculumAssignmentPanel';
 import ExamOperationsPanel from '../../components/exams/ExamOperationsPanel';
 import SchoolBrandingPanel from '../../components/branding/SchoolBrandingPanel';
-import { hasAtlasSchedule, hasAccounting, saveSchoolFeature } from '../../lib/schoolFeatures';
+import { hasAtlasSchedule, hasAccounting, resolveAcademicWeeks, saveSchoolFeature } from '../../lib/schoolFeatures';
 import DirectorAccounting from '../../components/accounting/DirectorAccounting';
 import { DemoBottomNav, getTabFromSearch } from '../../components/demo/DemoKit';
 import DirectorCommunicationsTab from '../../components/director/DirectorCommunicationsTab';
@@ -47,12 +48,13 @@ import { Icon, TEMPLATE_ICON_NAMES, resolveIconName } from '../../components/ui/
 import { AnimatedView } from '../../components/ui/AnimatedView';
 import StaffShell from '../../components/layout/StaffShell';
 import {
+  academicWeekIndex,
   formatClassLabel,
   loadCurriculumCatalog,
   loadSchoolAssignments,
   loadSchoolClasses,
 } from '../../lib/curriculum';
-import { createStaffUser, deleteStaffUser, resetStaffPin, addStaffRole, removeStaffRole } from '../../lib/staffUsers';
+import { createStaffUser, deleteStaffUser, resetStaffPin, addStaffRole, removeStaffRole, updateStaffSubject } from '../../lib/staffUsers';
 import { loadSchoolProfilesByRole } from '../../lib/staffQueries';
 import { normalizeProfileRoles, isFullDirector, profileHasRole } from '../../lib/profileRoles';
 import { AsyncActionDialog } from '../../components/ui/AsyncActionDialog';
@@ -209,69 +211,6 @@ function UserCredentialsRow({ username, loginPin }) {
   );
 }
 
-function AddCounselorModal({ open, onClose, onCreate, loading, error }) {
-  const [fullName, setFullName] = useState('');
-
-  useEffect(() => {
-    if (open) setFullName('');
-  }, [open]);
-
-  if (!open) return null;
-
-  return (
-    <div className="app-dialog" role="presentation" onClick={onClose}>
-      <div
-        className="app-dialog__panel"
-        role="dialog"
-        aria-labelledby="counselor-prompt-title"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <h2 id="counselor-prompt-title" className="app-dialog__title">
-          Rehberlikçi atanmadı
-        </h2>
-        <p className="dash-hint">
-          Sınav takibi ve öğrenci rehberliği için okula bir rehberlikçi hesabı ekleyin. Giriş
-          bilgileri oluşturulduktan sonra bu bölümden görüntülenebilir.
-        </p>
-        <form
-          className="dash-form"
-          onSubmit={async (event) => {
-            event.preventDefault();
-            const ok = await onCreate({ full_name: fullName.trim() });
-            if (ok) onClose();
-          }}
-        >
-          <label className="dash-label">
-            Rehberlikçi Ad Soyad
-            <input
-              className="dash-input"
-              type="text"
-              value={fullName}
-              onChange={(event) => setFullName(event.target.value)}
-              placeholder="Rehberlikçi adı soyadı"
-              required
-              disabled={loading}
-              autoComplete="name"
-            />
-          </label>
-          {error && <InlineError error={error} context="general" />}
-          <div className="app-dialog__actions">
-            <button type="button" className="demo-btn demo-btn--ghost" onClick={onClose} disabled={loading}>
-              Daha sonra
-            </button>
-            <SendButton
-              sending={loading}
-              disabled={!fullName.trim()}
-              label="Rehberlikçi Oluştur"
-              sendingLabel="Oluşturuluyor…"
-            />
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
 function StaffRoleBadges({ member }) {
   const roles = normalizeProfileRoles(member).filter((role) => role !== USER_ROLES.parent);
   if (!roles.length) return null;
@@ -349,114 +288,6 @@ function StaffRoleControls({
   );
 }
 
-function CounselorStaffSection({
-  counselors,
-  currentUserId,
-  staffActionLoading,
-  onCreateCounselor,
-  onResetPin,
-  onRequestDelete,
-  onAddRole,
-  onRemoveRole,
-  canManageRoles = true,
-  canDeleteStaff = true,
-}) {
-  const [fullName, setFullName] = useState('');
-
-  return (
-    <details className="cal-collapsible-form dash-card staff-counselor-card">
-      <summary className="cal-collapsible-form__summary cal-browser__summary">
-        <span className="cal-collapsible-form__chevron" aria-hidden="true" />
-        <span className="cal-browser__summary-text">
-          <span className="dash-section-title">Rehberlikçi</span>
-          <span className="dash-hint">
-            {counselors.length
-              ? `${counselors.length} rehberlikçi`
-              : 'Okul genelinde sınav ve öğrenci takibi'}
-          </span>
-        </span>
-      </summary>
-
-      <div className="cal-collapsible-form__body">
-      <p className="dash-hint">
-        Okul genelinde sınav ve öğrenci takibi için rehberlikçi hesabı. Öğretmen listesinden ayrı
-        yönetilir.
-      </p>
-
-      {counselors.length === 0 ? (
-        <form
-          className="dash-form staff-counselor-card__form"
-          onSubmit={async (event) => {
-            event.preventDefault();
-            const ok = await onCreateCounselor({ full_name: fullName.trim() }, () => setFullName(''));
-            if (ok) setFullName('');
-          }}
-        >
-          <label className="dash-label">
-            Ad Soyad
-            <input
-              className="dash-input"
-              type="text"
-              value={fullName}
-              onChange={(event) => setFullName(event.target.value)}
-              placeholder="Rehberlikçi adı soyadı"
-              required
-              disabled={staffActionLoading}
-              autoComplete="name"
-            />
-          </label>
-          <SendButton
-            sending={staffActionLoading}
-            disabled={!fullName.trim()}
-            label="Rehberlikçi Oluştur"
-            sendingLabel="Oluşturuluyor…"
-          />
-        </form>
-      ) : (
-        <ul className="manage-list staff-counselor-list">
-          {counselors.map((counselor) => (
-            <li key={counselor.id} className="manage-list__item staff-counselor-list__item">
-              <div className="manage-list__main">
-                <strong>{counselor.full_name ?? counselor.username}</strong>
-                <UserCredentialsRow username={counselor.username} loginPin={counselor.login_pin} />
-                <StaffRoleControls
-                  member={counselor}
-                  currentUserId={currentUserId}
-                  loading={staffActionLoading}
-                  onAddRole={onAddRole}
-                  onRemoveRole={onRemoveRole}
-                  canManageRoles={canManageRoles}
-                />
-              </div>
-              {!normalizeProfileRoles(counselor).includes(USER_ROLES.director) ? (
-                <button
-                  type="button"
-                  className="demo-btn"
-                  onClick={() => onResetPin(counselor)}
-                  disabled={staffActionLoading}
-                >
-                  PIN Sıfırla
-                </button>
-              ) : null}
-              {canDeleteStaff && !normalizeProfileRoles(counselor).includes(USER_ROLES.director) ? (
-                <button
-                  type="button"
-                  className="match-item__remove"
-                  onClick={() => onRequestDelete(counselor, 'counselor')}
-                  disabled={staffActionLoading}
-                >
-                  Sil
-                </button>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-      )}
-      </div>
-    </details>
-  );
-}
-
 function SelfTeacherRoleCard({ profile, loading, onAddTeacherRole }) {
   const { hasRole } = useActiveRole();
   const [subjectSlug, setSubjectSlug] = useState('');
@@ -496,7 +327,7 @@ function SelfTeacherRoleCard({ profile, loading, onAddTeacherRole }) {
             disabled={loading}
           >
             <option value="">Seçin…</option>
-            {CURRICULUM_SUBJECT_DEFS.map((subject) => (
+            {TEACHER_BRANCH_DEFS.map((subject) => (
               <option key={subject.slug} value={subject.slug}>
                 {subject.name}
               </option>
@@ -579,8 +410,6 @@ function TeacherManagementTab({
   profile,
   counselors,
   teachers,
-  subjects,
-  atlasSchedule,
   loading,
   loadError,
   staffActionLoading,
@@ -588,7 +417,6 @@ function TeacherManagementTab({
   staffSuccess,
   canManageRoles = true,
   canDeleteStaff = true,
-  onCreateCounselor,
   onCreateTeacher,
   onAddTeacherRole,
   onAddRole,
@@ -602,62 +430,31 @@ function TeacherManagementTab({
   const [fullName, setFullName] = useState('');
   const [subjectSlug, setSubjectSlug] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  const [counselorPromptOpen, setCounselorPromptOpen] = useState(false);
-  const [counselorPromptDismissed, setCounselorPromptDismissed] = useState(false);
+
+  const staffRoster = useMemo(() => {
+    const ids = new Set(teachers.map((row) => row.id));
+    const extras = (counselors ?? []).filter((row) => !ids.has(row.id));
+    return [...teachers, ...extras];
+  }, [teachers, counselors]);
 
   const filteredTeachers = useMemo(() => {
-    return teachers.filter((teacher) =>
+    return staffRoster.filter((teacher) =>
       matchesPersonSearch(searchQuery, teacher.full_name, teacher.username)
     );
-  }, [teachers, searchQuery]);
-
-  useEffect(() => {
-    if (counselors.length > 0) {
-      setCounselorPromptDismissed(false);
-      setCounselorPromptOpen(false);
-      return;
-    }
-    if (!loading && !counselorPromptDismissed) {
-      setCounselorPromptOpen(true);
-    }
-  }, [counselors.length, loading, counselorPromptDismissed]);
+  }, [staffRoster, searchQuery]);
 
   if (loading) return <TabLoading message="Yükleniyor…" />;
   if (loadError) return <TabError error={loadError} onRetry={onRefresh} />;
 
   return (
     <section className="director-panel director-panel--simple">
-      <AddCounselorModal
-        open={counselorPromptOpen}
-        onClose={() => {
-          setCounselorPromptOpen(false);
-          setCounselorPromptDismissed(true);
-        }}
-        onCreate={onCreateCounselor}
-        loading={staffActionLoading}
-        error={staffError}
-      />
-
-      {staffError && !counselorPromptOpen && <InlineError error={staffError} context="general" />}
+      {staffError ? <InlineError error={staffError} context="general" /> : null}
       {staffSuccess && <SuccessMessage message={staffSuccess} />}
 
       <SelfTeacherRoleCard
         profile={profile}
         loading={staffActionLoading}
         onAddTeacherRole={onAddTeacherRole}
-      />
-
-      <CounselorStaffSection
-        counselors={counselors}
-        currentUserId={profile?.id}
-        staffActionLoading={staffActionLoading}
-        onCreateCounselor={onCreateCounselor}
-        onResetPin={onResetPin}
-        onRequestDelete={onRequestDelete}
-        onAddRole={onAddRole}
-        onRemoveRole={onRemoveRole}
-        canManageRoles={canManageRoles}
-        canDeleteStaff={canDeleteStaff}
       />
 
       <div className="staff-teachers-divider" aria-hidden="true">
@@ -685,6 +482,9 @@ function TeacherManagementTab({
             );
           }}
         >
+          <p className="dash-hint">
+            Rehberlik branşı seçilen kişi rehberlikçi paneline de erişir.
+          </p>
           <label className="dash-label">
             Ad Soyad
             <input
@@ -707,7 +507,7 @@ function TeacherManagementTab({
               disabled={staffActionLoading}
             >
               <option value="">Branş seçin…</option>
-              {CURRICULUM_SUBJECT_DEFS.map((subject) => (
+              {TEACHER_BRANCH_DEFS.map((subject) => (
                 <option key={subject.slug} value={subject.slug}>
                   {subject.name}
                 </option>
@@ -727,10 +527,10 @@ function TeacherManagementTab({
         <h2 className="dash-section-title">
           Öğretmenler
           {searchQuery.trim()
-            ? ` (${filteredTeachers.length}/${teachers.length})`
-            : ` (${teachers.length})`}
+            ? ` (${filteredTeachers.length}/${staffRoster.length})`
+            : ` (${staffRoster.length})`}
         </h2>
-        {teachers.length === 0 ? (
+        {staffRoster.length === 0 ? (
           <p className="dash-hint">Henüz öğretmen yok.</p>
         ) : (
           <>
@@ -1011,6 +811,17 @@ function StaffTeacherPhoneField({ teacher, disabled, onSave }) {
 
 function StaffTeacherSubjectField({ teacher, disabled, onSave }) {
   const [subjectSlug, setSubjectSlug] = useState(teacher.subject_slug ?? '');
+  const branchOptions = useMemo(() => {
+    const options = [...TEACHER_BRANCH_DEFS];
+    const current = teacher.subject_slug;
+    if (current && !options.some((row) => row.slug === current)) {
+      options.push({
+        slug: current,
+        name: teacherBranchBySlug(current)?.name ?? current,
+      });
+    }
+    return options;
+  }, [teacher.subject_slug]);
 
   useEffect(() => {
     setSubjectSlug(teacher.subject_slug ?? '');
@@ -1032,7 +843,7 @@ function StaffTeacherSubjectField({ teacher, disabled, onSave }) {
         aria-label={`${teacher.full_name ?? 'Öğretmen'} branşı`}
       >
         <option value="">Branş seçin…</option>
-        {CURRICULUM_SUBJECT_DEFS.map((subject) => (
+        {branchOptions.map((subject) => (
           <option key={subject.slug} value={subject.slug}>
             {subject.name}
           </option>
@@ -1896,26 +1707,6 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
     return true;
   }
 
-  async function handleCreateCounselor(payload, onFormReset) {
-    const name = payload.full_name?.trim();
-    if (!name) return false;
-
-    await runAsyncAction({
-      title: 'Rehberlikçi oluştur',
-      message: `${name} için rehberlikçi hesabı oluşturulsun mu?`,
-      confirmLabel: 'Oluştur',
-      loadingLabel: 'Rehberlikçi oluşturuluyor…',
-      successMessage: (result) => `${result.full_name} başarıyla oluşturuldu.`,
-      getCredentials: (result) => ({ username: result.username, pin: result.pin }),
-      runFn: () => createStaffUser({ ...payload, role: 'counselor' }),
-      onSuccess: async () => {
-        await loadData();
-        onFormReset?.();
-      },
-    });
-    return true;
-  }
-
   async function handleCreateParent(payload, onFormReset) {
     const name = payload.full_name?.trim();
     if (!name) return false;
@@ -2176,51 +1967,29 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
 
   async function handleSaveTeacherSubject(teacher, subjectSlug) {
     const label = teacher.full_name ?? teacher.email ?? 'Öğretmen';
+    if (!subjectSlug) {
+      setStaffError(new Error('Branş seçimi zorunludur.'));
+      return;
+    }
+
     setStaffActionLoading(true);
     setStaffError(null);
     setStaffSuccess(null);
 
-    const { error } = await withSchoolFilter(
-      supabase
-        .from('profiles')
-        .update({ subject_slug: subjectSlug, subject_id: null })
-        .eq('id', teacher.id),
-      schoolId
-    );
-
-    if (error && /subject_slug|schema cache/i.test(error.message ?? '')) {
-      const { data: subject } = await supabase
-        .from('curriculum_subjects')
-        .select('id')
-        .eq('slug', subjectSlug)
-        .eq('grade', 5)
-        .maybeSingle();
-
-      const { error: fallbackError } = await withSchoolFilter(
-        supabase.from('profiles').update({ subject_id: subject?.id ?? null }).eq('id', teacher.id),
-        schoolId
+    try {
+      await updateStaffSubject({ user_id: teacher.id, subject_slug: subjectSlug });
+      const subjectLabel = teacherBranchBySlug(subjectSlug);
+      setStaffSuccess(
+        subjectLabel
+          ? `${label} branşı ${subjectLabel.name} olarak kaydedildi.`
+          : `${label} branşı kaydedildi.`
       );
-
-      if (fallbackError) {
-        setStaffActionLoading(false);
-        setStaffError(fallbackError);
-        return;
-      }
-    } else if (error) {
-      setStaffActionLoading(false);
+      await loadData();
+    } catch (error) {
       setStaffError(error);
-      return;
+    } finally {
+      setStaffActionLoading(false);
     }
-
-    setStaffActionLoading(false);
-
-    const subjectLabel = CURRICULUM_SUBJECT_DEFS.find((row) => row.slug === subjectSlug);
-    setStaffSuccess(
-      subjectLabel
-        ? `${label} branşı ${subjectLabel.name} olarak kaydedildi.`
-        : `${label} branş ataması kaldırıldı.`
-    );
-    await loadData();
   }
 
   const directorNav = useMemo(() => buildDirectorNav(school), [school]);
@@ -2370,6 +2139,17 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
           />
         )}
 
+        {activeTab === 'schedule' && hasAtlasSchedule(school) && (
+          <section className="director-panel">
+            <ClassWeekTimetableEditor
+              schoolId={schoolId}
+              classes={classes}
+              academicWeeks={resolveAcademicWeeks(school, [], { atlasSchedule: true })}
+              currentWeekIndex={Math.max(1, academicWeekIndex())}
+            />
+          </section>
+        )}
+
         {RECORDS_TAB_IDS.has(activeTab) && (
           <DirectorRecordsTab
             activeTab={activeTab}
@@ -2446,8 +2226,6 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
             profile={profile}
             counselors={counselors}
             teachers={teachers}
-            subjects={curriculumSubjects}
-            atlasSchedule={hasAtlasSchedule(school)}
             loading={loading}
             loadError={loadError}
             staffActionLoading={staffActionLoading}
@@ -2455,7 +2233,6 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
             staffSuccess={staffSuccess}
             canManageRoles={fullDirector}
             canDeleteStaff={fullDirector}
-            onCreateCounselor={handleCreateCounselor}
             onCreateTeacher={handleCreateTeacher}
             onAddTeacherRole={handleAddTeacherRole}
             onAddRole={handleAddStaffRole}

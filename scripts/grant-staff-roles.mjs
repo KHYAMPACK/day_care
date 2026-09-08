@@ -11,12 +11,13 @@ import { createClient } from '@supabase/supabase-js';
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { TEACHER_BRANCH_SLUGS } from '../src/lib/teacherBranches.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, '..');
 
 const VALID_ROLES = new Set(['director', 'teacher', 'counselor', 'parent']);
-const VALID_SUBJECTS = new Set(['matematik', 'fen', 'turkce', 'sosyal', 'ingilizce', 'din']);
+const VALID_SUBJECTS = new Set(TEACHER_BRANCH_SLUGS);
 
 function loadEnv() {
   const envPath = resolve(root, '.env');

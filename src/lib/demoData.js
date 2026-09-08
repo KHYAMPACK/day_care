@@ -61,6 +61,7 @@ export const COUNSELOR_TABS = [
   { id: 'reports', label: 'Raporlar', icon: 'clipboard' },
   { id: 'students', label: 'Öğrenciler', icon: 'child' },
   { id: 'guidance', label: 'Rehberlik', icon: 'book' },
+  { id: 'schedule', label: 'Program', icon: 'calendar' },
   { id: 'calendar', label: 'Takvim', icon: 'calendar' },
 ];
 

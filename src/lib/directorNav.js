@@ -1,4 +1,4 @@
-import { hasAccounting } from './schoolFeatures';
+import { hasAccounting, hasAtlasSchedule } from './schoolFeatures';
 
 export const MANAGEMENT_TAB_IDS = new Set([
   'parents',
@@ -6,6 +6,7 @@ export const MANAGEMENT_TAB_IDS = new Set([
   'staff',
   'assignment',
   'curriculum',
+  'schedule',
 ]);
 
 export const RECORDS_TAB_IDS = new Set(['audit', 'attendance']);
@@ -30,8 +31,17 @@ const COMMUNICATIONS_CHILDREN = [
   { id: 'templates', label: 'Şablonlar', icon: 'sparkle' },
 ];
 
-export function buildManagementChildren() {
-  return MANAGEMENT_CHILDREN;
+export function buildManagementChildren(school) {
+  if (!hasAtlasSchedule(school)) return MANAGEMENT_CHILDREN;
+  const curriculumIndex = MANAGEMENT_CHILDREN.findIndex((item) => item.id === 'curriculum');
+  const insertAt = curriculumIndex >= 0 ? curriculumIndex + 1 : MANAGEMENT_CHILDREN.length;
+  const children = [...MANAGEMENT_CHILDREN];
+  children.splice(insertAt, 0, {
+    id: 'schedule',
+    label: 'Haftalık ders programı',
+    icon: 'calendar',
+  });
+  return children;
 }
 
 export function buildDirectorNav(school) {

@@ -2,6 +2,7 @@ import { supabase } from './supabase';
 import { withSchoolFilter } from './tenant';
 import { addDaysIso, istanbulDateIso } from './calendar';
 import { CURRICULUM_SUBJECT_DEFS } from './dersligCatalog.js';
+import { teacherBranchBySlug } from './teacherBranches.js';
 
 export const ACADEMIC_YEAR_ANCHOR = '2026-09-14';
 
@@ -65,7 +66,7 @@ export function filterSubjectsForGrade(subjects, grade) {
 export function getTeacherBransDisplay(profile) {
   const slug = getTeacherSubjectSlug(profile);
   if (!slug) return null;
-  const def = CURRICULUM_SUBJECT_DEFS.find((row) => row.slug === slug);
+  const def = teacherBranchBySlug(slug) ?? CURRICULUM_SUBJECT_DEFS.find((row) => row.slug === slug);
   return {
     slug,
     name: def?.name ?? slug,

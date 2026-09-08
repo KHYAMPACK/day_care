@@ -13,19 +13,16 @@ import {
   removeProfileRole,
 } from './_lib/profileRoles.js';
 import { logSchoolActivityServer, resolveStaffActorRole } from './_lib/activityLog.js';
+import {
+  isRehberlikBranch,
+  TEACHER_BRANCH_SLUGS,
+} from '../src/lib/teacherBranches.js';
 
 const ALLOWED_ROLES = new Set(['parent', 'teacher', 'counselor']);
 const ADDABLE_ROLES = new Set(['teacher', 'counselor', 'director']);
 const REMOVABLE_ROLES = new Set(['teacher', 'counselor', 'director']);
 const DELETABLE_ROLES = new Set(['parent', 'teacher', 'counselor']);
-const VALID_SUBJECT_SLUGS = new Set([
-  'matematik',
-  'fen',
-  'turkce',
-  'sosyal',
-  'ingilizce',
-  'din',
-]);
+const VALID_SUBJECT_SLUGS = new Set(TEACHER_BRANCH_SLUGS);
 const SKIPPABLE_ERROR_CODES = new Set(['42P01', 'PGRST205', '42703']);
 
 async function deleteWhere(adminDb, table, column, value) {
@@ -63,6 +60,16 @@ function isDeleteBlockedError(message = '') {
   return /foreign key|violates|restrict|database error deleting|unable to delete|still referenced/i.test(
     message
   );
+}
+
+async function syncCounselorRoleForBranch(adminDb, userId, nextSlug, previousSlug = null) {
+  if (isRehberlikBranch(nextSlug)) {
+    await insertProfileRole(adminDb, userId, 'counselor');
+    return;
+  }
+  if (isRehberlikBranch(previousSlug) && !isRehberlikBranch(nextSlug)) {
+    await removeProfileRole(adminDb, userId, 'counselor');
+  }
 }
 
 async function updateTeacherSubject(adminDb, userId, slug) {
@@ -193,6 +200,7 @@ async function handleCreate(req, res) {
 
   if (role === 'teacher') {
     await updateTeacherSubject(adminDb, userId, String(subject_slug).trim());
+    await syncCounselorRoleForBranch(adminDb, userId, String(subject_slug).trim());
   }
 
   const roleLabels = { parent: 'Veli', teacher: 'Öğretmen', counselor: 'Rehber' };
@@ -408,7 +416,13 @@ async function handleAddRole(req, res) {
     if (!VALID_SUBJECT_SLUGS.has(slug)) {
       return res.status(400).json({ error: 'Geçersiz branş.' });
     }
+    const { data: currentProfile } = await adminDb
+      .from('profiles')
+      .select('subject_slug')
+      .eq('id', userId)
+      .maybeSingle();
     await updateTeacherSubject(adminDb, userId, slug);
+    await syncCounselorRoleForBranch(adminDb, userId, slug, currentProfile?.subject_slug ?? null);
   }
 
   await insertProfileRole(adminDb, userId, role);
@@ -506,6 +520,56 @@ async function handleRemoveRole(req, res) {
   });
 }
 
+async function handleUpdateSubject(req, res) {
+  const auth = await verifyDirector(req);
+  if (auth.error) {
+    return res.status(auth.status).json({ error: auth.error });
+  }
+
+  const { adminDb, profile } = auth;
+  const schoolId = profile.school_id;
+  const userId = String(req.body?.user_id ?? '').trim();
+  const slug = String(req.body?.subject_slug ?? '').trim();
+
+  if (!userId) {
+    return res.status(400).json({ error: 'Kullanıcı kimliği gerekli.' });
+  }
+  if (!slug || !VALID_SUBJECT_SLUGS.has(slug)) {
+    return res.status(400).json({ error: 'Geçersiz branş.' });
+  }
+
+  const { data: target, error: targetError } = await adminDb
+    .from('profiles')
+    .select('id, full_name, school_id, subject_slug')
+    .eq('id', userId)
+    .maybeSingle();
+
+  if (targetError) throw targetError;
+  if (!target || target.school_id !== schoolId) {
+    return res.status(404).json({ error: 'Kullanıcı bulunamadı.' });
+  }
+
+  await updateTeacherSubject(adminDb, userId, slug);
+  await syncCounselorRoleForBranch(adminDb, userId, slug, target.subject_slug ?? null);
+
+  await logSchoolActivityServer(adminDb, {
+    schoolId,
+    actorId: profile.id,
+    actorRole: resolveStaffActorRole(await getProfileRoles(adminDb, profile.id)),
+    category: 'staff',
+    action: 'updated',
+    summary: `Branş güncellendi: ${target.full_name} · ${slug}`,
+    targetType: 'profile',
+    targetId: userId,
+  });
+
+  return res.status(200).json({
+    user_id: userId,
+    full_name: target.full_name,
+    subject_slug: slug,
+  });
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -527,6 +591,7 @@ export default async function handler(req, res) {
     if (action === 'reset-pin') return await handleResetPin(req, res);
     if (action === 'add-role') return await handleAddRole(req, res);
     if (action === 'remove-role') return await handleRemoveRole(req, res);
+    if (action === 'update-subject') return await handleUpdateSubject(req, res);
     return res.status(400).json({ error: 'Geçersiz işlem.' });
   } catch (error) {
     console.error(`staff.${action || 'unknown'} error:`, error);

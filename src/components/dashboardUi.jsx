@@ -3,6 +3,7 @@ import { formatAppError, useOnlineStatus } from '../lib/errorMessages';
 import { formatRoleLabel } from '../lib/roles';
 import { Avatar } from './ui/Avatar';
 import { Icon } from './ui/Icon';
+import { useStaffPatchNotes } from './StaffWhatsNewHost';
 
 const CHIP_VARIANTS = ['lavender', 'mint', 'peach', 'sky'];
 
@@ -81,6 +82,7 @@ export function PageHeader({
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const profileRef = useRef(null);
+  const patchNotes = useStaffPatchNotes();
 
   const parsed = useMemo(() => {
     if (schoolName) {
@@ -166,6 +168,20 @@ export function PageHeader({
                   </button>
                 ))}
               </div>
+            ) : null}
+            {patchNotes.available ? (
+              <button
+                type="button"
+                className="page-header__menu-patch-notes"
+                role="menuitem"
+                onClick={() => {
+                  setMenuOpen(false);
+                  patchNotes.openArchive();
+                }}
+              >
+                <Icon name="sparkle" size={16} />
+                Sürüm notları
+              </button>
             ) : null}
             {onSignOut ? (
               <button

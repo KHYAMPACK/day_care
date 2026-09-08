@@ -6,7 +6,7 @@ import { useActiveRole } from '../../context/ActiveRoleContext';
 import { useStaffHeader } from '../../hooks/useStaffHeader';
 import { USER_ROLES } from '../../lib/roles';
 import { COUNSELOR_TABS, defaultCounselorTab } from '../../lib/demoData';
-import { loadSchoolClasses } from '../../lib/curriculum';
+import { academicWeekIndex, loadSchoolClasses } from '../../lib/curriculum';
 import {
   AppNavbar,
   ErrorMessage,
@@ -21,6 +21,9 @@ import ExamReportsPanel from '../../components/exams/ExamReportsPanel';
 import CounselorExamOverview from '../../components/exams/CounselorExamOverview';
 import CounselorStudentsTab from '../../components/exams/CounselorStudentsTab';
 import CounselorGuidanceTab from '../../components/exams/CounselorGuidanceTab';
+import ClassWeekTimetableEditor from '../../components/curriculum/ClassWeekTimetableEditor';
+import { hasAtlasSchedule, resolveAcademicWeeks } from '../../lib/schoolFeatures';
+import { istanbulDateIso } from '../../lib/calendar';
 
 function AccessDenied({ onSignOut }) {
   return (
@@ -186,6 +189,23 @@ export default function CounselorDashboard({ profile, schoolId, onSignOut }) {
               schoolId={schoolId}
               school={school}
             />
+          )}
+
+          {demoNav.tab === 'schedule' && (
+            <section className="director-panel">
+              {hasAtlasSchedule(school) ? (
+                <ClassWeekTimetableEditor
+                  schoolId={schoolId}
+                  classes={classes}
+                  academicWeeks={resolveAcademicWeeks(school, [], {
+                    atlasSchedule: true,
+                  })}
+                  currentWeekIndex={Math.max(1, academicWeekIndex(istanbulDateIso()))}
+                />
+              ) : (
+                <p className="dash-hint">Haftalık ders programı yalnızca Atlas okullarında kullanılır.</p>
+              )}
+            </section>
           )}
 
           {demoNav.tab === 'calendar' && (

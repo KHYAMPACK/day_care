@@ -17,6 +17,7 @@ import ParentTeacherWhatsApp from './announcements/ParentTeacherWhatsApp';
 import AcademicCalendar, { TomorrowEventsCard } from './calendar/AcademicCalendar';
 import ParentCurriculum, { ParentCurriculumRecap, useParentCurriculumRecap } from './curriculum/ParentCurriculum';
 import ParentWeeklyReport from './attendance/ParentWeeklyReport';
+import ParentClassTimetable from './curriculum/ParentClassTimetable';
 import ParentExams from './exams/ParentExams';
 import ParentHomework, { ParentHomeworkStrip } from './homework/ParentHomework';
 import {
@@ -564,6 +565,13 @@ export default function ParentDashboard({ profile, schoolId, onSignOut }) {
               />
             ) : null}
             {accountingEnabled ? <ParentTuitionStatus parentId={profile.id} /> : null}
+            {atlasSchedule ? (
+              <ParentClassTimetable
+                students={students}
+                schoolId={schoolId}
+                calendarEvents={calendarEvents}
+              />
+            ) : null}
             <ParentWeeklyReport
               students={students}
               schoolId={schoolId}

@@ -34,6 +34,7 @@ export const SCHOOL_MODULES = [
       'teacher_day_responses',
       'teacher_missed_day_prompts',
       'assessment_types',
+      'class_week_timetable',
     ],
   },
   {
