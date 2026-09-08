@@ -15,6 +15,7 @@ import {
   OfflineBanner,
 } from './components/dashboardUi';
 import { USER_ROLES } from './lib/roles';
+import StaffWhatsNewHost from './components/StaffWhatsNewHost';
 
 function AuthScreen() {
   const { tenant, tenantSchoolId } = useTenant();
@@ -240,7 +241,9 @@ function AppRoutes() {
     <div className="app-shell">
       <OfflineBanner />
       <ActiveRoleProvider profile={profile}>
-        <RoleBasedDashboard profile={profile} schoolId={schoolId} onSignOut={signOut} />
+        <StaffWhatsNewHost profile={profile}>
+          <RoleBasedDashboard profile={profile} schoolId={schoolId} onSignOut={signOut} />
+        </StaffWhatsNewHost>
       </ActiveRoleProvider>
     </div>
   );

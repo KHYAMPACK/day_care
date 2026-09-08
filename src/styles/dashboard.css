@@ -8913,6 +8913,114 @@ body {
   margin-top: 0.25rem;
 }
 
+.app-dialog__panel.staff-whats-new-dialog {
+  width: min(40rem, calc(100vw - 2rem));
+  max-height: calc(100vh - 2rem);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 1.25rem 1.35rem;
+}
+
+.staff-whats-new-dialog__releases {
+  display: grid;
+  gap: 1rem;
+  overflow-x: hidden;
+  overflow-y: auto;
+  max-height: min(28rem, 58vh);
+  margin: 0.75rem 0;
+  padding-right: 0.25rem;
+  min-width: 0;
+}
+
+.staff-whats-new-release {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.85rem 0.95rem;
+  border: 1px solid var(--dash-border, #e5e7eb);
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--bg-page, #f8fafc) 40%, white);
+}
+
+.staff-whats-new-release__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.35rem 0.75rem;
+}
+
+.staff-whats-new-release__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.staff-whats-new-release__date {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.staff-whats-new-release__intro {
+  margin: 0;
+}
+
+.staff-whats-new-release__items {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.staff-whats-new-item {
+  display: grid;
+  gap: 0.4rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--dash-border, #e5e7eb);
+}
+
+.staff-whats-new-release__items .staff-whats-new-item:first-child {
+  padding-top: 0;
+  border-top: none;
+}
+
+.staff-whats-new-item__title {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 650;
+}
+
+.staff-whats-new-item__summary {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.staff-whats-new-item__how-label {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.staff-whats-new-item__steps {
+  margin: 0.25rem 0 0;
+  padding-left: 1.15rem;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.staff-whats-new-item__steps li + li {
+  margin-top: 0.25rem;
+}
+
+.app-dialog__panel.staff-whats-new-dialog .app-dialog__actions {
+  flex-shrink: 0;
+  margin-top: 0.25rem;
+}
+
 .app-dialog--out .app-dialog__panel {
   animation: anim-dialog-out 0.18s ease both;
 }
