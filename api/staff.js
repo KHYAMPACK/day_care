@@ -17,8 +17,10 @@ import {
   isRehberlikBranch,
   TEACHER_BRANCH_SLUGS,
 } from '../src/lib/teacherBranches.js';
-import { hasAtlasSchedule } from '../src/lib/schoolFeatures.js';
-import { ensureTeachersAssignedToAllClasses } from '../src/lib/curriculum.js';
+import {
+  ensureTeachersAssignedToAllClasses,
+  schoolHasAtlasSchedule,
+} from './_lib/atlasTeacherClasses.js';
 
 const ALLOWED_ROLES = new Set(['parent', 'teacher', 'counselor']);
 const ADDABLE_ROLES = new Set(['teacher', 'counselor', 'director']);
@@ -65,7 +67,7 @@ async function assignAtlasTeacherToAllClasses(adminDb, schoolId, teacherId) {
     .eq('id', schoolId)
     .maybeSingle();
   if (error) throw error;
-  if (!hasAtlasSchedule(school) || !teacherId) return;
+  if (!schoolHasAtlasSchedule(school) || !teacherId) return;
   await ensureTeachersAssignedToAllClasses(adminDb, {
     schoolId,
     teacherIds: [teacherId],
@@ -205,7 +207,7 @@ async function handleCreate(req, res) {
   });
 
   if (role === 'parent') {
-    const ids = student_ids.filter(Boolean);
+    const ids = Array.isArray(student_ids) ? student_ids.filter(Boolean) : [];
     const rows = ids.map((studentId) => ({
       student_id: studentId,
       parent_id: userId,
