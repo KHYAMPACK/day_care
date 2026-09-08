@@ -36,7 +36,7 @@ export const STAFF_CHANGELOG = [
           'Müdür: Yönetim → Haftalık ders programı. Rehberlikçi: Program sekmesi.',
           'Şube ve hafta seçin, her güne 4 ders atayın, kaydedin.',
           'Aynı programı hızlandırmak için «Önceki haftayı kopyala» kullanın.',
-          'Veliler ana ekranda çocuğun o haftaki programını görür.',
+          'Veliler Ders programı sekmesinde çocuğun o haftaki programını görür.',
         ],
         roles: ['director', 'counselor', 'teacher'],
       },

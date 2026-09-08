@@ -53,6 +53,7 @@ import {
   loadCurriculumCatalog,
   loadSchoolAssignments,
   loadSchoolClasses,
+  ensureTeachersAssignedToAllClasses,
 } from '../../lib/curriculum';
 import { createStaffUser, deleteStaffUser, resetStaffPin, addStaffRole, removeStaffRole, updateStaffSubject } from '../../lib/staffUsers';
 import { loadSchoolProfilesByRole } from '../../lib/staffQueries';
@@ -1000,6 +1001,7 @@ function StudentManagementTab({
   canDeleteStaff = true,
   runAsyncAction,
   accountingEnabled = false,
+  atlasSchedule = false,
 }) {
   const today = istanbulDateIso();
   const [fullName, setFullName] = useState('');
@@ -1053,12 +1055,22 @@ function StudentManagementTab({
       loadingLabel: 'Şube oluşturuluyor…',
       successMessage: `${branchLabel} şubesi eklendi.`,
       runFn: async () => {
-        const { error: insertError } = await supabase.from('classes').insert({
-          school_id: schoolId,
-          grade: Number(branchGrade),
-          name: trimmed,
-        });
+        const { data: created, error: insertError } = await supabase
+          .from('classes')
+          .insert({
+            school_id: schoolId,
+            grade: Number(branchGrade),
+            name: trimmed,
+          })
+          .select('id')
+          .single();
         if (insertError) throw insertError;
+        if (atlasSchedule && created?.id) {
+          await ensureTeachersAssignedToAllClasses(supabase, {
+            schoolId,
+            classIds: [created.id],
+          });
+        }
       },
       onSuccess: async () => {
         recordSchoolActivity(supabase, profile, {
@@ -1649,6 +1661,9 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
     setTemplates(templatesRes.data ?? []);
 
     try {
+      if (hasAtlasSchedule(school)) {
+        await ensureTeachersAssignedToAllClasses(supabase, { schoolId });
+      }
       const [schoolClasses, catalog, assignments] = await Promise.all([
         loadSchoolClasses(schoolId),
         loadCurriculumCatalog(),
@@ -1662,7 +1677,7 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
       setCurriculumSubjects([]);
       setCurriculumAssignments([]);
     }
-  }, [schoolId]);
+  }, [schoolId, school]);
 
   useEffect(() => {
     if (!isDirector) return;
@@ -2000,6 +2015,12 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
   );
   const managementSubNavItems = useMemo(() => getManagementSubNavItems(school), [school]);
 
+  useEffect(() => {
+    if (hasAtlasSchedule(school) && activeTab === 'assignment') {
+      setActiveTab('staff');
+    }
+  }, [school, activeTab]);
+
   function handleTabChange(nextTab) {
     setActiveTab(nextTab);
   }
@@ -2171,6 +2192,7 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
             canDeleteStaff={fullDirector}
             runAsyncAction={runAsyncAction}
             accountingEnabled={hasAccounting(school)}
+            atlasSchedule={hasAtlasSchedule(school)}
           />
         )}
 
@@ -2192,7 +2214,7 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
           />
         )}
 
-        {activeTab === 'assignment' && (
+        {activeTab === 'assignment' && !hasAtlasSchedule(school) && (
           <section className="director-panel">
             <CurriculumAssignmentPanel
               teachers={teachers}

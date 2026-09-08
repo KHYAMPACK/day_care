@@ -1,4 +1,4 @@
-import { hasAccounting } from './schoolFeatures';
+import { hasAccounting, hasAtlasSchedule } from './schoolFeatures';
 
 export const MANAGEMENT_TAB_IDS = new Set([
   'parents',
@@ -32,8 +32,9 @@ const COMMUNICATIONS_CHILDREN = [
   { id: 'templates', label: 'Şablonlar', icon: 'sparkle' },
 ];
 
-export function buildManagementChildren() {
-  return MANAGEMENT_CHILDREN;
+export function buildManagementChildren(school) {
+  if (!hasAtlasSchedule(school)) return MANAGEMENT_CHILDREN;
+  return MANAGEMENT_CHILDREN.filter((item) => item.id !== 'assignment');
 }
 
 export function buildDirectorNav(school) {
@@ -43,7 +44,7 @@ export function buildDirectorNav(school) {
       id: 'management',
       label: 'Yönetim',
       icon: 'users',
-      children: buildManagementChildren(),
+      children: buildManagementChildren(school),
     },
     { id: 'calendar', label: 'Takvim', icon: 'calendar' },
     { id: 'exams', label: 'Sınavlar', icon: 'file' },
@@ -111,15 +112,15 @@ export function resolveActiveLabel(nav, activeTab) {
 
 export function getDefaultTabForTopLevel(topLevel, school) {
   if (topLevel === 'management') {
-    return buildManagementChildren()[0]?.id ?? 'parents';
+    return buildManagementChildren(school)[0]?.id ?? 'parents';
   }
   if (topLevel === 'records') return 'audit';
   if (topLevel === 'communications') return 'announcements';
   return topLevel;
 }
 
-export function getManagementSubNavItems() {
-  return buildManagementChildren();
+export function getManagementSubNavItems(school) {
+  return buildManagementChildren(school);
 }
 
 export function getRecordsSubNavItems() {

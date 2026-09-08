@@ -246,7 +246,7 @@ export default function AdminDashboard({ profile, schoolId, onSignOut }) {
       setStudents(assignedStudents);
       setTemplates(templatesRes.data ?? []);
 
-      if (assignedStudents.length === 0) {
+      if (assignedStudents.length === 0 && !atlasSchedule) {
         setDataWarning(
           'Size atanan şube yok. Müdür Yönetim → Şube Atama bölümünden şube ataması yapmalı.'
         );
@@ -548,8 +548,9 @@ export default function AdminDashboard({ profile, schoolId, onSignOut }) {
               <h2 className="dash-section-title">Sınıfınız</h2>
               {students.length === 0 ? (
                 <p className="dash-hint">
-                  Size atanan öğrenci yok. Müdürünüz Yönetim → Şube Atama bölümünden şube
-                  ataması yaptığında burada görünecek.
+                  {atlasSchedule
+                    ? 'Henüz şubelerde öğrenci yok. Öğrenciler yerleştirildiğinde burada görünür.'
+                    : 'Size atanan öğrenci yok. Müdürünüz Yönetim → Şube Atama bölümünden şube ataması yaptığında burada görünecek.'}
                 </p>
               ) : (
                 <>

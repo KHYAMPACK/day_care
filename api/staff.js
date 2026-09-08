@@ -17,6 +17,8 @@ import {
   isRehberlikBranch,
   TEACHER_BRANCH_SLUGS,
 } from '../src/lib/teacherBranches.js';
+import { hasAtlasSchedule } from '../src/lib/schoolFeatures.js';
+import { ensureTeachersAssignedToAllClasses } from '../src/lib/curriculum.js';
 
 const ALLOWED_ROLES = new Set(['parent', 'teacher', 'counselor']);
 const ADDABLE_ROLES = new Set(['teacher', 'counselor', 'director']);
@@ -54,6 +56,20 @@ async function cleanupStaffReferences(adminDb, userId, roles) {
 
   await deleteWhere(adminDb, 'messages', 'author_id', userId);
   await deleteWhere(adminDb, 'announcements', 'author_id', userId);
+}
+
+async function assignAtlasTeacherToAllClasses(adminDb, schoolId, teacherId) {
+  const { data: school, error } = await adminDb
+    .from('schools')
+    .select('features')
+    .eq('id', schoolId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!hasAtlasSchedule(school) || !teacherId) return;
+  await ensureTeachersAssignedToAllClasses(adminDb, {
+    schoolId,
+    teacherIds: [teacherId],
+  });
 }
 
 function isDeleteBlockedError(message = '') {
@@ -201,6 +217,7 @@ async function handleCreate(req, res) {
   if (role === 'teacher') {
     await updateTeacherSubject(adminDb, userId, String(subject_slug).trim());
     await syncCounselorRoleForBranch(adminDb, userId, String(subject_slug).trim());
+    await assignAtlasTeacherToAllClasses(adminDb, schoolId, userId);
   }
 
   const roleLabels = { parent: 'Veli', teacher: 'Öğretmen', counselor: 'Rehber' };
@@ -426,6 +443,10 @@ async function handleAddRole(req, res) {
   }
 
   await insertProfileRole(adminDb, userId, role);
+
+  if (role === 'teacher') {
+    await assignAtlasTeacherToAllClasses(adminDb, schoolId, userId);
+  }
 
   const roleLabels = { teacher: 'Öğretmen', counselor: 'Rehber', director: 'Müdür' };
   await logSchoolActivityServer(adminDb, {
