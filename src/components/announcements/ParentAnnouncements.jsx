@@ -6,7 +6,7 @@ import { formatRelativeTimeTr } from '../../utils/formatTime';
 import { ANNOUNCEMENT_SELECT, sortAnnouncements } from '../../lib/announcements';
 import { getDemoParentAnnouncements } from '../../lib/parentDemoData';
 
-export default function ParentAnnouncements({ profile, schoolId }) {
+export default function ParentAnnouncements({ profile, schoolId, allowDemo = true }) {
   const [announcements, setAnnouncements] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -82,7 +82,11 @@ export default function ParentAnnouncements({ profile, schoolId }) {
   }, [profile?.id, schoolId]);
 
   const displayAnnouncements =
-    announcements.length > 0 ? announcements : getDemoParentAnnouncements();
+    announcements.length > 0
+      ? announcements
+      : allowDemo
+        ? getDemoParentAnnouncements()
+        : [];
   const showingDemo = announcements.length === 0 && displayAnnouncements.length > 0;
 
   return (

@@ -6,11 +6,22 @@ export function firstName(fullName, fallback = 'Elif') {
 
 export const HOMEWORK_TAB = { id: 'homework', label: 'Ödev', icon: 'clipboard' };
 
+export const PARENT_SCHEDULE_TAB = { id: 'schedule', label: 'Program', icon: 'book' };
+
 export const PARENT_TABS = [
   { id: 'home', label: 'Gün', icon: 'home' },
   { id: 'calendar', label: 'Takvim', icon: 'calendar' },
   { id: 'exams', label: 'Sınavlar', icon: 'file' },
   { id: 'curriculum', label: 'Müfredat', icon: 'book' },
+  { id: 'announcements', label: 'Duyurular', icon: 'megaphone' },
+  { id: 'chat', label: 'Mesaj', icon: 'message' },
+];
+
+export const ATLAS_PARENT_TABS = [
+  { id: 'home', label: 'Hafta', icon: 'home' },
+  PARENT_SCHEDULE_TAB,
+  { id: 'calendar', label: 'Takvim', icon: 'calendar' },
+  { id: 'exams', label: 'Sınavlar', icon: 'file' },
   { id: 'announcements', label: 'Duyurular', icon: 'megaphone' },
   { id: 'chat', label: 'Mesaj', icon: 'message' },
 ];
@@ -47,7 +58,8 @@ export function getTeacherTabs(atlasSchedule, homeworkTracking = false) {
   return withHomeworkTab(tabs, homeworkTracking);
 }
 
-export function getParentTabs(homeworkTracking = false) {
+export function getParentTabs({ homeworkTracking = false, atlasSchedule = false } = {}) {
+  if (atlasSchedule) return ATLAS_PARENT_TABS;
   return withHomeworkTab(PARENT_TABS, homeworkTracking);
 }
 

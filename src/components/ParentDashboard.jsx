@@ -18,6 +18,10 @@ import AcademicCalendar, { TomorrowEventsCard } from './calendar/AcademicCalenda
 import ParentCurriculum, { ParentCurriculumRecap, useParentCurriculumRecap } from './curriculum/ParentCurriculum';
 import ParentWeeklyReport from './attendance/ParentWeeklyReport';
 import ParentClassTimetable from './curriculum/ParentClassTimetable';
+import {
+  academicWeekIndex,
+  formatWeekRangeTr,
+} from '../lib/curriculum';
 import ParentExams from './exams/ParentExams';
 import ParentHomework, { ParentHomeworkStrip } from './homework/ParentHomework';
 import {
@@ -134,7 +138,10 @@ export default function ParentDashboard({ profile, schoolId, onSignOut }) {
   const atlasSchedule = hasAtlasSchedule(school);
   const homeworkTracking = hasHomeworkTracking(school);
   const accountingEnabled = hasAccounting(school);
-  const parentTabs = useMemo(() => getParentTabs(homeworkTracking), [homeworkTracking]);
+  const parentTabs = useMemo(
+    () => getParentTabs({ homeworkTracking, atlasSchedule }),
+    [homeworkTracking, atlasSchedule]
+  );
   const [students, setStudents] = useState([]);
   const [studentIds, setStudentIds] = useState([]);
   const [groupIds, setGroupIds] = useState([]);
@@ -151,6 +158,7 @@ export default function ParentDashboard({ profile, schoolId, onSignOut }) {
   const [pushSubscribing, setPushSubscribing] = useState(false);
   const [pushSuccess, setPushSuccess] = useState(null);
   const [pushError, setPushError] = useState(null);
+  const [pushPromptOpen, setPushPromptOpen] = useState(false);
   const [calendarEvents, setCalendarEvents] = useState([]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const notificationsPresent = usePresence(notificationsOpen);
@@ -160,7 +168,7 @@ export default function ParentDashboard({ profile, schoolId, onSignOut }) {
   const schoolName = school?.name ?? 'OkulTakip';
   const displayName = profile?.full_name ?? profile?.email ?? 'Veli';
 
-  const demoFallbackNotifications = /demo/i.test(schoolName);
+  const demoFallbackNotifications = atlasSchedule ? false : /demo/i.test(schoolName);
   const parentNotifications = useParentNotifications(profile.id, {
     students,
     demoFallback: demoFallbackNotifications,
@@ -245,13 +253,14 @@ export default function ParentDashboard({ profile, schoolId, onSignOut }) {
     }
 
     setNotificationPermission('granted');
+    setPushPromptOpen(false);
     setPushSuccess('Anlık bildirimler açıldı! Haftalık özet ve okul mesajlarını anında alacaksınız.');
   }
 
   function handleOpenWeeklyReport(notification) {
     parentNotifications.markRead(notification.id);
     setNotificationsOpen(false);
-    if (notification.kind === 'homework_assigned') {
+    if (notification.kind === 'homework_assigned' && !atlasSchedule) {
       demoNav.selectTab('homework');
       return;
     }
@@ -289,6 +298,13 @@ export default function ParentDashboard({ profile, schoolId, onSignOut }) {
     isPushSupported() &&
     notificationPermission !== 'granted' &&
     notificationPermission !== 'unsupported';
+
+  useEffect(() => {
+    if (showNotificationPrompt) setPushPromptOpen(true);
+  }, [showNotificationPrompt]);
+
+  const weekIndex = Math.max(1, academicWeekIndex());
+  const weekRangeLabel = formatWeekRangeTr(weekIndex);
 
   useEffect(() => {
     let mounted = true;
@@ -523,27 +539,41 @@ export default function ParentDashboard({ profile, schoolId, onSignOut }) {
       <main className="dash-page dash-page--flush dash-page--tabbar">
         <AnimatedView viewKey={demoNav.tab}>
         {demoNav.tab === 'announcements' ? (
-          <ParentAnnouncements profile={profile} schoolId={schoolId} />
+          <ParentAnnouncements profile={profile} schoolId={schoolId} allowDemo={!atlasSchedule} />
         ) : demoNav.tab === 'chat' ? (
           <ParentTeacherWhatsApp />
         ) : demoNav.tab === 'calendar' ? (
           <AcademicCalendar schoolId={schoolId} viewerGrades={viewerGrades} />
         ) : demoNav.tab === 'exams' ? (
           <ParentExams students={students} schoolId={schoolId} school={school} />
-        ) : demoNav.tab === 'curriculum' ? (
+        ) : demoNav.tab === 'schedule' ? (
+          <>
+            <section className="page-hero">
+              <h1 className="page-hero__title">Ders programı</h1>
+              <p className="page-hero__subtitle">{weekRangeLabel}</p>
+            </section>
+            <ParentClassTimetable
+              students={students}
+              schoolId={schoolId}
+              calendarEvents={calendarEvents}
+            />
+          </>
+        ) : demoNav.tab === 'curriculum' && !atlasSchedule ? (
           <ParentCurriculum students={students} schoolId={schoolId} />
-        ) : demoNav.tab === 'homework' ? (
+        ) : demoNav.tab === 'homework' && !atlasSchedule ? (
           <ParentHomework students={students} schoolId={schoolId} />
         ) : (
           <>
             <section className="page-hero">
-              <h1 className="page-hero__title">Gün</h1>
+              <h1 className="page-hero__title">{atlasSchedule ? 'Hafta' : 'Gün'}</h1>
               <p className="page-hero__subtitle">
-                {new Intl.DateTimeFormat('tr-TR', {
-                  timeZone: 'Europe/Istanbul',
-                  day: 'numeric',
-                  month: 'long',
-                }).format(new Date())}
+                {atlasSchedule
+                  ? weekRangeLabel
+                  : new Intl.DateTimeFormat('tr-TR', {
+                      timeZone: 'Europe/Istanbul',
+                      day: 'numeric',
+                      month: 'long',
+                    }).format(new Date())}
               </p>
               {studentNames.length > 0 ? <AvatarStack names={studentNames} size={42} /> : null}
               {studentNames.length > 0 ? (
@@ -557,19 +587,20 @@ export default function ParentDashboard({ profile, schoolId, onSignOut }) {
               events={tomorrowEvents}
               onOpenCalendar={() => demoNav.selectTab('calendar')}
             />
-            {homeworkTracking ? (
+            {!atlasSchedule && homeworkTracking ? (
               <ParentHomeworkStrip
                 students={students}
                 schoolId={schoolId}
                 onOpen={() => demoNav.selectTab('homework')}
               />
             ) : null}
-            {accountingEnabled ? <ParentTuitionStatus parentId={profile.id} /> : null}
-            {atlasSchedule ? (
-              <ParentClassTimetable
-                students={students}
-                schoolId={schoolId}
-                calendarEvents={calendarEvents}
+            {!atlasSchedule && accountingEnabled ? (
+              <ParentTuitionStatus parentId={profile.id} />
+            ) : null}
+            {!atlasSchedule ? (
+              <ParentCurriculumRecap
+                childrenData={curriculumRecap}
+                onOpen={() => demoNav.selectTab('curriculum')}
               />
             ) : null}
             <ParentWeeklyReport
@@ -578,33 +609,6 @@ export default function ParentDashboard({ profile, schoolId, onSignOut }) {
               atlasSchedule={atlasSchedule}
               demoFallback={demoFallbackNotifications}
             />
-            <ParentCurriculumRecap
-              childrenData={curriculumRecap}
-              onOpen={() => demoNav.selectTab('curriculum')}
-            />
-            {showNotificationPrompt && (
-              <section className="notify-prompt-card">
-                <div className="notify-prompt-head">
-                  <IconWell name="bell" variant="lavender" />
-                  <p className="notify-prompt-text">
-                    Okuldan gelen güncellemeleri telefonunuza anında almak için bildirimleri
-                    açın.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  className="notify-prompt-btn"
-                  onClick={handleEnableNotifications}
-                  disabled={pushSubscribing}
-                >
-                  {pushSubscribing ? 'Açılıyor…' : 'Anlık Bildirimleri Aç'}
-                </button>
-                {pushError && <InlineError error={pushError} context="subscribe" />}
-              </section>
-            )}
-
-            {pushSuccess && <SuccessMessage message={pushSuccess} />}
-
             {students.length === 0 ? (
               <section className="empty-card">
                 <h2 className="empty-title">Bağlı çocuk yok</h2>
@@ -646,6 +650,10 @@ export default function ParentDashboard({ profile, schoolId, onSignOut }) {
                 </section>
               ))
             )}
+            {atlasSchedule && accountingEnabled ? (
+              <ParentTuitionStatus parentId={profile.id} />
+            ) : null}
+            {pushSuccess && <SuccessMessage message={pushSuccess} />}
           </>
         )}
         </AnimatedView>
@@ -656,6 +664,29 @@ export default function ParentDashboard({ profile, schoolId, onSignOut }) {
         active={demoNav.tab}
         onChange={demoNav.selectTab}
       />
+
+      {showNotificationPrompt && pushPromptOpen ? (
+        <div className="notify-prompt-overlay">
+          <div className="notify-prompt-modal" role="dialog" aria-labelledby="notify-prompt-title">
+            <IconWell name="bell" variant="lavender" />
+            <h2 id="notify-prompt-title" className="notify-prompt-modal__title">
+              Anlık bildirimler
+            </h2>
+            <p className="notify-prompt-text">
+              Okuldan gelen güncellemeleri telefonunuza anında almak için bildirimleri açın.
+            </p>
+            <button
+              type="button"
+              className="notify-prompt-btn"
+              onClick={handleEnableNotifications}
+              disabled={pushSubscribing}
+            >
+              {pushSubscribing ? 'Açılıyor…' : 'Anlık Bildirimleri Aç'}
+            </button>
+            {pushError ? <InlineError error={pushError} context="subscribe" /> : null}
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }

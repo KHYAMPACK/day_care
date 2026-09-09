@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { istanbulDateIso, uniqueGrades } from '../../lib/calendar';
+import { hasAtlasSchedule } from '../../lib/schoolFeatures';
 import { resolveExamConfig } from '../../lib/examConfig';
 import {
   EXAM_KIND,
@@ -55,6 +56,7 @@ export default function ParentExams({ students, schoolId, school, classes = [] }
           }));
 
       const useDemoExams =
+        !hasAtlasSchedule(school) &&
         isDemoSchool(school) &&
         cfg.storeResults &&
         resolvedRankings.length === 0 &&
@@ -102,6 +104,8 @@ export default function ParentExams({ students, schoolId, school, classes = [] }
     return map;
   }, [students, rankings]);
 
+  const previewUpcoming = upcoming.slice(0, 3);
+
   if (loading) {
     return (
       <section className="dash-card">
@@ -125,26 +129,44 @@ export default function ParentExams({ students, schoolId, school, classes = [] }
         </section>
       ) : (
         <>
-          <section className="dash-card">
-            <h2 className="dash-section-title">Yaklaşan</h2>
+          <details className="parent-upcoming" open={previewUpcoming.length > 0}>
+            <summary className="parent-upcoming__summary">
+              <span className="parent-upcoming__title">Yaklaşan sınavlar</span>
+              <span className="parent-upcoming__count">{upcoming.length}</span>
+            </summary>
             {!config.showCommonExams && !config.showMockExams ? (
               <p className="dash-hint">Sınav takibi henüz açılmadı.</p>
             ) : upcoming.length === 0 ? (
               <p className="dash-hint">Yaklaşan sınav yok.</p>
             ) : (
-              <ul className="exam-list">
-                {upcoming.map((event) => (
-                  <li key={event.id}>
-                    <strong>{formatExamEventLabel(event)}</strong>
-                    <span className="dash-hint">
-                      {formatExamWhen(event)}
-                      {examKindFromEvent(event) === EXAM_KIND.common ? ' · Ortak' : ' · Deneme'}
-                    </span>
-                  </li>
-                ))}
+              <ul className="parent-upcoming__list">
+                {previewUpcoming.map((event) => {
+                  const iso = event.starts_on ?? event.held_on ?? '';
+                  const day = iso.slice(8, 10).replace(/^0/, '') || '—';
+                  const month = iso
+                    ? new Date(`${iso}T00:00:00Z`).toLocaleDateString('tr-TR', {
+                        timeZone: 'UTC',
+                        month: 'short',
+                      })
+                    : '';
+                  const kind = examKindFromEvent(event) === EXAM_KIND.common ? 'Ortak' : 'Deneme';
+                  return (
+                    <li key={event.id} className="parent-upcoming__card">
+                      <time className="parent-upcoming__date" dateTime={iso || undefined}>
+                        <span className="parent-upcoming__day">{day}</span>
+                        <span className="parent-upcoming__month">{month}</span>
+                      </time>
+                      <div className="parent-upcoming__body">
+                        <p className="parent-upcoming__name">{formatExamEventLabel(event)}</p>
+                        <p className="parent-upcoming__when">{formatExamWhen(event)}</p>
+                        <span className="parent-upcoming__kind">{kind}</span>
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
             )}
-          </section>
+          </details>
 
           {config.storeResults ? (
             <section className="dash-card">
