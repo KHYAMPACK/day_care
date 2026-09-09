@@ -20,7 +20,8 @@ function subjectIdForClassAccess(subjects, subjectSlug, classGrade) {
 }
 
 export function schoolHasAtlasSchedule(school) {
-  return Boolean(school?.features?.atlas_schedule);
+  if (Boolean(school?.features?.atlas_schedule)) return true;
+  return /atlas vip/i.test(school?.name ?? '');
 }
 
 export async function ensureTeachersAssignedToAllClasses(
@@ -94,7 +95,26 @@ export async function ensureTeachersAssignedToAllClasses(
 
   if (!rows.length) return { inserted: 0 };
 
+  return insertTeacherAssignmentRows(db, rows);
+}
+
+function isIgnorableAssignmentInsertError(message = '') {
+  return /unique|duplicate|23505|role 'teacher'/i.test(message);
+}
+
+async function insertTeacherAssignmentRows(db, rows) {
   const { error: insertError } = await db.from('teacher_assignments').insert(rows);
-  if (insertError) throw insertError;
-  return { inserted: rows.length };
+  if (!insertError) return { inserted: rows.length };
+  if (!isIgnorableAssignmentInsertError(insertError.message ?? '')) throw insertError;
+
+  let inserted = 0;
+  for (const row of rows) {
+    const { error } = await db.from('teacher_assignments').insert(row);
+    if (!error) {
+      inserted += 1;
+      continue;
+    }
+    if (!isIgnorableAssignmentInsertError(error.message ?? '')) throw error;
+  }
+  return { inserted };
 }

@@ -1656,6 +1656,74 @@ body {
   text-align: center;
 }
 
+.pwa-install-auth-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  width: 100%;
+  margin-top: 1.15rem;
+}
+
+.app-dialog__actions--single {
+  grid-template-columns: 1fr;
+}
+
+.pwa-install-dialog__head {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-bottom: 0.25rem;
+}
+
+.pwa-install-dialog__head .app-dialog__title {
+  margin: 0;
+}
+
+.pwa-install-wait {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0 0.25rem;
+  text-align: center;
+}
+
+.pwa-install-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.pwa-install-steps li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: var(--radius-md, 0.75rem);
+  background: color-mix(in srgb, var(--theme-accent-soft, #ede9fe) 45%, white);
+  border: 1px solid color-mix(in srgb, var(--theme-primary, #5b21b6) 12%, #ebe8e4);
+  font-size: 0.9375rem;
+  line-height: 1.45;
+  color: var(--text-primary);
+}
+
+.pwa-install-steps__n {
+  flex: 0 0 1.5rem;
+  width: 1.5rem;
+  height: 1.5rem;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--theme-primary);
+  color: var(--theme-primary-text, #fff);
+  font-size: 0.75rem;
+  font-weight: 700;
+  margin-top: 0.1rem;
+}
+
 .app-shell {
   width: 100%;
   max-width: 100%;

@@ -796,7 +796,21 @@ export async function loadSchoolAssignments(schoolId) {
   return hydrated.filter((row) => row.classes?.school_id === schoolId);
 }
 
-export async function loadStudentsForTeacherAssignments(teacherId, schoolId) {
+export async function loadStudentsForSchool(schoolId) {
+  if (!schoolId) return [];
+  const { data, error } = await withSchoolFilter(
+    supabase
+      .from('students')
+      .select('id, full_name, grade, class_id')
+      .order('full_name'),
+    schoolId
+  );
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function loadStudentsForTeacherAssignments(teacherId, schoolId, { atlasSchedule = false } = {}) {
+  if (atlasSchedule) return loadStudentsForSchool(schoolId);
   if (!teacherId) return [];
 
   const assignments = await loadTeacherAssignments(teacherId);
@@ -893,9 +907,28 @@ export async function ensureTeachersAssignedToAllClasses(
 
   if (!rows.length) return { inserted: 0 };
 
+  return insertTeacherAssignmentRows(db, rows);
+}
+
+function isIgnorableAssignmentInsertError(message = '') {
+  return /unique|duplicate|23505|role 'teacher'/i.test(message);
+}
+
+async function insertTeacherAssignmentRows(db, rows) {
   const { error: insertError } = await db.from('teacher_assignments').insert(rows);
-  if (insertError) throw insertError;
-  return { inserted: rows.length };
+  if (!insertError) return { inserted: rows.length };
+  if (!isIgnorableAssignmentInsertError(insertError.message ?? '')) throw insertError;
+
+  let inserted = 0;
+  for (const row of rows) {
+    const { error } = await db.from('teacher_assignments').insert(row);
+    if (!error) {
+      inserted += 1;
+      continue;
+    }
+    if (!isIgnorableAssignmentInsertError(error.message ?? '')) throw error;
+  }
+  return { inserted };
 }
 
 export async function loadCurriculumWeekNote({ classId, subjectId, weekIndex }) {

@@ -1685,10 +1685,15 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
     setLinks(schoolLinks);
     setTemplates(templatesRes.data ?? []);
 
-    try {
-      if (hasAtlasSchedule(school)) {
+    if (hasAtlasSchedule(school)) {
+      try {
         await ensureTeachersAssignedToAllClasses(supabase, { schoolId });
+      } catch (assignError) {
+        console.warn('Atlas şube erişimi güncellenemedi:', assignError);
       }
+    }
+
+    try {
       const [schoolClasses, catalog, assignments] = await Promise.all([
         loadSchoolClasses(schoolId),
         loadCurriculumCatalog(),
@@ -1703,6 +1708,24 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
       setCurriculumAssignments([]);
     }
   }, [schoolId, school]);
+
+  useEffect(() => {
+    if (!isDirector || !schoolId || !school) return;
+    if (school.features?.atlas_schedule) return;
+    if (!/atlas vip/i.test(school.name ?? '')) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        await saveSchoolFeature(supabase, schoolId, school.features, { atlas_schedule: true });
+        if (!cancelled) await refreshSchool();
+      } catch (error) {
+        console.warn('Atlas özelliği açılamadı:', error);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isDirector, school, schoolId, refreshSchool]);
 
   useEffect(() => {
     if (!isDirector) return;

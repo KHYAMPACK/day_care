@@ -1,7 +1,9 @@
 import { deriveAcademicWeeksFromCalendar } from './curriculum.js';
 
 export function hasAtlasSchedule(school) {
-  return Boolean(school?.features?.atlas_schedule);
+  if (Boolean(school?.features?.atlas_schedule)) return true;
+  // Atlas VIP was created without the flag, so Şube Atama stayed in the müdür nav.
+  return /atlas vip/i.test(school?.name ?? '');
 }
 
 export function hasAccounting(school) {

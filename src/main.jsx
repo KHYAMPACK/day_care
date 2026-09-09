@@ -5,7 +5,9 @@ import './styles/dashboard.css';
 import App from './App.jsx';
 import { AuthProvider } from './context/AuthContext.jsx';
 import { TenantProvider } from './context/TenantContext.jsx';
+import { captureInstallPromptEarly } from './lib/pwaInstall';
 
+captureInstallPromptEarly();
 registerSW({ immediate: true });
 
 createRoot(document.getElementById('root')).render(

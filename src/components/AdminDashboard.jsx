@@ -219,7 +219,9 @@ export default function AdminDashboard({ profile, schoolId, onSignOut }) {
 
       let assignedStudents = [];
       try {
-        assignedStudents = await loadStudentsForTeacherAssignments(profile?.id, schoolId);
+        assignedStudents = await loadStudentsForTeacherAssignments(profile?.id, schoolId, {
+          atlasSchedule,
+        });
       } catch (assignmentError) {
         if (mounted) {
           setDataError(assignmentError);
@@ -266,7 +268,7 @@ export default function AdminDashboard({ profile, schoolId, onSignOut }) {
     return () => {
       mounted = false;
     };
-  }, [fetchMessages, schoolId, profile?.id]);
+  }, [atlasSchedule, fetchMessages, schoolId, profile?.id]);
 
   function toggleStudentSelection(studentId) {
     setSelectedStudentIds((current) =>

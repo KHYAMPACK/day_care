@@ -16,6 +16,7 @@ import {
 } from './components/dashboardUi';
 import { USER_ROLES } from './lib/roles';
 import StaffWhatsNewHost from './components/StaffWhatsNewHost';
+import { PwaInstallAuthButton, PwaInstallProvider } from './components/PwaInstallHost';
 
 function AuthScreen() {
   const { tenant, tenantSchoolId } = useTenant();
@@ -121,6 +122,8 @@ function AuthScreen() {
               </button>
             </form>
           ) : null}
+
+          <PwaInstallAuthButton />
         </div>
       </main>
     </>
@@ -250,5 +253,9 @@ function AppRoutes() {
 }
 
 export default function App() {
-  return <AppRoutes />;
+  return (
+    <PwaInstallProvider>
+      <AppRoutes />
+    </PwaInstallProvider>
+  );
 }

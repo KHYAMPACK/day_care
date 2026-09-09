@@ -11,6 +11,31 @@ import { normalizeProfileRoles } from './profileRoles';
  */
 export const STAFF_CHANGELOG = [
   {
+    id: '2026-09-10-pwa-yukle',
+    title: 'Uygulamayı telefona veya bilgisayara yükleme',
+    publishedOn: '2026-09-10',
+    intro:
+      'Paneli ana ekrana ekleyebilirsiniz. Veliler Atlas sitesindeki yükle düğmesiyle aynı ekrana gelir.',
+    items: [
+      {
+        title: 'Girişte yükle',
+        summary:
+          'Giriş ekranında «Uygulamayı yükle» görünür. Chrome ve Edge kendi onayını açar; iPhone’da Paylaş → Ana Ekrana Ekle adımları çıkar. Yüklü uygulamada düğme gizlenir.',
+        steps: [
+          'Çıkış yapıp giriş ekranına gidin.',
+          '«Uygulamayı yükle»ye dokunun ve tarayıcının onayını kabul edin.',
+        ],
+        roles: ['director', 'teacher', 'counselor'],
+      },
+      {
+        title: 'Veli yükleme bağlantısı',
+        summary:
+          'Atlas sitesinden gelen veliler veli adresine ?install=1 ile düşer; giriş yapmadan yükleme paneli açılır.',
+        roles: ['director'],
+      },
+    ],
+  },
+  {
     id: '2026-09-08-atlas-yonetim',
     title: 'Atlas yönetim ve öğrenci listesi',
     publishedOn: '2026-09-08',
