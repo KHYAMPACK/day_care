@@ -911,7 +911,8 @@ export async function ensureTeachersAssignedToAllClasses(
 }
 
 function isIgnorableAssignmentInsertError(message = '') {
-  return /unique|duplicate|23505|role 'teacher'/i.test(message);
+  // Do not ignore enforce_teacher_assignment failures — those must surface.
+  return /unique|duplicate|23505/i.test(message);
 }
 
 async function insertTeacherAssignmentRows(db, rows) {

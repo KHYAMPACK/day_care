@@ -68,10 +68,39 @@ async function assignAtlasTeacherToAllClasses(adminDb, schoolId, teacherId) {
     .maybeSingle();
   if (error) throw error;
   if (!schoolHasAtlasSchedule(school) || !teacherId) return;
-  await ensureTeachersAssignedToAllClasses(adminDb, {
-    schoolId,
-    teacherIds: [teacherId],
-  });
+
+  // Production may still enforce profiles.role = 'teacher' (pre-057). Temporarily align.
+  const { data: profile, error: profileError } = await adminDb
+    .from('profiles')
+    .select('role')
+    .eq('id', teacherId)
+    .maybeSingle();
+  if (profileError) throw profileError;
+
+  const previousRole = profile?.role ?? null;
+  const needsTempTeacherRole = previousRole && previousRole !== 'teacher';
+  if (needsTempTeacherRole) {
+    const { error: roleError } = await adminDb
+      .from('profiles')
+      .update({ role: 'teacher' })
+      .eq('id', teacherId);
+    if (roleError) throw roleError;
+  }
+
+  try {
+    await ensureTeachersAssignedToAllClasses(adminDb, {
+      schoolId,
+      teacherIds: [teacherId],
+    });
+  } finally {
+    if (needsTempTeacherRole) {
+      const { error: restoreError } = await adminDb
+        .from('profiles')
+        .update({ role: previousRole })
+        .eq('id', teacherId);
+      if (restoreError) throw restoreError;
+    }
+  }
 }
 
 function isDeleteBlockedError(message = '') {
@@ -80,13 +109,28 @@ function isDeleteBlockedError(message = '') {
   );
 }
 
+/** Keep legacy profiles.role usable for teacher_assignments when counselor is also held. */
+async function refreshLegacyProfileRole(adminDb, userId) {
+  const roles = await getProfileRoles(adminDb, userId);
+  let legacy = 'parent';
+  if (roles.includes('director')) legacy = 'director';
+  else if (roles.includes('teacher')) legacy = 'teacher';
+  else if (roles.includes('counselor')) legacy = 'counselor';
+  else if (roles.includes('parent')) legacy = 'parent';
+
+  const { error } = await adminDb.from('profiles').update({ role: legacy }).eq('id', userId);
+  if (error) throw error;
+}
+
 async function syncCounselorRoleForBranch(adminDb, userId, nextSlug, previousSlug = null) {
   if (isRehberlikBranch(nextSlug)) {
     await insertProfileRole(adminDb, userId, 'counselor');
+    await refreshLegacyProfileRole(adminDb, userId);
     return;
   }
   if (isRehberlikBranch(previousSlug) && !isRehberlikBranch(nextSlug)) {
     await removeProfileRole(adminDb, userId, 'counselor');
+    await refreshLegacyProfileRole(adminDb, userId);
   }
 }
 
@@ -217,9 +261,11 @@ async function handleCreate(req, res) {
   }
 
   if (role === 'teacher') {
-    await updateTeacherSubject(adminDb, userId, String(subject_slug).trim());
-    await syncCounselorRoleForBranch(adminDb, userId, String(subject_slug).trim());
+    const slug = String(subject_slug).trim();
+    await updateTeacherSubject(adminDb, userId, slug);
+    // Assign while legacy profiles.role is still teacher, then add counselor for Rehberlik.
     await assignAtlasTeacherToAllClasses(adminDb, schoolId, userId);
+    await syncCounselorRoleForBranch(adminDb, userId, slug);
   }
 
   const roleLabels = { parent: 'Veli', teacher: 'Öğretmen', counselor: 'Rehber' };
@@ -445,8 +491,14 @@ async function handleAddRole(req, res) {
   }
 
   await insertProfileRole(adminDb, userId, role);
+  await refreshLegacyProfileRole(adminDb, userId);
 
   if (role === 'teacher') {
+    await assignAtlasTeacherToAllClasses(adminDb, schoolId, userId);
+  }
+
+  // Rehberlik ekle on a teacher: keep teacher panel + Atlas şube access.
+  if (role === 'counselor' && (await profileHasRoleServer(adminDb, userId, 'teacher'))) {
     await assignAtlasTeacherToAllClasses(adminDb, schoolId, userId);
   }
 
@@ -516,6 +568,7 @@ async function handleRemoveRole(req, res) {
   }
 
   await removeProfileRole(adminDb, userId, role);
+  await refreshLegacyProfileRole(adminDb, userId);
 
   if (role === 'teacher' && !(await profileHasRoleServer(adminDb, userId, 'teacher'))) {
     await adminDb

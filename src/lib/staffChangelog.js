@@ -11,6 +11,32 @@ import { normalizeProfileRoles } from './profileRoles';
  */
 export const STAFF_CHANGELOG = [
   {
+    id: '2026-09-10-rehberlik-ogretmen',
+    title: 'Rehberlikçi öğretmen paneline de girer',
+    publishedOn: '2026-09-10',
+    intro:
+      'Rehberlik branşıyla oluşturulan personel hem rehberlikçi hem öğretmen olur; Atlas’ta tüm şubelere erişir.',
+    items: [
+      {
+        title: 'Rehberlik = iki rol',
+        summary:
+          'Yeni öğretmen oluştururken branş Rehberlik seçilirse hesap hem öğretmen hem rehberlikçi paneline girer. Rol menüsünden paneller arası geçiş yapılır.',
+        steps: [
+          'Personel → Yeni öğretmen.',
+          'Branş olarak Rehberlik seçin ve oluşturun.',
+          'Giriş sonrası menüden Öğretmen veya Rehberlikçi panelini seçin.',
+        ],
+        roles: ['director', 'counselor', 'teacher'],
+      },
+      {
+        title: 'Atlas rehberlikçi şube erişimi',
+        summary:
+          'Mevcut Atlas rehberlikçi hesapları öğretmen rolü ve tüm şubelere erişimle güncellendi; ders verebilirler.',
+        roles: ['director', 'counselor', 'teacher'],
+      },
+    ],
+  },
+  {
     id: '2026-09-10-pwa-yukle',
     title: 'Uygulamayı telefona veya bilgisayara yükleme',
     publishedOn: '2026-09-10',
