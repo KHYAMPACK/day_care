@@ -497,6 +497,7 @@ export default function AdminDashboard({ profile, schoolId, onSignOut }) {
             <AtlasTeacherAlertsView
               {...atlasAlerts}
               hideQuestionAlerts={demoNav.tab === 'questions'}
+              compact
               onCatchUp={handleAlertCatchUp}
               onRefresh={atlasAlerts.refresh}
               profile={profile}

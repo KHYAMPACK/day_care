@@ -61,6 +61,7 @@ export function AtlasTeacherAlertsView({
   loading,
   hideQuestionAlerts = false,
   showEmptyState = false,
+  compact = false,
   onCatchUp,
   onRefresh,
   profile,
@@ -114,8 +115,14 @@ export function AtlasTeacherAlertsView({
                 day: 'numeric',
                 month: 'long',
               })}{' '}
-              hiç yoklama girmediniz. Boş ders saatleri:{' '}
-              <strong>{formatEmptySlotsList(prompt.empty_slots)}</strong>
+              hiç yoklama girmediniz.{' '}
+              {compact ? (
+                'Aşağıdan ders saati seçip girin.'
+              ) : (
+                <>
+                  Boş ders saatleri: <strong>{formatEmptySlotsList(prompt.empty_slots)}</strong>
+                </>
+              )}
             </p>
             <div className="atlas-alert__actions">
               {(prompt.empty_slots ?? []).map((slot, index) => (
@@ -131,12 +138,14 @@ export function AtlasTeacherAlertsView({
                     })
                   }
                 >
-                  {slot.class_label} · {slot.slot_index}. ders
+                  {compact
+                    ? `${slot.class_label} · ${slot.slot_index}`
+                    : `${slot.class_label} · ${slot.slot_index}. ders`}
                 </button>
               ))}
               <button
                 type="button"
-                className="demo-btn demo-btn--ghost"
+                className="demo-btn demo-btn--ghost atlas-alert__actions-absent"
                 onClick={() => handleWasAbsent(prompt.prompt_date, prompt.id)}
               >
                 Okulda değildim
