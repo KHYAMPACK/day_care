@@ -493,14 +493,16 @@ export default function AdminDashboard({ profile, schoolId, onSignOut }) {
 
       <main className="dash-page dash-page--flush dash-page--tabbar">
         {atlasSchedule && profile?.id ? (
-          <AtlasTeacherAlertsView
-            {...atlasAlerts}
-            hideQuestionAlerts={demoNav.tab === 'questions'}
-            onCatchUp={handleAlertCatchUp}
-            onRefresh={atlasAlerts.refresh}
-            profile={profile}
-            schoolId={schoolId}
-          />
+          <div className="atlas-alerts-inline">
+            <AtlasTeacherAlertsView
+              {...atlasAlerts}
+              hideQuestionAlerts={demoNav.tab === 'questions'}
+              onCatchUp={handleAlertCatchUp}
+              onRefresh={atlasAlerts.refresh}
+              profile={profile}
+              schoolId={schoolId}
+            />
+          </div>
         ) : null}
         <AnimatedView viewKey={`${demoNav.tab}-${showMessages ? 'messages' : 'main'}`}>
         {demoNav.tab === 'questions' ? (

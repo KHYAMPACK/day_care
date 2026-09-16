@@ -9652,6 +9652,37 @@ body {
   gap: 0.4rem;
 }
 
+/* Dashboard-top "Yoklama girilmedi" banner: same alert markup as the notifications
+   panel, but shown unprompted, so keep it compact instead of full alert size. */
+.atlas-alerts-inline .atlas-alerts {
+  gap: 0.4rem;
+  margin-bottom: 0.5rem;
+}
+
+.atlas-alerts-inline .atlas-alert {
+  gap: 0.5rem;
+  padding: 0.5rem 0.65rem;
+}
+
+.atlas-alerts-inline .atlas-alert svg {
+  width: 14px;
+  height: 14px;
+}
+
+.atlas-alerts-inline .atlas-alert__title {
+  font-size: 0.8rem;
+}
+
+.atlas-alerts-inline .atlas-alert__text {
+  margin: 0.2rem 0 0.4rem;
+  font-size: 0.75rem;
+}
+
+.atlas-alerts-inline .atlas-alert__actions .demo-btn {
+  padding: 0.35rem 0.65rem;
+  font-size: 0.75rem;
+}
+
 .atlas-type-list {
   list-style: none;
   margin: 0 0 1rem;
