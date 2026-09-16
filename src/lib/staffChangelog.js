@@ -11,6 +11,27 @@ import { normalizeProfileRoles } from './profileRoles';
  */
 export const STAFF_CHANGELOG = [
   {
+    id: '2026-09-16-ogrenci-listesi-yoklama',
+    title: 'Şubede öğrenci listesi ve yoklama bildirimi düzeltmesi',
+    publishedOn: '2026-09-16',
+    intro:
+      'Bazı öğretmenler şubeyi görüp içindeki öğrencileri göremiyordu; giderildi. Yoklama bildirim kartı da küçültüldü.',
+    items: [
+      {
+        title: 'Şubede öğrenci listesi görünüyor',
+        summary:
+          'Yetki kaydındaki bir eksiklik yüzünden öğretmenler (örn. İngilizce) şubeyi seçebiliyor ama listede öğrenci göremiyordu; "Bu şubede öğrenci yok" hatalı şekilde gösteriliyordu. Sunucu tarafında düzeltildi, yeniden giriş gerekmiyor.',
+        roles: ['director', 'counselor', 'teacher'],
+      },
+      {
+        title: 'Yoklama bildirim kartı küçüldü',
+        summary:
+          'Panelin üstünde otomatik çıkan «Yoklama girilmedi» kartı gereğinden büyüktü; artık daha küçük ve derli toplu görünüyor. Bildirim zili menüsündeki liste değişmedi.',
+        roles: ['director', 'counselor', 'teacher'],
+      },
+    ],
+  },
+  {
     id: '2026-09-10-rehberlik-ogretmen',
     title: 'Rehberlikçi öğretmen paneline de girer',
     publishedOn: '2026-09-10',
