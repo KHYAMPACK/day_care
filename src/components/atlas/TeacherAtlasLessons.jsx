@@ -9,6 +9,8 @@ import {
   loadCurriculumContext,
   loadSchoolClasses,
   loadCurriculumSubjects,
+  getTeacherSubjectSlug,
+  resolveSubjectForClass,
 } from '../../lib/curriculum';
 import {
   ATLAS_SLOT_COUNT,
@@ -29,8 +31,10 @@ import { resolveMissedDayPromptForDate } from '../../lib/atlasAlerts';
 import { recordSchoolActivity } from '../../lib/activityLog';
 import { InlineError, SendButton, SuccessMessage } from '../dashboardUi';
 import { AnimatedView } from '../ui/AnimatedView';
+import { ConfirmDialog } from '../ui/ConfirmDialog';
 import AtlasClassPicker from './AtlasClassPicker';
 import {
+  fillEmptyTimetableSlot,
   formatTimetableSubject,
   isoWeekday,
   loadTimetableForWeek,
@@ -203,6 +207,7 @@ export default function TeacherAtlasLessons({
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
   const [localCatchUp, setLocalCatchUp] = useState(null);
+  const [mismatchConfirmOpen, setMismatchConfirmOpen] = useState(false);
 
   const effectiveCatchUp = catchUpPreset ?? localCatchUp;
   const klass = classes.find((row) => row.id === selectedClassId) ?? null;
@@ -223,8 +228,21 @@ export default function TeacherAtlasLessons({
       }),
     [timetableRows, sessionDate, slotIndex, subjects, klass?.grade]
   );
-  const subject = slotSubject.subject;
+  const plannedSubject = slotSubject.subject;
   const slotSubjectSlug = slotSubject.subjectSlug;
+
+  // Own branş, resolved against this class's grade — used to log attendance even when the
+  // weekly schedule is empty or planned for a different subject (director/counselor never
+  // finished filling in the şube's timetable).
+  const ownSubjectSlug = getTeacherSubjectSlug(profile);
+  const ownSubject = useMemo(
+    () => resolveSubjectForClass(subjects, ownSubjectSlug, klass?.grade),
+    [subjects, ownSubjectSlug, klass?.grade]
+  );
+
+  const subject = ownSubject ?? plannedSubject;
+  const isEmptySlot = !slotSubjectSlug;
+  const isSubjectMismatch = Boolean(slotSubjectSlug) && Boolean(ownSubject) && slotSubjectSlug !== ownSubjectSlug;
 
   const subjectUnits = useMemo(
     () => units.filter((unit) => unit.subject_id === subject?.id),
@@ -412,7 +430,7 @@ export default function TeacherAtlasLessons({
     if (next) setSlotIndex(next);
   }
 
-  async function handleSaveAttendance(event) {
+  function handleSaveAttendance(event) {
     event.preventDefault();
     if (!klass?.id || !subject?.id || !sessionDate || !snapshot) {
       if (!subject?.id) {
@@ -424,6 +442,15 @@ export default function TeacherAtlasLessons({
       setError(new Error('Canlı kayıt 20:00\'a kadar. Haftalık telafi listesini kullanın.'));
       return;
     }
+    if (isSubjectMismatch) {
+      setMismatchConfirmOpen(true);
+      return;
+    }
+    performSaveAttendance();
+  }
+
+  async function performSaveAttendance() {
+    setMismatchConfirmOpen(false);
     setSaving(true);
     setError(null);
     setSuccess(null);
@@ -445,6 +472,21 @@ export default function TeacherAtlasLessons({
         action: 'saved',
         summary: `Atlas ders yoklaması kaydedildi: ${formatClassLabel(klass?.grade, klass?.name)}`,
       });
+      if (isEmptySlot) {
+        try {
+          const row = await fillEmptyTimetableSlot({
+            classId: klass.id,
+            weekIndex: snapshot.weekIndex,
+            weekday: isoWeekday(sessionDate),
+            slotIndex,
+          });
+          setTimetableRows((current) => [...current, row]);
+        } catch {
+          // Best-effort: attendance already saved; someone else may have filled the
+          // cell in the meantime, or the teacher's branş isn't one of the fixed
+          // timetable subjects. Either way it's not worth blocking on.
+        }
+      }
       await refreshClassSessions(klass.id, sessionDate);
       await resolveMissedDayPromptForDate(profile.id, sessionDate);
       onCatchUpConsumed?.();
@@ -488,7 +530,7 @@ export default function TeacherAtlasLessons({
     );
   }
 
-  if (selectedClassId && slotSubjectSlug && !subject?.id) {
+  if (selectedClassId && slotSubjectSlug && !isSubjectMismatch && !plannedSubject?.id) {
     return (
       <section className="director-panel">
         <h2 className="dash-section-title">Ders</h2>
@@ -614,10 +656,20 @@ export default function TeacherAtlasLessons({
             disabled={saving}
             plannedBySlot={plannedBySlot}
           />
-          {!slotSubjectSlug ? (
+          {isEmptySlot && ownSubject ? (
+            <p className="dash-hint">
+              Bu ders saati için program girilmemiş. {ownSubject.name} olarak yoklama
+              alabilirsiniz; kaydettiğinizde haftalık program da buna göre doldurulur.
+            </p>
+          ) : isEmptySlot ? (
             <p className="dash-hint">
               Bu ders saati için program girilmemiş. Müdür veya rehberlikçi Haftalık ders
               programından doldurmalı.
+            </p>
+          ) : isSubjectMismatch ? (
+            <p className="dash-hint">
+              Bu ders saati normalde {formatTimetableSubject(slotSubjectSlug)}. {ownSubject.name}{' '}
+              olarak yoklama alabilirsiniz; haftalık programdaki plan değişmeden kalır.
             </p>
           ) : null}
         </>
@@ -654,6 +706,24 @@ export default function TeacherAtlasLessons({
           />
         )}
       </form>
+
+      <ConfirmDialog
+        open={mismatchConfirmOpen}
+        title="Farklı ders için yoklama"
+        confirmLabel="Yoklamayı kaydet"
+        confirming={saving}
+        onCancel={() => {
+          if (!saving) setMismatchConfirmOpen(false);
+        }}
+        onConfirm={performSaveAttendance}
+      >
+        <p className="app-dialog__lead">
+          Bu ders saati haftalık programda <strong>{formatTimetableSubject(slotSubjectSlug)}</strong>{' '}
+          olarak planlı. Yoklamayı <strong>{ownSubject?.name}</strong> dersi için kaydetmek
+          istiyor musunuz?
+        </p>
+        <p className="dash-hint">Haftalık programdaki plan değişmeden kalır.</p>
+      </ConfirmDialog>
     </section>
     </AnimatedView>
   );

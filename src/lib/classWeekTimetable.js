@@ -109,6 +109,17 @@ export async function saveTimetableWeek({ schoolId, classId, weekIndex, grid }) 
   return data ?? [];
 }
 
+export async function fillEmptyTimetableSlot({ classId, weekIndex, weekday, slotIndex }) {
+  const { data, error } = await supabase.rpc('fill_empty_timetable_slot', {
+    p_class_id: classId,
+    p_week_index: weekIndex,
+    p_weekday: weekday,
+    p_slot_index: slotIndex,
+  });
+  if (error) throw error;
+  return data;
+}
+
 export async function copyTimetableFromPreviousWeek({ schoolId, classId, weekIndex }) {
   if (weekIndex <= 1) {
     throw new Error('İlk haftanın kopyalanacak önceki programı yok.');

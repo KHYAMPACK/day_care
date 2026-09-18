@@ -7,6 +7,7 @@ import {
   loadAttendanceFlags,
   loadDirectorAttendanceData,
 } from '../../lib/attendance';
+import { loadAtlasDirectorAttendanceData } from '../../lib/atlasLessons';
 import { InlineError } from '../dashboardUi';
 import { Icon } from '../ui/Icon';
 import SearchFilterToolbar from '../ui/SearchFilterToolbar';
@@ -36,7 +37,7 @@ function AttendanceStatCard({ icon, label, value, variant = 'lavender' }) {
   );
 }
 
-export default function DirectorAttendance({ schoolId, students = [], classes = [] }) {
+export default function DirectorAttendance({ schoolId, students = [], classes = [], atlasSchedule = false }) {
   const [subjects, setSubjects] = useState([]);
   const [flags, setFlags] = useState([]);
   const [pack, setPack] = useState({
@@ -79,6 +80,21 @@ export default function DirectorAttendance({ schoolId, students = [], classes = 
     if (!schoolId) return;
     setError(null);
     try {
+      if (atlasSchedule) {
+        const data = await loadAtlasDirectorAttendanceData({
+          schoolId,
+          classId: classId || undefined,
+          subjectId: subjectId || undefined,
+          startOn,
+          endOn,
+          students,
+          classes,
+        });
+        setPack(data);
+        setFlags([]);
+        return;
+      }
+
       const [data, flagRows] = await Promise.all([
         loadDirectorAttendanceData({
           schoolId,
@@ -102,7 +118,7 @@ export default function DirectorAttendance({ schoolId, students = [], classes = 
       setPack({ studentStats: [], sessionSummaries: [], sessions: [] });
       setFlags([]);
     }
-  }, [schoolId, classId, subjectId, startOn, endOn, students, classes]);
+  }, [schoolId, classId, subjectId, startOn, endOn, students, classes, atlasSchedule]);
 
   useEffect(() => {
     load();
@@ -180,7 +196,9 @@ export default function DirectorAttendance({ schoolId, students = [], classes = 
           variant="mint"
         />
         <AttendanceStatCard icon="users" label="Devamsız kayıt" value={summary.totalAbsent} variant="peach" />
-        <AttendanceStatCard icon="star" label="Dikkat" value={summary.flagCount} variant="lavender" />
+        {!atlasSchedule && (
+          <AttendanceStatCard icon="star" label="Dikkat" value={summary.flagCount} variant="lavender" />
+        )}
       </div>
 
       <section className="dash-card">
@@ -338,6 +356,7 @@ export default function DirectorAttendance({ schoolId, students = [], classes = 
         )}
       </section>
 
+      {!atlasSchedule && (
       <section className="dash-card">
         <details className="att-flags-collapse">
           <summary className="att-flags-collapse__summary">
@@ -365,6 +384,7 @@ export default function DirectorAttendance({ schoolId, students = [], classes = 
           </div>
         </details>
       </section>
+      )}
     </>
   );
 }

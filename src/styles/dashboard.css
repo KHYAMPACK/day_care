@@ -7844,6 +7844,13 @@ body {
   min-width: 7rem;
 }
 
+.class-week-timetable__override-note {
+  margin: 0.3rem 0 0;
+  font-size: 0.7rem;
+  color: #b45309;
+  white-space: nowrap;
+}
+
 .class-week-timetable__table--readonly td {
   white-space: nowrap;
 }

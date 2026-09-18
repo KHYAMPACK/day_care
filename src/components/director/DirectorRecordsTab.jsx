@@ -1,6 +1,7 @@
 import DirectorAttendance from '../attendance/DirectorAttendance';
 import SchoolActivityLogTab from '../logs/SchoolActivityLogTab';
 import { getRecordsSubNavItems } from '../../lib/directorNav';
+import { hasAtlasSchedule } from '../../lib/schoolFeatures';
 import DirectorSubNav from './DirectorSubNav';
 
 export default function DirectorRecordsTab({
@@ -20,7 +21,12 @@ export default function DirectorRecordsTab({
       {currentTab === 'audit' ? (
         <SchoolActivityLogTab schoolId={schoolId} school={school} />
       ) : (
-        <DirectorAttendance schoolId={schoolId} students={students} classes={classes} />
+        <DirectorAttendance
+          schoolId={schoolId}
+          students={students}
+          classes={classes}
+          atlasSchedule={hasAtlasSchedule(school)}
+        />
       )}
     </div>
   );

@@ -1,9 +1,14 @@
 import { supabase } from './supabase';
 import { withSchoolFilter } from './tenant';
 import { istanbulDateIso } from './calendar';
-import { academicWeekIndex, weekRangeIso } from './curriculum';
+import { academicWeekIndex, weekRangeIso, SUBJECT_SELECT } from './curriculum';
 import { addDaysIso } from './calendar';
-import { loadClassRoster, snapshotForDate } from './attendance';
+import {
+  loadClassRoster,
+  snapshotForDate,
+  aggregateStudentAttendance,
+  summarizeAttendanceSessions,
+} from './attendance';
 
 export const ATLAS_SLOT_COUNT = 4;
 
@@ -331,5 +336,96 @@ export async function loadAtlasForWeek({ schoolId, classIds, weekIndex }) {
     attendance,
     results: results.data ?? [],
     assessmentTypes,
+  };
+}
+
+export async function loadAtlasAttendanceForDateRange({ schoolId, classIds, startOn, endOn }) {
+  if (!classIds?.length) return { sessions: [], attendance: [] };
+
+  const { data: sessions, error: sessionError } = await withSchoolFilter(
+    supabase
+      .from('lesson_sessions')
+      .select(SESSION_SELECT)
+      .in('class_id', classIds)
+      .gte('session_date', startOn)
+      .lte('session_date', endOn),
+    schoolId
+  );
+  if (sessionError) throw sessionError;
+  const sessionRows = sessions ?? [];
+  if (!sessionRows.length) return { sessions: [], attendance: [] };
+
+  const attendance = await loadAtlasAttendanceForSessions(sessionRows.map((row) => row.id));
+  return { sessions: sessionRows, attendance };
+}
+
+/**
+ * Director "Yoklama" data for atlas_schedule schools: lesson_sessions/lesson_attendance
+ * instead of attendance_sessions/attendance_records, since teachers there log attendance
+ * through the Ders (slot) flow, not the plain Yoklama tab. Reuses the same aggregation
+ * shape as loadDirectorAttendanceData by mapping session_date onto taken_on.
+ */
+export async function loadAtlasDirectorAttendanceData({
+  schoolId,
+  classId,
+  subjectId,
+  startOn,
+  endOn,
+  students = [],
+  classes = [],
+}) {
+  const classIds = classId ? [classId] : classes.map((klass) => klass.id);
+  const { sessions, attendance } = await loadAtlasAttendanceForDateRange({
+    schoolId,
+    classIds,
+    startOn,
+    endOn,
+  });
+
+  let filteredSessions = sessions;
+  if (subjectId) {
+    filteredSessions = filteredSessions.filter((session) => session.subject_id === subjectId);
+  }
+
+  const sessionIds = new Set(filteredSessions.map((session) => session.id));
+  const filteredRecords = attendance.filter((row) => sessionIds.has(row.session_id));
+
+  const subjectIds = [...new Set(filteredSessions.map((session) => session.subject_id))];
+  let subjects = [];
+  if (subjectIds.length) {
+    const { data, error } = await supabase
+      .from('curriculum_subjects')
+      .select(SUBJECT_SELECT)
+      .in('id', subjectIds);
+    if (error) throw error;
+    subjects = data ?? [];
+  }
+
+  const scopedStudents = classId
+    ? students.filter((student) => student.class_id === classId)
+    : students;
+
+  const normalizedSessions = filteredSessions.map((session) => ({
+    ...session,
+    taken_on: session.session_date,
+  }));
+
+  return {
+    sessions: normalizedSessions,
+    records: filteredRecords,
+    subjects,
+    studentStats: aggregateStudentAttendance({
+      sessions: normalizedSessions,
+      records: filteredRecords,
+      students: scopedStudents,
+      classes,
+    }),
+    sessionSummaries: summarizeAttendanceSessions({
+      sessions: normalizedSessions,
+      records: filteredRecords,
+      students: scopedStudents,
+      classes,
+      subjects,
+    }),
   };
 }

@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { formatClassLabel, formatWeekRangeTr } from '../../lib/curriculum';
-import { ATLAS_SLOT_COUNT } from '../../lib/atlasLessons';
+import { formatClassLabel, formatWeekRangeTr, loadCurriculumSubjects } from '../../lib/curriculum';
+import { formatCalendarDateTr } from '../../lib/calendar';
+import { ATLAS_SLOT_COUNT, loadAtlasSessionsForWeek } from '../../lib/atlasLessons';
 import {
   TIMETABLE_WEEKDAYS,
   copyTimetableFromPreviousWeek,
   emptyTimetableGrid,
+  isoWeekday,
   loadTimetableForWeek,
   rowsToTimetableGrid,
   saveTimetableWeek,
@@ -23,6 +25,7 @@ export default function ClassWeekTimetableEditor({
     Math.min(academicWeeks, Math.max(1, currentWeekIndex))
   );
   const [grid, setGrid] = useState(() => emptyTimetableGrid());
+  const [overridesByCell, setOverridesByCell] = useState({});
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -43,11 +46,32 @@ export default function ClassWeekTimetableEditor({
     setLoading(true);
     setError(null);
     try {
-      const rows = await loadTimetableForWeek(schoolId, classId, weekIndex);
-      setGrid(rowsToTimetableGrid(rows));
+      const [rows, sessions, subjectCatalog] = await Promise.all([
+        loadTimetableForWeek(schoolId, classId, weekIndex),
+        loadAtlasSessionsForWeek(schoolId, weekIndex, classId),
+        loadCurriculumSubjects(),
+      ]);
+      const plannedGrid = rowsToTimetableGrid(rows);
+      setGrid(plannedGrid);
+
+      const nextOverrides = {};
+      for (const session of sessions) {
+        const actualSubject = subjectCatalog.find((row) => row.id === session.subject_id);
+        if (!actualSubject) continue;
+        const weekday = isoWeekday(session.session_date);
+        const plannedSlug = plannedGrid[weekday]?.[session.slot_index] ?? '';
+        if (actualSubject.slug !== plannedSlug) {
+          nextOverrides[`${weekday}-${session.slot_index}`] = {
+            subjectName: actualSubject.name,
+            sessionDate: session.session_date,
+          };
+        }
+      }
+      setOverridesByCell(nextOverrides);
     } catch (loadError) {
       setError(loadError);
       setGrid(emptyTimetableGrid());
+      setOverridesByCell({});
     } finally {
       setLoading(false);
     }
@@ -116,8 +140,9 @@ export default function ClassWeekTimetableEditor({
   return (
     <form className="class-week-timetable" onSubmit={handleSave}>
       <p className="dash-hint">
-        Her şube ve hafta için Pazartesi–Cuma günlerinde 4 dersi seçin. Atlas yoklaması bu
-        programdaki derse göre kaydedilir.
+        Her şube ve hafta için Pazartesi–Cuma günlerinde 4 dersi seçin. Öğretmenler kendi
+        branşlarıyla, programda ne yazarsa yazsın yoklama alabilir; turuncu not, o saatte
+        gerçekte hangi dersin işlendiğini gösterir ve plandaki dersi değiştirmez.
       </p>
 
       <div className="class-week-timetable__toolbar">
@@ -174,6 +199,7 @@ export default function ClassWeekTimetableEditor({
                 <th scope="row">{day.label}</th>
                 {Array.from({ length: ATLAS_SLOT_COUNT }, (_, index) => {
                   const slot = index + 1;
+                  const override = overridesByCell[`${day.id}-${slot}`];
                   return (
                     <td key={slot}>
                       <select
@@ -190,6 +216,11 @@ export default function ClassWeekTimetableEditor({
                           </option>
                         ))}
                       </select>
+                      {override ? (
+                        <p className="class-week-timetable__override-note">
+                          {formatCalendarDateTr(override.sessionDate)}: {override.subjectName}
+                        </p>
+                      ) : null}
                     </td>
                   );
                 })}
