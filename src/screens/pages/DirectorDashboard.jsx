@@ -95,6 +95,7 @@ function OverviewTab({ stats, linksCount, school, schoolId, onFeaturesSaved }) {
   const [accountingSaving, setAccountingSaving] = useState(false);
   const [accountingError, setAccountingError] = useState(null);
   const accountingEnabled = hasAccounting(school);
+  const accountingLocked = hasAtlasSchedule(school);
 
   async function toggleAccounting(next) {
     setAccountingSaving(true);
@@ -135,11 +136,14 @@ function OverviewTab({ stats, linksCount, school, schoolId, onFeaturesSaved }) {
             <input
               type="checkbox"
               checked={accountingEnabled}
-              disabled={accountingSaving}
+              disabled={accountingSaving || accountingLocked}
               onChange={(event) => toggleAccounting(event.target.checked)}
             />
             <span>
               <strong>Muhasebe modülünü aç</strong>
+              {accountingLocked ? (
+                <span className="dash-hint"> · Atlas okullarında her zaman açık, değiştirilemez.</span>
+              ) : null}
             </span>
           </label>
         </div>

@@ -11,6 +11,20 @@ import { normalizeProfileRoles } from './profileRoles';
  */
 export const STAFF_CHANGELOG = [
   {
+    id: '2026-09-18-muhasebe-atlas',
+    title: 'Atlas’ta Muhasebe her zaman açık',
+    publishedOn: '2026-09-18',
+    intro: 'Atlas okullarında Muhasebe modülü artık kendiliğinden kapanmıyor.',
+    items: [
+      {
+        title: 'Muhasebe sekmesi sürekli açık',
+        summary:
+          'Genel Bakış’taki «Muhasebe modülünü aç» anahtarı Atlas okullarında açık konumda kilitlidir; kapatılamaz. Muhasebe sekmesi ve içindeki ödeme takibi eskisi gibi çalışır.',
+        roles: ['director'],
+      },
+    ],
+  },
+  {
     id: '2026-09-18-sinif-ogretmeni',
     title: 'Sınıf öğretmeni',
     publishedOn: '2026-09-18',

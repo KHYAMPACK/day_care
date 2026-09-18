@@ -6,8 +6,9 @@ export function hasAtlasSchedule(school) {
   return /atlas vip/i.test(school?.name ?? '');
 }
 
+// Atlas schools always have Muhasebe on, regardless of the stored flag.
 export function hasAccounting(school) {
-  return Boolean(school?.features?.accounting);
+  return hasAtlasSchedule(school) || Boolean(school?.features?.accounting);
 }
 
 export function hasExamResults(school) {
