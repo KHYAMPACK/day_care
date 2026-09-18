@@ -29,6 +29,7 @@ import {
 } from '../../lib/atlasLessons';
 import { resolveMissedDayPromptForDate } from '../../lib/atlasAlerts';
 import { recordSchoolActivity } from '../../lib/activityLog';
+import { notifyAttendanceFirstLesson } from '../../lib/attendanceNotifications';
 import { InlineError, SendButton, SuccessMessage } from '../dashboardUi';
 import { AnimatedView } from '../ui/AnimatedView';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
@@ -451,6 +452,7 @@ export default function TeacherAtlasLessons({
 
   async function performSaveAttendance() {
     setMismatchConfirmOpen(false);
+    const isFirstSaveForSlot = !filledSlots.includes(slotIndex);
     setSaving(true);
     setError(null);
     setSuccess(null);
@@ -472,6 +474,13 @@ export default function TeacherAtlasLessons({
         action: 'saved',
         summary: `Atlas ders yoklaması kaydedildi: ${formatClassLabel(klass?.grade, klass?.name)}`,
       });
+      if (isFirstSaveForSlot && slotIndex === 1 && sessionDate === istanbulDateIso()) {
+        try {
+          await notifyAttendanceFirstLesson({ schoolId, source: 'atlas', sessionId: id });
+        } catch {
+          // Best-effort: attendance already saved either way.
+        }
+      }
       if (isEmptySlot) {
         try {
           const row = await fillEmptyTimetableSlot({

@@ -34,10 +34,13 @@ export const TEACHER_TABS = [
   { id: 'announcements', label: 'Duyurular', icon: 'megaphone' },
 ];
 
+export const TEACHER_SCHEDULE_TAB = { id: 'schedule', label: 'Program', icon: 'clock' };
+
 export const ATLAS_TEACHER_TABS = [
   { id: 'questions', label: 'Sorular', icon: 'file' },
   { id: 'lessons', label: 'Ders', icon: 'check' },
   { id: 'curriculum', label: 'Müfredat', icon: 'book' },
+  TEACHER_SCHEDULE_TAB,
   { id: 'calendar', label: 'Takvim', icon: 'calendar' },
   { id: 'announcements', label: 'Duyurular', icon: 'megaphone' },
 ];

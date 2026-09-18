@@ -7817,31 +7817,57 @@ body {
 
 .class-week-timetable__table-wrap {
   overflow-x: auto;
+  border-radius: var(--radius-card);
+  border: 1px solid color-mix(in srgb, var(--theme-accent-border) 55%, transparent);
+  background: var(--bg-card);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
 }
 
 .class-week-timetable__table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0.3rem;
   font-size: 0.8125rem;
 }
 
 .class-week-timetable__table th,
 .class-week-timetable__table td {
-  border: 1px solid var(--dash-border, #e5e7eb);
-  padding: 0.4rem;
-  text-align: left;
+  padding: 0.5rem 0.55rem;
+  text-align: center;
   vertical-align: middle;
+  border-radius: 0.6rem;
 }
 
-.class-week-timetable__table th {
-  background: color-mix(in srgb, var(--bg-page, #f8fafc) 70%, white);
-  font-weight: 650;
+.class-week-timetable__table thead th {
+  background: color-mix(in srgb, var(--theme-accent-soft, var(--bg-page)) 60%, var(--bg-card));
+  color: var(--text-secondary);
+  font-weight: 700;
+  font-size: 0.75rem;
   white-space: nowrap;
+  position: sticky;
+  top: 0;
+}
+
+.class-week-timetable__table tbody th[scope='row'] {
+  background: color-mix(in srgb, var(--bg-page, #f8fafc) 80%, var(--bg-card));
+  font-weight: 700;
+  white-space: nowrap;
+  text-align: left;
+  position: sticky;
+  left: 0;
 }
 
 .class-week-timetable__table .dash-input {
   width: 100%;
   min-width: 7rem;
+  border-radius: 0.5rem;
+}
+
+.class-week-timetable__select--filled {
+  background: color-mix(in srgb, var(--subj-color, var(--theme-primary)) 14%, var(--bg-card));
+  border-color: color-mix(in srgb, var(--subj-color, var(--theme-primary)) 40%, transparent);
+  color: color-mix(in srgb, var(--subj-color, var(--theme-primary)) 65%, var(--text-primary));
+  font-weight: 650;
 }
 
 .class-week-timetable__override-note {
@@ -7853,12 +7879,37 @@ body {
 
 .class-week-timetable__table--readonly td {
   white-space: nowrap;
+  background: color-mix(in srgb, var(--bg-page, #f8fafc) 45%, var(--bg-card));
+  border: 1px dashed color-mix(in srgb, var(--theme-accent-border) 45%, transparent);
+}
+
+.class-week-timetable__table--readonly td.class-week-timetable__cell--filled {
+  background: color-mix(in srgb, var(--subj-color, var(--theme-primary)) 16%, var(--bg-card));
+  border: 1px solid color-mix(in srgb, var(--subj-color, var(--theme-primary)) 35%, transparent);
+  color: color-mix(in srgb, var(--subj-color, var(--theme-primary)) 65%, var(--text-primary));
+  font-weight: 700;
+}
+
+.class-week-timetable__empty {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.class-week-timetable__holiday-badge {
+  display: inline-block;
+  padding: 0.15rem 0.55rem;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--pastel-peach) 65%, var(--bg-card));
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+  font-weight: 700;
 }
 
 .class-week-timetable__row--holiday td,
 .class-week-timetable__row--holiday th {
   color: var(--text-muted);
-  background: color-mix(in srgb, var(--bg-page, #f8fafc) 80%, white);
+  background: color-mix(in srgb, var(--bg-page, #f8fafc) 70%, var(--bg-card));
+  border-style: dashed;
 }
 
 .class-week-timetable__actions {
@@ -7866,6 +7917,18 @@ body {
   flex-wrap: wrap;
   gap: 0.5rem;
   align-items: center;
+}
+
+@media (max-width: 480px) {
+  .class-week-timetable__table {
+    border-spacing: 0.2rem;
+    font-size: 0.75rem;
+  }
+
+  .class-week-timetable__table th,
+  .class-week-timetable__table td {
+    padding: 0.4rem 0.35rem;
+  }
 }
 
 .parent-class-timetable {

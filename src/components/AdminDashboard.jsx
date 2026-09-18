@@ -26,6 +26,7 @@ import { usePresence } from '../lib/motion';
 import TeacherAnnouncements from './announcements/TeacherAnnouncements';
 import AcademicCalendar from './calendar/AcademicCalendar';
 import TeacherCurriculum from './curriculum/TeacherCurriculum';
+import TeacherClassTimetable from './curriculum/TeacherClassTimetable';
 import TeacherAttendance from './attendance/TeacherAttendance';
 import TeacherHomework from './homework/TeacherHomework';
 import TeacherAtlasLessons from './atlas/TeacherAtlasLessons';
@@ -527,6 +528,8 @@ export default function AdminDashboard({ profile, schoolId, onSignOut }) {
           <TeacherCurriculum profile={profile} schoolId={schoolId} atlasSchedule={atlasSchedule} />
         ) : demoNav.tab === 'homework' ? (
           <TeacherHomework profile={profile} schoolId={schoolId} atlasSchedule={atlasSchedule} />
+        ) : demoNav.tab === 'schedule' ? (
+          <TeacherClassTimetable schoolId={schoolId} />
         ) : demoNav.tab === 'lessons' ? (
           <TeacherAtlasLessons
             profile={profile}

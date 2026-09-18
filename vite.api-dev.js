@@ -34,6 +34,11 @@ const API_ROUTES = [
     file: 'cron-calendar-reminders.js',
     methods: ['GET', 'POST'],
   },
+  {
+    match: (url) => url === '/api/attendance-notify',
+    file: 'attendance-notify.js',
+    methods: ['POST'],
+  },
 ];
 
 function attachVercelResponse(res) {

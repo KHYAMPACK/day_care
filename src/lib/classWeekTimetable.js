@@ -2,7 +2,9 @@ import { supabase } from './supabase';
 import { withSchoolFilter } from './tenant';
 import { academicWeekIndex, resolveSubjectForClass } from './curriculum';
 import { ATLAS_SLOT_COUNT } from './atlasLessons';
-import { TIMETABLE_SUBJECT_DEFS, teacherBranchLabel } from './teacherBranches';
+import { TIMETABLE_SUBJECT_DEFS, teacherBranchBySlug, teacherBranchLabel } from './teacherBranches';
+
+const DIN_COLOR = '#1e3a8a';
 
 export const TIMETABLE_WEEKDAYS = [
   { id: 1, label: 'Pazartesi', shortLabel: 'Pzt' },
@@ -151,4 +153,10 @@ export function timetableWeekIndexForDate(isoDate) {
 export function formatTimetableSubject(slug) {
   if (slug === 'din') return 'Din Kültürü';
   return teacherBranchLabel(slug);
+}
+
+export function timetableSubjectColor(slug) {
+  if (!slug) return null;
+  if (slug === 'din') return DIN_COLOR;
+  return teacherBranchBySlug(slug)?.color ?? null;
 }

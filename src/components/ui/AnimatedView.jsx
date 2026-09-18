@@ -23,6 +23,7 @@ export function AnimatedView({ viewKey, children, className, enterOnMount = true
     const previous = { key: keyRef.current, node: nodeRef.current };
     keyRef.current = viewKey;
     nodeRef.current = children;
+    window.scrollTo(0, 0);
 
     if (reduced) {
       setStack([{ key: viewKey, node: children, phase: 'ready' }]);

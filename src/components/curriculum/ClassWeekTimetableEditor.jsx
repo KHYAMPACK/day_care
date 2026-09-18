@@ -10,6 +10,7 @@ import {
   loadTimetableForWeek,
   rowsToTimetableGrid,
   saveTimetableWeek,
+  timetableSubjectColor,
   timetableSubjectsForGrade,
 } from '../../lib/classWeekTimetable';
 import { InlineError, SendButton, SuccessMessage } from '../dashboardUi';
@@ -200,10 +201,13 @@ export default function ClassWeekTimetableEditor({
                 {Array.from({ length: ATLAS_SLOT_COUNT }, (_, index) => {
                   const slot = index + 1;
                   const override = overridesByCell[`${day.id}-${slot}`];
+                  const cellSlug = grid[day.id]?.[slot];
+                  const cellColor = timetableSubjectColor(cellSlug);
                   return (
                     <td key={slot}>
                       <select
-                        className="dash-input"
+                        className={`dash-input class-week-timetable__select${cellSlug ? ' class-week-timetable__select--filled' : ''}`}
+                        style={cellColor ? { '--subj-color': cellColor } : undefined}
                         value={grid[day.id]?.[slot] ?? ''}
                         onChange={(event) => patchCell(day.id, slot, event.target.value)}
                         disabled={loading || saving}

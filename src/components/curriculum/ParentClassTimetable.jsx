@@ -13,6 +13,7 @@ import {
   formatTimetableSubject,
   loadTimetableForWeek,
   rowsToTimetableGrid,
+  timetableSubjectColor,
 } from '../../lib/classWeekTimetable';
 
 function gridIsEmpty(grid) {
@@ -133,9 +134,20 @@ export default function ParentClassTimetable({
                           {Array.from({ length: ATLAS_SLOT_COUNT }, (_, index) => {
                             const slot = index + 1;
                             const slug = grid[day.id]?.[slot];
+                            const color = timetableSubjectColor(slug);
                             return (
-                              <td key={slot}>
-                                {holiday ? 'Tatil' : slug ? formatTimetableSubject(slug) : '—'}
+                              <td
+                                key={slot}
+                                className={slug && !holiday ? 'class-week-timetable__cell--filled' : ''}
+                                style={color ? { '--subj-color': color } : undefined}
+                              >
+                                {holiday ? (
+                                  <span className="class-week-timetable__holiday-badge">Tatil</span>
+                                ) : slug ? (
+                                  formatTimetableSubject(slug)
+                                ) : (
+                                  <span className="class-week-timetable__empty">—</span>
+                                )}
                               </td>
                             );
                           })}

@@ -15,6 +15,7 @@ import {
   snapshotForDate,
 } from '../../lib/attendance';
 import { recordSchoolActivity } from '../../lib/activityLog';
+import { notifyAttendanceFirstLesson } from '../../lib/attendanceNotifications';
 import { InlineError, SendButton, SuccessMessage } from '../dashboardUi';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 
@@ -157,7 +158,7 @@ export default function TeacherAttendance({ profile, schoolId }) {
     setError(null);
     setSuccess(null);
     try {
-      await saveClassAttendance({
+      const savedSessionId = await saveClassAttendance({
         classId: klass.id,
         subjectId: subject.id,
         takenOn,
@@ -174,6 +175,14 @@ export default function TeacherAttendance({ profile, schoolId }) {
         action: 'saved',
         summary: `Yoklama kaydedildi: ${klass.label ?? klass.name ?? 'Şube'} · ${students.length} öğrenci`,
       });
+      if (takenOn === istanbulDateIso()) {
+        try {
+          await notifyAttendanceFirstLesson({ schoolId, source: 'classic', sessionId: savedSessionId });
+        } catch {
+          // Best-effort: attendance already saved either way. The endpoint itself
+          // decides whether this class's first session of the day was this one.
+        }
+      }
       setSuccess('Yoklama kaydedildi.');
       setSessionLoaded(true);
       setConfirmOpen(false);
