@@ -18,6 +18,8 @@ import { formatRelativeTimeTr } from '../utils/formatTime';
 import { getTeacherTabs, defaultTeacherTab } from '../lib/demoData';
 import { hasAtlasSchedule, hasHomeworkTracking } from '../lib/schoolFeatures';
 import { loadStudentsForTeacherAssignments } from '../lib/curriculum';
+import { loadHomeroomClasses } from '../lib/homeroom';
+import TeacherHomeroomTab from './homeroom/TeacherHomeroomTab';
 import { DemoBottomNav, getTabFromSearch, useDemoNav } from './demo/DemoKit';
 import { Icon } from './ui/Icon';
 import { Avatar } from './ui/Avatar';
@@ -152,9 +154,10 @@ export default function AdminDashboard({ profile, schoolId, onSignOut }) {
   const { school } = useAuth();
   const atlasSchedule = hasAtlasSchedule(school);
   const homeworkTracking = hasHomeworkTracking(school);
+  const [homeroomClasses, setHomeroomClasses] = useState([]);
   const teacherTabs = useMemo(
-    () => getTeacherTabs(atlasSchedule, homeworkTracking),
-    [atlasSchedule, homeworkTracking]
+    () => getTeacherTabs(atlasSchedule, homeworkTracking, homeroomClasses.length > 0),
+    [atlasSchedule, homeworkTracking, homeroomClasses.length]
   );
   const [catchUpPreset, setCatchUpPreset] = useState(null);
   const [questionsCatchUp, setQuestionsCatchUp] = useState(null);
@@ -259,6 +262,13 @@ export default function AdminDashboard({ profile, schoolId, onSignOut }) {
         await fetchMessages();
       } catch (error) {
         setDataError(error);
+      }
+
+      try {
+        const homeroom = await loadHomeroomClasses(schoolId, profile?.id);
+        if (mounted) setHomeroomClasses(homeroom);
+      } catch {
+        if (mounted) setHomeroomClasses([]);
       }
 
       setDataLoading(false);
@@ -539,6 +549,14 @@ export default function AdminDashboard({ profile, schoolId, onSignOut }) {
           />
         ) : demoNav.tab === 'attendance' ? (
           <TeacherAttendance profile={profile} schoolId={schoolId} />
+        ) : demoNav.tab === 'homeroom' ? (
+          <TeacherHomeroomTab
+            profile={profile}
+            schoolId={schoolId}
+            school={school}
+            homeroomClasses={homeroomClasses}
+            atlasSchedule={atlasSchedule}
+          />
         ) : (
           <>
             <header className="dash-header">

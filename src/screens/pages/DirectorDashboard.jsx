@@ -56,6 +56,7 @@ import {
   ensureTeachersAssignedToAllClasses,
 } from '../../lib/curriculum';
 import { createStaffUser, deleteStaffUser, resetStaffPin, addStaffRole, removeStaffRole, updateStaffSubject } from '../../lib/staffUsers';
+import { setTeacherHomeroomClasses } from '../../lib/homeroom';
 import { loadSchoolProfilesByRole } from '../../lib/staffQueries';
 import { normalizeProfileRoles, isFullDirector, profileHasRole } from '../../lib/profileRoles';
 import { AsyncActionDialog } from '../../components/ui/AsyncActionDialog';
@@ -349,6 +350,8 @@ function SelfTeacherRoleCard({ profile, loading, onAddTeacherRole }) {
 function TeacherRosterItem({
   teacher,
   profile,
+  classes,
+  teacherNameById,
   staffActionLoading,
   canManageRoles,
   canDeleteStaff,
@@ -358,6 +361,7 @@ function TeacherRosterItem({
   onRequestDelete,
   onSavePhone,
   onSaveSubject,
+  onSaveHomeroom,
 }) {
   return (
     <li key={teacher.id} className="manage-list__item">
@@ -382,6 +386,13 @@ function TeacherRosterItem({
         teacher={teacher}
         disabled={staffActionLoading}
         onSave={onSaveSubject}
+      />
+      <StaffTeacherHomeroomField
+        teacher={teacher}
+        classes={classes}
+        teacherNameById={teacherNameById}
+        disabled={staffActionLoading}
+        onSave={onSaveHomeroom}
       />
       {!normalizeProfileRoles(teacher).includes(USER_ROLES.director) ? (
         <button
@@ -411,6 +422,7 @@ function TeacherManagementTab({
   profile,
   counselors,
   teachers,
+  classes = [],
   loading,
   loadError,
   staffActionLoading,
@@ -426,6 +438,7 @@ function TeacherManagementTab({
   onRequestDelete,
   onSavePhone,
   onSaveSubject,
+  onSaveHomeroom,
   onRefresh,
 }) {
   const [fullName, setFullName] = useState('');
@@ -437,6 +450,11 @@ function TeacherManagementTab({
     const extras = (counselors ?? []).filter((row) => !ids.has(row.id));
     return [...teachers, ...extras];
   }, [teachers, counselors]);
+
+  const teacherNameById = useMemo(
+    () => Object.fromEntries(staffRoster.map((row) => [row.id, row.full_name ?? row.username])),
+    [staffRoster]
+  );
 
   const filteredTeachers = useMemo(() => {
     return staffRoster.filter((teacher) =>
@@ -550,6 +568,8 @@ function TeacherManagementTab({
                     key={teacher.id}
                     teacher={teacher}
                     profile={profile}
+                    classes={classes}
+                    teacherNameById={teacherNameById}
                     staffActionLoading={staffActionLoading}
                     canManageRoles={canManageRoles}
                     canDeleteStaff={canDeleteStaff}
@@ -559,6 +579,7 @@ function TeacherManagementTab({
                     onRequestDelete={onRequestDelete}
                     onSavePhone={onSavePhone}
                     onSaveSubject={onSaveSubject}
+                    onSaveHomeroom={onSaveHomeroom}
                   />
                 ))}
               </ul>
@@ -854,6 +875,76 @@ function StaffTeacherSubjectField({ teacher, disabled, onSave }) {
         Kaydet
       </button>
     </form>
+  );
+}
+
+function StaffTeacherHomeroomField({ teacher, classes, teacherNameById, disabled, onSave }) {
+  const currentIds = useMemo(
+    () => new Set(classes.filter((klass) => klass.homeroom_teacher_id === teacher.id).map((klass) => klass.id)),
+    [classes, teacher.id]
+  );
+  const [selected, setSelected] = useState(currentIds);
+
+  useEffect(() => {
+    setSelected(currentIds);
+  }, [currentIds]);
+
+  function toggle(classId) {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(classId)) next.delete(classId);
+      else next.add(classId);
+      return next;
+    });
+  }
+
+  const dirty =
+    selected.size !== currentIds.size || [...selected].some((id) => !currentIds.has(id));
+
+  if (!classes.length) return null;
+
+  return (
+    <div className="staff-teacher-item__homeroom">
+      <p className="dash-label-inline">Sınıf öğretmeni olduğu şubeler</p>
+      <ul className="cur-assign-chips" role="group" aria-label={`${teacher.full_name ?? 'Öğretmen'} sınıf öğretmenliği`}>
+        {classes.map((klass) => {
+          const label = formatClassLabel(klass.grade, klass.name);
+          const isSelected = selected.has(klass.id);
+          const otherHolderId =
+            klass.homeroom_teacher_id && klass.homeroom_teacher_id !== teacher.id
+              ? klass.homeroom_teacher_id
+              : null;
+          return (
+            <li key={klass.id}>
+              <button
+                type="button"
+                className={`cur-assign-chip${isSelected ? ' cur-assign-chip--active' : ''}`}
+                onClick={() => toggle(klass.id)}
+                disabled={disabled}
+              >
+                {label}
+                {otherHolderId ? (
+                  <span className="cur-assign-chip__note">
+                    {' '}
+                    · şu an: {teacherNameById[otherHolderId] ?? 'başka öğretmen'}
+                  </span>
+                ) : null}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      {dirty ? (
+        <button
+          type="button"
+          className="director-btn-secondary"
+          disabled={disabled}
+          onClick={() => onSave(teacher, [...selected])}
+        >
+          Kaydet
+        </button>
+      ) : null}
+    </div>
   );
 }
 
@@ -2055,6 +2146,27 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
     }
   }
 
+  async function handleSaveTeacherHomeroom(teacher, classIds) {
+    const label = teacher.full_name ?? teacher.email ?? 'Öğretmen';
+    setStaffActionLoading(true);
+    setStaffError(null);
+    setStaffSuccess(null);
+
+    try {
+      await setTeacherHomeroomClasses({ schoolId, teacherId: teacher.id, classIds });
+      setStaffSuccess(
+        classIds.length
+          ? `${label} sınıf öğretmenliği güncellendi.`
+          : `${label} artık hiçbir şubenin sınıf öğretmeni değil.`
+      );
+      await loadData();
+    } catch (error) {
+      setStaffError(error);
+    } finally {
+      setStaffActionLoading(false);
+    }
+  }
+
   const directorNav = useMemo(() => buildDirectorNav(school), [school]);
   const directorBottomNav = useMemo(() => buildDirectorBottomNav(school), [school]);
   const activeNavLabel = useMemo(
@@ -2298,6 +2410,7 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
             profile={profile}
             counselors={counselors}
             teachers={teachers}
+            classes={classes}
             loading={loading}
             loadError={loadError}
             staffActionLoading={staffActionLoading}
@@ -2313,6 +2426,7 @@ export default function DirectorDashboard({ profile, schoolId, onSignOut }) {
             onRequestDelete={requestStaffDelete}
             onSavePhone={handleSaveTeacherPhone}
             onSaveSubject={handleSaveTeacherSubject}
+            onSaveHomeroom={handleSaveTeacherHomeroom}
             onRefresh={loadData}
           />
         )}

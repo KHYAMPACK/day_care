@@ -11,6 +11,88 @@ import { normalizeProfileRoles } from './profileRoles';
  */
 export const STAFF_CHANGELOG = [
   {
+    id: '2026-09-18-sinif-ogretmeni',
+    title: 'Sınıf öğretmeni',
+    publishedOn: '2026-09-18',
+    intro:
+      'Bir şubenin sorumlu öğretmenini belirleyebilirsiniz. Sınıf öğretmeni, kendi şubesini tüm dersleriyle birlikte görür.',
+    items: [
+      {
+        title: 'Sınıf öğretmeni atama',
+        summary:
+          'Branşı olan bir öğretmene ek olarak şube sorumluluğu verilir. Bir öğretmen birden fazla şubenin sınıf öğretmeni olabilir; bir şubenin en fazla bir sınıf öğretmeni olur. Atama zorunlu değildir.',
+        steps: [
+          'Yönetim → Öğretmen Yönetimi.',
+          'Öğretmenin satırında «Sınıf öğretmeni olduğu şubeler» altından şubeleri seçin.',
+          'Kaydet’e basın. Başka öğretmene ait bir şubeyi seçerseniz sorumluluk size geçer.',
+        ],
+        roles: ['director'],
+      },
+      {
+        title: 'Sınıfım sekmesi',
+        summary:
+          'Sınıf öğretmeni olan öğretmenin panelinde «Sınıfım» sekmesi görünür. Birden fazla şube varsa üstten şube seçilir.',
+        steps: [
+          'Yoklama: şubenin tüm derslerdeki yoklaması ve öğrenci devam durumu.',
+          'Öğrenciler: şube listesi ve tam öğrenci dosyası.',
+          'Rehberlik: haftalık rehberlik planı araçları (geniş tablolar için bilgisayar gerekir).',
+          'Raporlar: deneme sonuç raporları. Deneme oluşturma ve düzenleme yoktur.',
+        ],
+        roles: ['director', 'teacher'],
+      },
+      {
+        title: 'Veliler açısından',
+        summary:
+          'Sınıf öğretmeni, velilerin «öğretmenle iletişim» listesinde görünür. Duyuruları, o şubede ders vermese bile şubenin velilerine ulaşır.',
+        roles: ['director', 'teacher'],
+      },
+    ],
+  },
+  {
+    id: '2026-09-18-yoklama-guncellemeleri',
+    title: 'Yoklama, kayıtlar ve veli bildirimi',
+    publishedOn: '2026-09-18',
+    intro:
+      'Atlas yoklamaları artık Kayıtlar’da görünüyor. Program boşken de yoklama alınabiliyor. Velilere günün ilk dersi bildirimi gidiyor.',
+    items: [
+      {
+        title: 'Kayıtlar → Yoklama Atlas’ta çalışıyor',
+        summary:
+          'Ders sekmesinden alınan yoklamalar Müdür panelinde Kayıtlar → Yoklama altında listelenir. Atlas’ta «konu tekrarı gereken» bölümü gösterilmez.',
+        roles: ['director'],
+      },
+      {
+        title: 'Okul kayıtlarında öğretmen işlemleri',
+        summary:
+          'Bugüne kadar okul kayıtlarında yalnızca müdür işlemleri görünüyordu. Artık öğretmen ve rehber işlemleri de kaydediliyor. Eski işlemler geriye dönük eklenmez.',
+        roles: ['director'],
+      },
+      {
+        title: 'Program boşsa da yoklama alınır',
+        summary:
+          'Haftalık programda o saat boşsa öğretmen kendi branşıyla yoklama alır ve program o saat için kendiliğinden dolar. Programda başka bir ders yazıyorsa öğretmene onay sorulur; kayıt öğretmenin dersi olarak tutulur ve plan değişmez.',
+        steps: [
+          'Ders sekmesinden şubeyi seçin ve yoklamayı kaydedin.',
+          'Planlı ders farklıysa açılan pencerede onaylayın.',
+          'Müdür: Haftalık ders programında o hücrenin altındaki turuncu not, o gün gerçekte hangi dersin işlendiğini gösterir.',
+        ],
+        roles: ['director', 'counselor', 'teacher'],
+      },
+      {
+        title: 'Velilere günün ilk dersi bildirimi',
+        summary:
+          'Günün ilk dersinin yoklaması kaydedilince velisine «geldi / gelmedi» bildirimi gider. Yalnızca o günkü canlı kayıtta gönderilir, günde bir kez; sonradan düzeltme veya telafi girişinde tekrar gitmez. Atlas’ta 1. ders, klasik yoklamada günün ilk kaydedilen yoklaması esas alınır. Veli bildirimleri açmış olmalıdır.',
+        roles: ['director', 'teacher'],
+      },
+      {
+        title: 'Sekme değişince sayfa başa dönüyor',
+        summary:
+          'Uzun bir sekmede aşağı kaydırıp kısa bir sekmeye geçince sayfa boş görünüyordu; artık her sekme değişiminde en üste dönüyor.',
+        roles: ['director', 'counselor', 'teacher'],
+      },
+    ],
+  },
+  {
     id: '2026-09-16-ogrenci-listesi-yoklama',
     title: 'Şubede öğrenci listesi ve yoklama bildirimi düzeltmesi',
     publishedOn: '2026-09-16',

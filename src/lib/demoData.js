@@ -5,6 +5,7 @@ export function firstName(fullName, fallback = 'Elif') {
 }
 
 export const HOMEWORK_TAB = { id: 'homework', label: 'Ödev', icon: 'clipboard' };
+export const HOMEROOM_TAB = { id: 'homeroom', label: 'Sınıfım', icon: 'star' };
 
 export const PARENT_SCHEDULE_TAB = { id: 'schedule', label: 'Program', icon: 'book' };
 
@@ -56,9 +57,15 @@ function withHomeworkTab(tabs, homeworkTracking) {
   return next;
 }
 
-export function getTeacherTabs(atlasSchedule, homeworkTracking = false) {
+function withHomeroomTab(tabs, hasHomeroom) {
+  if (!hasHomeroom) return tabs;
+  if (tabs.some((tab) => tab.id === HOMEROOM_TAB.id)) return tabs;
+  return [tabs[0], HOMEROOM_TAB, ...tabs.slice(1)];
+}
+
+export function getTeacherTabs(atlasSchedule, homeworkTracking = false, hasHomeroom = false) {
   const tabs = atlasSchedule ? ATLAS_TEACHER_TABS : TEACHER_TABS;
-  return withHomeworkTab(tabs, homeworkTracking);
+  return withHomeroomTab(withHomeworkTab(tabs, homeworkTracking), hasHomeroom);
 }
 
 export function getParentTabs({ homeworkTracking = false, atlasSchedule = false } = {}) {

@@ -14,7 +14,7 @@ export function formatAcademicYearLabel(anchor = ACADEMIC_YEAR_ANCHOR) {
 
 export const SUBJECT_SELECT = 'id, grade, slug, name, color, icon, sort_order';
 export const UNIT_SELECT = 'id, subject_id, title, sort_order, sections, duration_weeks';
-export const CLASS_SELECT = 'id, school_id, grade, name';
+export const CLASS_SELECT = 'id, school_id, grade, name, homeroom_teacher_id';
 export const ASSIGNMENT_ROW_SELECT = 'id, teacher_id, class_id, subject_id, created_at';
 export const PROGRESS_SELECT =
   'id, school_id, student_id, unit_id, completed, questions_solved, source, updated_at';
