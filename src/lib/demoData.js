@@ -63,9 +63,9 @@ function withHomeroomTab(tabs, hasHomeroom) {
   return [tabs[0], HOMEROOM_TAB, ...tabs.slice(1)];
 }
 
-export function getTeacherTabs(atlasSchedule, homeworkTracking = false, hasHomeroom = false) {
+export function getTeacherTabs(atlasSchedule, hasHomeroom = false) {
   const tabs = atlasSchedule ? ATLAS_TEACHER_TABS : TEACHER_TABS;
-  return withHomeroomTab(withHomeworkTab(tabs, homeworkTracking), hasHomeroom);
+  return withHomeroomTab(tabs, hasHomeroom);
 }
 
 export function getParentTabs({ homeworkTracking = false, atlasSchedule = false } = {}) {

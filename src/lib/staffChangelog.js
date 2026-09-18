@@ -20,11 +20,11 @@ export const STAFF_CHANGELOG = [
       {
         title: 'Sınıf öğretmeni atama',
         summary:
-          'Branşı olan bir öğretmene ek olarak şube sorumluluğu verilir. Bir öğretmen birden fazla şubenin sınıf öğretmeni olabilir; bir şubenin en fazla bir sınıf öğretmeni olur. Atama zorunlu değildir.',
+          'Öğretmen Yönetimi’nde ayrı bir «Sınıf öğretmenleri» bölümü var (varsayılan kapalı). Her şubenin yanından bir öğretmen seçilir. Bir şubenin en fazla bir sınıf öğretmeni olur; aynı öğretmen birden fazla şubede olabilir. Atama zorunlu değildir.',
         steps: [
-          'Yönetim → Öğretmen Yönetimi.',
-          'Öğretmenin satırında «Sınıf öğretmeni olduğu şubeler» altından şubeleri seçin.',
-          'Kaydet’e basın. Başka öğretmene ait bir şubeyi seçerseniz sorumluluk size geçer.',
+          'Yönetim → Öğretmen Yönetimi → «Sınıf öğretmenleri» bölümünü açın.',
+          'Şubenin yanındaki listeden öğretmeni seçin ve Kaydet’e basın.',
+          'Sınıf öğretmenini kaldırmak için «Atanmamış» seçip kaydedin.',
         ],
         roles: ['director'],
       },
@@ -89,6 +89,12 @@ export const STAFF_CHANGELOG = [
         summary:
           'Uzun bir sekmede aşağı kaydırıp kısa bir sekmeye geçince sayfa boş görünüyordu; artık her sekme değişiminde en üste dönüyor.',
         roles: ['director', 'counselor', 'teacher'],
+      },
+      {
+        title: 'Öğretmen panelinden Ödev sekmesi kaldırıldı',
+        summary:
+          'Öğretmen panelinde artık Ödev sekmesi yok. Veli panelindeki ödev bölümü aynen duruyor.',
+        roles: ['director', 'teacher'],
       },
     ],
   },

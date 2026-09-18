@@ -17,18 +17,13 @@ export async function loadHomeroomClasses(schoolId, teacherId) {
   return data ?? [];
 }
 
-export async function setTeacherHomeroomClasses({ schoolId, teacherId, classIds }) {
-  const { error: clearError } = await withSchoolFilter(
-    supabase.from('classes').update({ homeroom_teacher_id: null }).eq('homeroom_teacher_id', teacherId),
+export async function setClassHomeroomTeacher({ schoolId, classId, teacherId }) {
+  const { error } = await withSchoolFilter(
+    supabase
+      .from('classes')
+      .update({ homeroom_teacher_id: teacherId || null })
+      .eq('id', classId),
     schoolId
   );
-  if (clearError) throw clearError;
-
-  if (!classIds.length) return;
-
-  const { error: setError } = await withSchoolFilter(
-    supabase.from('classes').update({ homeroom_teacher_id: teacherId }).in('id', classIds),
-    schoolId
-  );
-  if (setError) throw setError;
+  if (error) throw error;
 }

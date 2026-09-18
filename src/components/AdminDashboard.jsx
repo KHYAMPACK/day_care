@@ -16,7 +16,7 @@ import {
 } from './dashboardUi';
 import { formatRelativeTimeTr } from '../utils/formatTime';
 import { getTeacherTabs, defaultTeacherTab } from '../lib/demoData';
-import { hasAtlasSchedule, hasHomeworkTracking } from '../lib/schoolFeatures';
+import { hasAtlasSchedule } from '../lib/schoolFeatures';
 import { loadStudentsForTeacherAssignments } from '../lib/curriculum';
 import { loadHomeroomClasses } from '../lib/homeroom';
 import TeacherHomeroomTab from './homeroom/TeacherHomeroomTab';
@@ -30,7 +30,6 @@ import AcademicCalendar from './calendar/AcademicCalendar';
 import TeacherCurriculum from './curriculum/TeacherCurriculum';
 import TeacherClassTimetable from './curriculum/TeacherClassTimetable';
 import TeacherAttendance from './attendance/TeacherAttendance';
-import TeacherHomework from './homework/TeacherHomework';
 import TeacherAtlasLessons from './atlas/TeacherAtlasLessons';
 import TeacherAtlasQuestions from './atlas/TeacherAtlasQuestions';
 import {
@@ -153,11 +152,10 @@ function StudentPicker({
 export default function AdminDashboard({ profile, schoolId, onSignOut }) {
   const { school } = useAuth();
   const atlasSchedule = hasAtlasSchedule(school);
-  const homeworkTracking = hasHomeworkTracking(school);
   const [homeroomClasses, setHomeroomClasses] = useState([]);
   const teacherTabs = useMemo(
-    () => getTeacherTabs(atlasSchedule, homeworkTracking, homeroomClasses.length > 0),
-    [atlasSchedule, homeworkTracking, homeroomClasses.length]
+    () => getTeacherTabs(atlasSchedule, homeroomClasses.length > 0),
+    [atlasSchedule, homeroomClasses.length]
   );
   const [catchUpPreset, setCatchUpPreset] = useState(null);
   const [questionsCatchUp, setQuestionsCatchUp] = useState(null);
@@ -536,8 +534,6 @@ export default function AdminDashboard({ profile, schoolId, onSignOut }) {
           <AcademicCalendar schoolId={schoolId} viewerGrades={viewerGrades.length ? viewerGrades : null} />
         ) : demoNav.tab === 'curriculum' ? (
           <TeacherCurriculum profile={profile} schoolId={schoolId} atlasSchedule={atlasSchedule} />
-        ) : demoNav.tab === 'homework' ? (
-          <TeacherHomework profile={profile} schoolId={schoolId} atlasSchedule={atlasSchedule} />
         ) : demoNav.tab === 'schedule' ? (
           <TeacherClassTimetable schoolId={schoolId} />
         ) : demoNav.tab === 'lessons' ? (

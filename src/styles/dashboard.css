@@ -9950,21 +9950,6 @@ body {
   flex: 1;
 }
 
-.staff-teacher-item__homeroom {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-
-.staff-teacher-item__homeroom .cur-assign-chips {
-  margin-bottom: 0;
-}
-
-.cur-assign-chip__note {
-  font-weight: 500;
-  opacity: 0.75;
-}
-
 @media (max-width: 520px) {
   .atlas-slot-strip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
